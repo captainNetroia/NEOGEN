@@ -1,0 +1,15 @@
+# Sous-produits generes par l'organisme (pas du code source)
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS / editeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
