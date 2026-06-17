@@ -23,11 +23,13 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-17.
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 import registre
 from executeur_conteneur import docker_disponible
 from pipeline import fabriquer_reel
+from ui import PAGE
 
 app = FastAPI(
     title="VIVARIUM",
@@ -52,12 +54,18 @@ class ReponseFabrication(BaseModel):
     produit_id: str | None = None
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def racine():
+    """Page humaine de l'organisme : decrire une intention, voir le produit + le catalogue."""
+    return PAGE
+
+
+@app.get("/info")
+def info():
     return {
         "service": "VIVARIUM",
         "version": "5.0",
-        "endpoints": ["/fabriquer (POST)", "/produits", "/produits/{id}", "/health"],
+        "endpoints": ["/ (UI)", "/fabriquer (POST)", "/produits", "/produits/{id}", "/health", "/info"],
     }
 
 
