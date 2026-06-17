@@ -20,6 +20,8 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-17.
 from __future__ import annotations
 import subprocess
 
+from capacites import FLAGS_INVARIANTS, Capacites
+
 IMAGE = "python:3.12-slim"
 
 
@@ -46,35 +48,63 @@ def image_presente() -> bool:
         return False
 
 
-def executer_en_conteneur(code: str, timeout: int = 25):
+def _preparer_volume(nom: str, point: str = "/data") -> None:
     """
-    Execute le code dans un conteneur Docker durci.
-    Renvoie (code_retour, stdout, stderr, chemin) comme executer_isole de usine.py.
+    Cree le volume nomme (idempotent) et donne sa propriete a l'utilisateur non-root
+    du produit (65534). Le chown est un SETUP CREATEUR : root, jetable, sur un volume
+    isole uniquement, jamais sur l'hote. Sans lui, le produit non-root ne peut ecrire.
+    """
+    subprocess.run(["docker", "volume", "create", nom], capture_output=True, text=True, timeout=15)
+    subprocess.run(
+        ["docker", "run", "--rm", "--network", "none", "--user", "0:0",
+         "-v", f"{nom}:{point}", IMAGE, "chown", "-R", "65534:65534", point],
+        capture_output=True, text=True, timeout=40,
+    )
 
-    Le code est passe par STDIN (`python -`), PAS par un bind-mount : un bind-mount
-    est resolu par le demon HOTE, donc un chemin interne au conteneur appelant
-    (cas du service API) serait invisible cote hote. Stdin marche dans les deux cas
-    (hote ou conteneur) et evite tout montage du systeme de fichiers.
+
+def executer_en_conteneur(code: str, timeout: int = 25,
+                          cap: Capacites | None = None, volume_nom: str | None = None):
     """
-    cmd = [
-        "docker", "run", "--rm", "-i",             # -i : stdin branche
-        "--network", "none",                       # aucun reseau
-        "--read-only",                             # fs racine en lecture seule
-        "--tmpfs", "/tmp:rw,size=32m",             # scratch jetable
-        "--memory", "256m", "--cpus", "0.5",       # limites ressources
-        "--pids-limit", "64",
-        "--cap-drop", "ALL",                       # zero capability
-        "--security-opt", "no-new-privileges",
-        "--user", "65534:65534",                   # nobody : non-root
-        "-e", "PYTHONIOENCODING=utf-8",
-        IMAGE,
-        "python", "-",                             # lit le programme sur stdin
-    ]
+    Execute le code dans un conteneur Docker, avec une isolation GRADUEE selon les
+    capacites accordees au produit (cf. capacites.py). Les invariants du createur
+    (FLAGS_INVARIANTS) sont TOUJOURS appliques : non-root, zero capability, ressources
+    bornees, ephemere, racine en lecture seule.
+
+    Renvoie (code_retour, stdout, stderr, chemin), comme executer_isole de usine.py.
+
+    Le code passe par STDIN (`python -`), jamais par un bind-mount (un bind-mount est
+    resolu par le demon HOTE, donc invisible depuis le conteneur API). La PERSISTANCE
+    accordee utilise un VOLUME NOMME (gere par le demon -> marche aussi en sibling).
+
+    NIVEAU 1 (createur) : toujours actif. NIVEAU 2 (produit) : seulement si accorde.
+    """
+    cap = cap or Capacites()
+
+    # RESEAU : invariant DevSecOps -> aucune sortie brute. Tant que la liste blanche
+    # n'est pas appliquee par un proxy d'egress, on REFUSE d'ouvrir le reseau (on ne
+    # viole pas l'invariant en silence). La capacite reste declarable ; son execution
+    # reelle arrive a l'etape suivante (proxy d'egress + reseau interne).
+    if cap.reseau:
+        return (-2, "",
+                "RESEAU accorde mais enforcement liste blanche pas encore actif "
+                "(proxy d'egress = prochaine etape). Execution reseau refusee par securite.",
+                "<reseau>")
+
+    cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]
+
+    # PERSISTANCE : volume nomme isole monte sur le point d'ancrage accorde.
+    if cap.persistance:
+        if not volume_nom:
+            return (-2, "", "PERSISTANCE accordee mais aucun volume nomme fourni.", "<persistance>")
+        _preparer_volume(volume_nom, cap.chemin_persistance)
+        cmd += ["-v", f"{volume_nom}:{cap.chemin_persistance}:rw"]
+
+    cmd += ["-e", "PYTHONIOENCODING=utf-8", IMAGE, "python", "-"]
+
     try:
         r = subprocess.run(cmd, input=code, capture_output=True, text=True, timeout=timeout)
-        return r.returncode, r.stdout, r.stderr, "<stdin>"
+        return r.returncode, r.stdout, r.stderr, ("<volume:" + volume_nom + ">" if cap.persistance else "<stdin>")
     except subprocess.TimeoutExpired:
-        # le --rm nettoie le conteneur ; on signale le depassement
         return -1, "", f"TIMEOUT conteneur apres {timeout}s", "<stdin>"
 
 
