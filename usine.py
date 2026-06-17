@@ -88,9 +88,20 @@ def scan_statique(code: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Couche 3 : execution isolee (processus separe, dossier temp, timeout)
+# Couche 3 : execution isolee
+#   - de preference : conteneur Docker durci (isolation industrielle, sans reseau)
+#   - sinon (Docker eteint) : repli sur processus separe + dossier temp + timeout
 # ---------------------------------------------------------------------------
 def executer_isole(code: str, timeout: int = 20):
+    # Tentative d'isolation industrielle via conteneur Docker
+    try:
+        from executeur_conteneur import docker_disponible, image_presente, executer_en_conteneur
+        ok, _ = docker_disponible()
+        if ok and image_presente():
+            return executer_en_conteneur(code, timeout=max(timeout, 25))
+    except Exception:
+        pass
+    # Repli : isolation processus
     d = tempfile.mkdtemp(prefix="vivarium_usine_")
     chemin = os.path.join(d, "produit.py")
     with open(chemin, "w", encoding="utf-8") as f:
