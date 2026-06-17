@@ -23,9 +23,10 @@ import glob
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
-from matiere import Matiere, DEFAUT
+from matiere import DEFAUT
 from apprentissage import apprendre
-from invention import inventer
+from invention import inventer, LoiSynthetisee
+from selection import selectionner, CORPUS as ETALON
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DOSSIER = os.path.join(BASE, "data", "generations")
@@ -103,6 +104,13 @@ def engendrer(parent: Generation, acquisitions: Patrimoine, resume: str) -> Gene
     vocabulaire = p.vocabulaire + [v for v in acquisitions.vocabulaire if v not in p.vocabulaire]
     lecons = p.lecons + [l for l in acquisitions.lecons if l not in p.lecons]
 
+    # SELECTION darwinienne : on ne transmet que les lois qui survivent au jugement
+    if lois:
+        objets = [LoiSynthetisee(tuple(l["conditions"]), l["effet"]) for l in lois]
+        gardees, _ = selectionner(objets)
+        cles_ok = {(tuple(g.conditions), g.effet) for g, _ in gardees}
+        lois = [l for l in lois if (tuple(l["conditions"]), l["effet"]) in cles_ok]
+
     enfant = Generation(
         numero=parent.numero + 1,
         parent=parent.numero,
@@ -131,40 +139,27 @@ def _lecons_du_journal() -> list[str]:
     return out
 
 
-# Matieres de reference pour les manques que les generations affrontent
-_eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)
-_eau2 = Matiere("eau2", 0.55, 0.9, 0.2, 0.6, -0.3)
-_feu = Matiere("feu", 0.2, 0.7, 1.0, 0.3, -0.2)
-_huile = Matiere("huile", 0.5, 0.8, 0.25, 0.5, 0.4)
-_glace = Matiere("glace", 0.6, 0.1, 0.0, 0.8, -0.2)
-_pierre = Matiere("pierre", 0.85, 0.05, 0.25, 0.9, 0.1)
-_metal_a = Matiere("metal_a", 0.9, 0.2, 0.3, 0.9, 0.5)
-_metal_b = Matiere("metal_b", 0.9, 0.2, 0.3, 0.9, 0.5)
-
-# Chaque generation affronte un manque DIFFERENT -> le patrimoine de lois s'enrichit
-GAPS = [
-    {"label": "la fonte (FONTE)", "a": _glace, "b": _feu, "tag": "FONTE",
-     "interdits": [(_eau, _feu), (_eau, _huile)]},
-    {"label": "la vaporisation (REACTION)", "a": _eau, "b": _feu, "tag": "REACTION",
-     "interdits": [(_eau, _huile), (_glace, _pierre)]},
-    {"label": "la fusion des solides (FUSION)", "a": _metal_a, "b": _metal_b, "tag": "FUSION",
-     "interdits": [(_eau, _huile), (_eau, _eau2)]},
-]
-
-
 def vivre(numero_a_naitre: int) -> tuple[Patrimoine, str]:
     # 1. calibrer sa physique (apprentissage reel)
     physique = asdict(apprendre(DEFAUT))
-    # 2. affronter le manque propre a cette generation, inventer la loi qui le comble
-    gap = GAPS[(numero_a_naitre - 1) % len(GAPS)]
-    loi = inventer((gap["a"], gap["b"]), gap["tag"], gap["interdits"])
-    lois = ([{"conditions": list(loi.conditions), "effet": loi.effet, "lisible": loi.humain()}]
-            if loi else [])
-    # 3. retenir les lecons du journal + une marque datee de cette generation
+    # 2. affronter un cas de l'ETALON, en inventant une loi PRECISE :
+    #    interdits = TOUS les autres cas de l'etalon. La loi ne doit se declencher
+    #    que sur sa cible, sinon elle sera elaguee au jugement (selection).
+    label, a, b, tags = ETALON[(numero_a_naitre - 1) % len(ETALON)]
+    tag = next(iter(tags))
+    interdits = [(x, y) for (lab, x, y, _) in ETALON if lab != label]
+    loi = inventer((a, b), tag, interdits)
+    if loi:
+        lois = [{"conditions": list(loi.conditions), "effet": loi.effet, "lisible": loi.humain()}]
+        statut = loi.humain()
+    else:
+        lois = []
+        statut = (f"AUCUNE loi precise trouvee pour {tag} "
+                  f"(vocabulaire insuffisant -> il faudrait que vocabulaire_vivant forge une brique)")
+    # 3. retenir les lecons du journal + le compte-rendu de cette generation
     lecons = _lecons_du_journal()
-    lecons.append(f"Generation {numero_a_naitre} a affronte {gap['label']} le "
-                  f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    return Patrimoine(physique=physique, lois=lois, vocabulaire=[], lecons=lecons), gap["label"]
+    lecons.append(f"Generation {numero_a_naitre} face a '{label}' ({tag}) : {statut}")
+    return Patrimoine(physique=physique, lois=lois, vocabulaire=[], lecons=lecons), f"{label} ({tag})"
 
 
 # ---------------------------------------------------------------------------
