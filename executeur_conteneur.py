@@ -18,9 +18,7 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-17.
 """
 
 from __future__ import annotations
-import os
 import subprocess
-import tempfile
 
 IMAGE = "python:3.12-slim"
 
@@ -52,14 +50,14 @@ def executer_en_conteneur(code: str, timeout: int = 25):
     """
     Execute le code dans un conteneur Docker durci.
     Renvoie (code_retour, stdout, stderr, chemin) comme executer_isole de usine.py.
-    """
-    d = tempfile.mkdtemp(prefix="vivarium_docker_")
-    chemin = os.path.join(d, "produit.py")
-    with open(chemin, "w", encoding="utf-8") as f:
-        f.write(code)
 
+    Le code est passe par STDIN (`python -`), PAS par un bind-mount : un bind-mount
+    est resolu par le demon HOTE, donc un chemin interne au conteneur appelant
+    (cas du service API) serait invisible cote hote. Stdin marche dans les deux cas
+    (hote ou conteneur) et evite tout montage du systeme de fichiers.
+    """
     cmd = [
-        "docker", "run", "--rm",
+        "docker", "run", "--rm", "-i",             # -i : stdin branche
         "--network", "none",                       # aucun reseau
         "--read-only",                             # fs racine en lecture seule
         "--tmpfs", "/tmp:rw,size=32m",             # scratch jetable
@@ -68,18 +66,16 @@ def executer_en_conteneur(code: str, timeout: int = 25):
         "--cap-drop", "ALL",                       # zero capability
         "--security-opt", "no-new-privileges",
         "--user", "65534:65534",                   # nobody : non-root
-        "-v", f"{d}:/sandbox:ro",                  # code monte en lecture seule
-        "-w", "/sandbox",
         "-e", "PYTHONIOENCODING=utf-8",
         IMAGE,
-        "python", "/sandbox/produit.py",
+        "python", "-",                             # lit le programme sur stdin
     ]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return r.returncode, r.stdout, r.stderr, chemin
+        r = subprocess.run(cmd, input=code, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, r.stdout, r.stderr, "<stdin>"
     except subprocess.TimeoutExpired:
         # le --rm nettoie le conteneur ; on signale le depassement
-        return -1, "", f"TIMEOUT conteneur apres {timeout}s", chemin
+        return -1, "", f"TIMEOUT conteneur apres {timeout}s", "<stdin>"
 
 
 if __name__ == "__main__":
