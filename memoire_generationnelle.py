@@ -23,7 +23,7 @@ import glob
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
-from matiere import Matiere, Physique, DEFAUT
+from matiere import Matiere, DEFAUT
 from apprentissage import apprendre
 from invention import inventer
 
@@ -131,21 +131,40 @@ def _lecons_du_journal() -> list[str]:
     return out
 
 
-def vivre(numero_a_naitre: int) -> Patrimoine:
+# Matieres de reference pour les manques que les generations affrontent
+_eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)
+_eau2 = Matiere("eau2", 0.55, 0.9, 0.2, 0.6, -0.3)
+_feu = Matiere("feu", 0.2, 0.7, 1.0, 0.3, -0.2)
+_huile = Matiere("huile", 0.5, 0.8, 0.25, 0.5, 0.4)
+_glace = Matiere("glace", 0.6, 0.1, 0.0, 0.8, -0.2)
+_pierre = Matiere("pierre", 0.85, 0.05, 0.25, 0.9, 0.1)
+_metal_a = Matiere("metal_a", 0.9, 0.2, 0.3, 0.9, 0.5)
+_metal_b = Matiere("metal_b", 0.9, 0.2, 0.3, 0.9, 0.5)
+
+# Chaque generation affronte un manque DIFFERENT -> le patrimoine de lois s'enrichit
+GAPS = [
+    {"label": "la fonte (FONTE)", "a": _glace, "b": _feu, "tag": "FONTE",
+     "interdits": [(_eau, _feu), (_eau, _huile)]},
+    {"label": "la vaporisation (REACTION)", "a": _eau, "b": _feu, "tag": "REACTION",
+     "interdits": [(_eau, _huile), (_glace, _pierre)]},
+    {"label": "la fusion des solides (FUSION)", "a": _metal_a, "b": _metal_b, "tag": "FUSION",
+     "interdits": [(_eau, _huile), (_eau, _eau2)]},
+]
+
+
+def vivre(numero_a_naitre: int) -> tuple[Patrimoine, str]:
     # 1. calibrer sa physique (apprentissage reel)
     physique = asdict(apprendre(DEFAUT))
-    # 2. inventer une loi pour un manque (invention reelle)
-    glace = Matiere("glace", 0.6, 0.1, 0.0, 0.8, -0.2)
-    feu = Matiere("feu", 0.2, 0.7, 1.0, 0.3, -0.2)
-    eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)
-    huile = Matiere("huile", 0.5, 0.8, 0.25, 0.5, 0.4)
-    loi = inventer((glace, feu), "FONTE", [(eau, feu), (eau, huile)])
+    # 2. affronter le manque propre a cette generation, inventer la loi qui le comble
+    gap = GAPS[(numero_a_naitre - 1) % len(GAPS)]
+    loi = inventer((gap["a"], gap["b"]), gap["tag"], gap["interdits"])
     lois = ([{"conditions": list(loi.conditions), "effet": loi.effet, "lisible": loi.humain()}]
             if loi else [])
-    # 3. retenir les lecons du journal d'erreurs + une marque de cette generation
+    # 3. retenir les lecons du journal + une marque datee de cette generation
     lecons = _lecons_du_journal()
-    lecons.append(f"Generation {numero_a_naitre} a vecu le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    return Patrimoine(physique=physique, lois=lois, vocabulaire=[], lecons=lecons)
+    lecons.append(f"Generation {numero_a_naitre} a affronte {gap['label']} le "
+                  f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    return Patrimoine(physique=physique, lois=lois, vocabulaire=[], lecons=lecons), gap["label"]
 
 
 # ---------------------------------------------------------------------------
@@ -162,11 +181,11 @@ def main():
           f"{len(parent.patrimoine.lecons)} lecon(s), "
           f"physique {'transmise' if parent.patrimoine.physique else 'vide (origine)'}.")
 
-    acquis = vivre(parent.numero + 1)
+    acquis, manque = vivre(parent.numero + 1)
     enfant = engendrer(parent, acquis,
-                       resume=f"A calibre sa physique, porte {len(acquis.lois)} loi(s), retenu des lecons.")
-    print(f"\n[VIE] Cette generation a acquis : {len(acquis.lois)} loi(s) inventee(s), "
-          f"{len(acquis.lecons)} lecon(s).")
+                       resume=f"A affronte {manque}, en a tire {len(acquis.lois)} loi(s) nouvelle(s).")
+    print(f"\n[VIE] Cette generation a affronte : {manque}")
+    print(f"      Elle en a tire {len(acquis.lois)} loi(s) inventee(s).")
     print(f"[TRANSMISSION] Generation {enfant.numero} engendree et sauvegardee.")
     print(f"  Patrimoine transmis : {len(enfant.patrimoine.lois)} loi(s) cumulees, "
           f"{len(enfant.patrimoine.lecons)} lecon(s) cumulees.")
