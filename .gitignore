@@ -8,6 +8,9 @@ __pycache__/
 .venv/
 venv/
 
+# Secrets : la cle Claude passe par variable d'env / credentials, jamais commitee
+.env
+
 # OS / editeurs
 .DS_Store
 Thumbs.db

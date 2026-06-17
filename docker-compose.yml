@@ -1,0 +1,29 @@
+# VIVARIUM - orchestration du service API
+#
+# ATTENTION SECURITE : ce service monte le socket Docker de l'hote pour pouvoir
+# creer les conteneurs-bacs-a-sable du code genere. Cela donne au conteneur de
+# l'API un controle root-equivalent du Docker hote.
+#   -> A LANCER SUR UNE MACHINE DEDIEE UNIQUEMENT.
+#   -> JAMAIS sur le VPS de production (187.124.36.81 / netroia.tech / n8n).
+#
+# Prerequis sur l'hote : Docker, et l'image de bac a sable presente :
+#   docker pull python:3.12-slim
+#
+# Lancement :
+#   ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+# (ou definir ANTHROPIC_API_KEY dans un fichier .env a cote, non commite)
+
+services:
+  vivarium-api:
+    build: .
+    container_name: vivarium-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      # socket Docker : permet de lancer les conteneurs durcis du code genere
+      - /var/run/docker.sock:/var/run/docker.sock
+      # persistance des produits fabriques (registre + code) sur l'hote
+      - ./data:/app/data
+    restart: unless-stopped
