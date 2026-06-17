@@ -33,6 +33,7 @@ class Resultat:
     tentatives: int
     lignes: int
     lecons: list = field(default_factory=list)
+    code: str = ""
 
 
 def _ledger(entree: dict):
@@ -48,7 +49,7 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
     """
     adn = forger_fn(intention)
     feedback, lecons = None, []
-    succes, verdict, lignes = False, "non execute", 0
+    succes, verdict, lignes, code_final = False, "non execute", 0, ""
 
     for t in range(1, max_tentatives + 1):
         module = generer_fn(adn, feedback)
@@ -74,7 +75,7 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
 
         rc, out, err, _ = executer_isole(module.code)
         if rc == 0:
-            succes, verdict = True, f"execute OK (tentative {t})"
+            succes, verdict, code_final = True, f"execute OK (tentative {t})", module.code
             break
         derniere = err.strip().splitlines()[-1] if err.strip() else "echec"
         lecons.append(f"execution: {derniere}")
@@ -93,7 +94,49 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
         engendrer(parent, Patrimoine(lecons=lecons),
                   resume=f"production '{intention[:40]}' : {'succes' if succes else 'echec'}")
 
-    return Resultat(succes, verdict, t, lignes, lecons)
+    return Resultat(succes, verdict, t, lignes, lecons, code_final)
+
+
+# ---------------------------------------------------------------------------
+# PRODUCTION REELLE : branche le vrai generateur Claude sur le pipeline.
+# Remplace les 7 variantes usine_* : un seul chemin, un seul orchestrateur.
+# ---------------------------------------------------------------------------
+_CLIENT = None
+
+
+def _client():
+    """Client anthropic paresseux : cree une seule fois, au premier besoin reel."""
+    global _CLIENT
+    if _CLIENT is None:
+        import anthropic
+        from generator import _load_api_key
+        _CLIENT = anthropic.Anthropic(api_key=_load_api_key())
+    return _CLIENT
+
+
+def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True) -> Resultat:
+    """
+    Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
+    -> 3 garde-fous -> execution -> auto-reparation -> ledger + lignee.
+    Un produit qui TOURNE est persiste au registre (rechargeable).
+    """
+    from compositeur import forger_adn
+    from usine_autoreparation import generer as generer_reel
+
+    client = _client()
+    forger = lambda intention: forger_adn(intention, client)
+    generer = lambda adn, feedback=None: generer_reel(adn, client, feedback)
+
+    r = fabriquer(intention, forger, generer,
+                  reparer=reparer, max_tentatives=max_tentatives, tracer=True)
+
+    if enregistrer and r.succes and r.code:
+        import registre
+        entree = registre.enregistrer(intention, r.code,
+                                      verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes)
+        print(f"  [REGISTRE] produit enregistre : {entree['id']}")
+
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -137,4 +180,15 @@ def smoke_test() -> bool:
 
 if __name__ == "__main__":
     import sys
-    sys.exit(0 if smoke_test() else 1)
+    if len(sys.argv) > 1:
+        intention = " ".join(sys.argv[1:])
+        print("=" * 60)
+        print(f"VIVARIUM - PRODUCTION REELLE : '{intention}'")
+        print("=" * 60)
+        r = fabriquer_reel(intention)
+        print(f"\n  succes={r.succes} | {r.verdict} | {r.tentatives} tentative(s) | {r.lignes} lignes")
+        if r.lecons:
+            print("  lecons :", " | ".join(r.lecons))
+        sys.exit(0 if r.succes else 1)
+    else:
+        sys.exit(0 if smoke_test() else 1)
