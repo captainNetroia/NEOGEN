@@ -57,6 +57,16 @@ _TEMPLATE = r"""<!doctype html>
   pre { background:#0d131c; border:1px solid var(--line); border-radius:10px; padding:14px;
         overflow:auto; font:13px/1.5 ui-monospace,Consolas,monospace; color:#c9d6e3; white-space:pre-wrap;
         word-break:break-word; }
+  #resultat h3 { font-size:14px; color:var(--acc); letter-spacing:.5px; margin:18px 0 8px; text-transform:capitalize; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .stat { background:#0d131c; border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .stat .sv { font-size:22px; font-weight:700; color:var(--acc); }
+  .stat .sl { font-size:12px; color:var(--mut); margin-top:4px; text-transform:capitalize; }
+  .tbl { overflow-x:auto; border:1px solid var(--line); border-radius:12px; margin-top:6px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--mut); font-weight:600; text-transform:capitalize; background:#0d131c; }
+  tbody tr:last-child td { border-bottom:0; }
   .footer { color:var(--mut); font-size:12px; text-align:center; margin-top:22px; }
 </style>
 </head>
@@ -150,11 +160,39 @@ function collecte() {
   return d;
 }
 
-function renduResultat(r) {
-  if (!r.ok) return '<div class="panel"><span class="tag ko">erreur</span> ' +
-    (r.erreur||r.detail||'').toString().replace(/[<>]/g,'') + '</div>';
-  return '<div class="panel"><span class="tag ok">resultat</span><pre>' +
-    JSON.stringify(r.resultat, null, 2).replace(/[<>]/g,'') + '</pre></div>';
+function esc(s){ return String(s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+function fmtNum(n){ if (typeof n !== 'number') return esc(n);
+  const v = Number.isInteger(n) ? n : Math.round(n*100)/100; return v.toLocaleString('fr-FR'); }
+function isObj(x){ return x && typeof x === 'object' && !Array.isArray(x); }
+function statCards(obj){
+  let h = '<div class="stats">';
+  for (const k in obj){ const v = obj[k]; if (isObj(v) || Array.isArray(v)) continue;
+    h += '<div class="stat"><div class="sv">' + (typeof v==='number'?fmtNum(v):esc(v)) +
+         '</div><div class="sl">' + esc(k.replace(/_/g,' ')) + '</div></div>'; }
+  return h + '</div>';
+}
+function tableRows(arr){
+  const cols = [...new Set(arr.flatMap(o => isObj(o) ? Object.keys(o) : []))];
+  if (!cols.length) return '<pre>' + esc(JSON.stringify(arr, null, 2)) + '</pre>';
+  let h = '<div class="tbl"><table><thead><tr>' +
+    cols.map(c => '<th>' + esc(c.replace(/_/g,' ')) + '</th>').join('') + '</tr></thead><tbody>';
+  arr.forEach(o => { h += '<tr>' + cols.map(c => { const v = o[c];
+    return '<td>' + (typeof v==='number'?fmtNum(v):esc(v==null?'':v)) + '</td>'; }).join('') + '</tr>'; });
+  return h + '</tbody></table></div>';
+}
+function rendValeur(v){
+  if (Array.isArray(v)) return (v.length && v.every(isObj)) ? tableRows(v) : '<pre>' + esc(JSON.stringify(v, null, 2)) + '</pre>';
+  if (isObj(v)){ const scal = {}, nest = {};
+    for (const k in v){ (isObj(v[k]) || Array.isArray(v[k])) ? nest[k]=v[k] : scal[k]=v[k]; }
+    let h = ''; if (Object.keys(scal).length) h += statCards(scal);
+    for (const k in nest){ h += '<h3>' + esc(k.replace(/_/g,' ')) + '</h3>' + rendValeur(nest[k]); }
+    return h;
+  }
+  return '<p>' + esc(v) + '</p>';
+}
+function renduResultat(r){
+  if (!r.ok) return '<div class="panel"><span class="tag ko">erreur</span> ' + esc(r.erreur || r.detail || '') + '</div>';
+  return '<div class="panel"><span class="tag ok">resultat</span>' + rendValeur(r.resultat) + '</div>';
 }
 
 $('#go').onclick = async () => {

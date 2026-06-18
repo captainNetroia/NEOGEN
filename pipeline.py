@@ -89,14 +89,15 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
             break
 
     if tracer:
+        from sanitizer import nettoyer, nettoyer_valeur
         _ledger({
             "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "intention": intention, "succes": succes, "verdict": verdict,
+            "intention": nettoyer(intention), "succes": succes, "verdict": nettoyer(verdict),
             "tentatives": t, "lignes": lignes,
         })
         parent = charger_derniere()
-        engendrer(parent, Patrimoine(lecons=lecons),
-                  resume=f"production '{intention[:40]}' : {'succes' if succes else 'echec'}")
+        engendrer(parent, Patrimoine(lecons=nettoyer_valeur(lecons)),
+                  resume=nettoyer(f"production '{intention[:40]}' : {'succes' if succes else 'echec'}"))
 
     return Resultat(succes, verdict, t, lignes, lecons, code_final)
 

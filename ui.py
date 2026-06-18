@@ -102,6 +102,8 @@ PAGE = r"""<!doctype html>
 </main>
 <script>
 const $ = s => document.querySelector(s);
+const errMsg = x => { if (x == null) return ''; if (typeof x === 'string') return x;
+  if (x.message) return x.message; try { return JSON.stringify(x); } catch(e) { return String(x); } };
 
 async function health() {
   try {
@@ -182,7 +184,7 @@ $('#analyser').onclick = async () => {
     $('#proposition').classList.remove('hidden');
     $('#status').innerHTML = '';
   } catch(e) {
-    $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + e;
+    $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(e);
   } finally { $('#analyser').disabled = false; }
 };
 
@@ -203,7 +205,7 @@ $('#go').onclick = async () => {
       body: JSON.stringify({intention, max_tentatives:max, juger, persistance, reseau, domaines_autorises:domaines})
     });
     const d = await r.json();
-    if (r.status !== 200) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + (d.detail||''); }
+    if (r.status !== 200) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(d.detail != null ? d.detail : d); }
     else {
       const tag = d.succes ? '<span class="tag ok">execute</span>' : '<span class="tag ko">echec</span>';
       let html = tag + ' ' + d.verdict;
@@ -218,7 +220,7 @@ $('#go').onclick = async () => {
       if (d.produit_id) showCode(d.produit_id);
     }
   } catch(e) {
-    $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + e;
+    $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(e);
   } finally { $('#go').disabled = false; }
 };
 
