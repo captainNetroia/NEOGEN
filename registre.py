@@ -22,6 +22,7 @@ from datetime import datetime
 BASE = os.path.dirname(os.path.abspath(__file__))
 DIR_PRODUITS = os.path.join(BASE, "data", "produits")
 INDEX = os.path.join(BASE, "data", "registre_produits.jsonl")
+PROMOTIONS = os.path.join(BASE, "data", "promotions.jsonl")
 
 
 def _slug(texte: str) -> str:
@@ -29,8 +30,10 @@ def _slug(texte: str) -> str:
     return (s or "produit")[:40]
 
 
-def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int) -> dict:
-    """Persiste un produit reussi et retourne son entree d'index."""
+def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int,
+                contrat: dict | None = None) -> dict:
+    """Persiste un produit reussi et retourne son entree d'index.
+    Si contrat (dict du schema d'entree) est fourni, le produit est PROMOUVABLE."""
     os.makedirs(DIR_PRODUITS, exist_ok=True)
     horodatage = datetime.now().strftime("%Y%m%dT%H%M%S")
     nom_fichier = f"{_slug(intention)}-{horodatage}.py"
@@ -40,19 +43,55 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         f.write(f"# fabrique le {datetime.now().isoformat(timespec='seconds')} | {verdict}\n\n")
         f.write(code)
 
+    produit_id = nom_fichier[:-3]
+    if contrat is not None:
+        with open(os.path.join(DIR_PRODUITS, produit_id + ".schema.json"), "w", encoding="utf-8") as f:
+            json.dump(contrat, f, ensure_ascii=False, indent=2)
+
     entree = {
-        "id": nom_fichier[:-3],
+        "id": produit_id,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "intention": intention,
         "chemin": os.path.relpath(chemin, BASE),
         "verdict": verdict,
         "tentatives": tentatives,
         "lignes": lignes,
+        "promouvable": contrat is not None,
     }
     os.makedirs(os.path.dirname(INDEX), exist_ok=True)
     with open(INDEX, "a", encoding="utf-8") as f:
         f.write(json.dumps(entree, ensure_ascii=False) + "\n")
     return entree
+
+
+def charger_contrat(produit_id: str) -> dict | None:
+    """Recharge le schema d'entree (contrat) d'un produit, s'il en a un."""
+    chemin = os.path.join(DIR_PRODUITS, produit_id + ".schema.json")
+    if not os.path.exists(chemin):
+        return None
+    with open(chemin, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def promouvoir(produit_id: str) -> dict:
+    """Marque un produit comme promu (validation humaine) -> appli web servie."""
+    from datetime import datetime as _dt
+    entree = {"id": produit_id, "timestamp": _dt.now().isoformat(timespec="seconds")}
+    os.makedirs(os.path.dirname(PROMOTIONS), exist_ok=True)
+    with open(PROMOTIONS, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+    return entree
+
+
+def est_promu(produit_id: str) -> bool:
+    if not os.path.exists(PROMOTIONS):
+        return False
+    with open(PROMOTIONS, encoding="utf-8") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if ligne and json.loads(ligne).get("id") == produit_id:
+                return True
+    return False
 
 
 def lister() -> list[dict]:

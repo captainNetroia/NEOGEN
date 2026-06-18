@@ -150,6 +150,33 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
     return r
 
 
+def fabriquer_outil(intention, contrat, *, reparer=True, max_tentatives=3, cap=None) -> Resultat:
+    """
+    Fabrique un PRODUIT PROMOUVABLE : un module qui expose `executer(donnees)` conforme au
+    contrat (schema d'entree), au lieu de donnees en dur. Enregistre le code + le schema,
+    ce qui rend le produit promouvable en appli web (promotion.py).
+    contrat : une instance de contrat.ContratProduit.
+    """
+    from compositeur import forger_adn
+    from usine_autoreparation import generer as generer_reel
+    import registre as _reg
+
+    client = _client()
+    volume_nom = "viv_" + _reg._slug(intention) if (cap and getattr(cap, "persistance", False)) else None
+    forger = lambda i: forger_adn(i, client)
+    generer = lambda adn, feedback=None: generer_reel(adn, client, feedback, cap=cap, contrat=contrat)
+
+    r = fabriquer(intention, forger, generer,
+                  reparer=reparer, max_tentatives=max_tentatives, tracer=True,
+                  cap=cap, volume_nom=volume_nom)
+
+    if r.succes and r.code:
+        entree = _reg.enregistrer(intention, r.code, verdict=r.verdict, tentatives=r.tentatives,
+                                  lignes=r.lignes, contrat=contrat.model_dump())
+        print(f"  [REGISTRE] outil promouvable enregistre : {entree['id']}")
+    return r
+
+
 def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None) -> Resultat:
     """
     Chemin JUGE : l'organisme genere PLUSIEURS strategies, les note selon les curseurs

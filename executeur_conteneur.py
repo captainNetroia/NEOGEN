@@ -18,11 +18,39 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-17.
 """
 
 from __future__ import annotations
+import json
 import subprocess
 
 from capacites import FLAGS_INVARIANTS, Capacites
 
 IMAGE = "python:3.12-slim"
+
+# Runner injecte apres le code d'un produit promu : lit l'entree JSON (env), appelle
+# executer(donnees), et imprime le resultat apres un marqueur (pour le retrouver dans la sortie).
+_MARQUEUR_OK = "___VIVARIUM_RESULT___"
+_MARQUEUR_ERR = "___VIVARIUM_ERROR___"
+_RUNNER = (
+    "\n\n# --- runner VIVARIUM (promotion : execute sur donnees reelles) ---\n"
+    "import os as _o, json as _j\n"
+    "try:\n"
+    "    _d = _j.loads(_o.environ.get('VIVARIUM_INPUT', 'null'))\n"
+    "    _r = executer(_d)\n"
+    "    print('" + _MARQUEUR_OK + "' + _j.dumps(_r, ensure_ascii=False, default=str))\n"
+    "except Exception as _e:\n"
+    "    print('" + _MARQUEUR_ERR + "' + repr(_e))\n"
+)
+
+
+def _extraire_resultat(rc, out, err) -> dict:
+    for ligne in (out or "").splitlines():
+        if ligne.startswith(_MARQUEUR_OK):
+            try:
+                return {"ok": True, "resultat": json.loads(ligne[len(_MARQUEUR_OK):])}
+            except Exception as e:
+                return {"ok": False, "erreur": f"resultat non JSON : {e}"}
+        if ligne.startswith(_MARQUEUR_ERR):
+            return {"ok": False, "erreur": ligne[len(_MARQUEUR_ERR):]}
+    return {"ok": False, "erreur": (err.strip().splitlines()[-1] if err.strip() else "aucun resultat produit")}
 
 
 def docker_disponible() -> tuple[bool, str]:
@@ -103,6 +131,39 @@ def executer_en_conteneur(code: str, timeout: int = 25,
         return r.returncode, r.stdout, r.stderr, ("<volume:" + volume_nom + ">" if cap.persistance else "<stdin>")
     except subprocess.TimeoutExpired:
         return -1, "", f"TIMEOUT conteneur apres {timeout}s", "<stdin>"
+
+
+def executer_avec_entree(code: str, donnees: dict, timeout: int = 25,
+                         cap: Capacites | None = None, volume_nom: str | None = None) -> dict:
+    """
+    Execute un PRODUIT PROMU sur de VRAIES donnees : injecte `donnees` (JSON via env),
+    appelle executer(donnees) dans le bac a sable (memes invariants/capacites), et renvoie
+    {"ok": bool, "resultat"|"erreur": ...}. Le code du produit n'est pas modifie : on lui
+    ajoute un runner qui lit l'entree et imprime le resultat apres un marqueur.
+    """
+    cap = cap or Capacites()
+    wrapped = code + _RUNNER
+    entree_json = json.dumps(donnees, ensure_ascii=False)
+
+    if cap.reseau:
+        from executeur_reseau import executer_avec_reseau
+        rc, out, err, _ = executer_avec_reseau(wrapped, cap.domaines_autorises, timeout=timeout,
+                                               cap=cap, volume_nom=volume_nom,
+                                               env_extra={"VIVARIUM_INPUT": entree_json})
+        return _extraire_resultat(rc, out, err)
+
+    cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]
+    if cap.persistance:
+        if not volume_nom:
+            return {"ok": False, "erreur": "persistance accordee mais aucun volume fourni"}
+        _preparer_volume(volume_nom, cap.chemin_persistance)
+        cmd += ["-v", f"{volume_nom}:{cap.chemin_persistance}:rw"]
+    cmd += ["-e", "PYTHONIOENCODING=utf-8", "-e", f"VIVARIUM_INPUT={entree_json}", IMAGE, "python", "-"]
+    try:
+        r = subprocess.run(cmd, input=wrapped, capture_output=True, text=True, timeout=timeout)
+        return _extraire_resultat(r.returncode, r.stdout, r.stderr)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "erreur": f"TIMEOUT apres {timeout}s"}
 
 
 if __name__ == "__main__":

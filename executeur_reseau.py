@@ -111,7 +111,7 @@ def _proxy_pret(nom_proxy: str, essais: int = 15) -> bool:
 
 
 def executer_avec_reseau(code: str, domaines: list[str], timeout: int = 25,
-                         cap=None, volume_nom: str | None = None):
+                         cap=None, volume_nom: str | None = None, env_extra: dict | None = None):
     """Execute le code avec egress restreint a `domaines`, via proxy. Nettoie tout a la fin."""
     if not domaines:
         return (-2, "", "RESEAU accorde sans liste blanche : refuse (rien d'autorise).", "<reseau>")
@@ -156,8 +156,10 @@ def executer_avec_reseau(code: str, domaines: list[str], timeout: int = 25,
             "-e", "PYTHONIOENCODING=utf-8",
             "-e", f"HTTP_PROXY={proxy_url}", "-e", f"HTTPS_PROXY={proxy_url}",
             "-e", f"http_proxy={proxy_url}", "-e", f"https_proxy={proxy_url}",
-            IMAGE, "python", "-",
         ]
+        for k, v in (env_extra or {}).items():
+            cmd += ["-e", f"{k}={v}"]
+        cmd += [IMAGE, "python", "-"]
         try:
             res = subprocess.run(cmd, input=code, capture_output=True, text=True, timeout=timeout)
             return res.returncode, res.stdout, res.stderr, f"<reseau:{','.join(domaines)}>"

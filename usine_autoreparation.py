@@ -25,15 +25,20 @@ from compositeur import forger_adn, membrane
 from usine import ModuleGenere, scan_statique, executer_isole
 
 
-def generer(adn, client, feedback=None, cap=None) -> ModuleGenere:
+def generer(adn, client, feedback=None, cap=None, contrat=None) -> ModuleGenere:
     from capacites import Capacites, contraintes_generation
     cap = cap or Capacites()
     murs = "\n".join(f"  - {m.id} : {m.label}" for m in adn.murs)
     organes = "\n".join(f"  - {o.nom} : {o.besoin}" for o in adn.organes)
+    bloc_contrat = ""
+    if contrat is not None:
+        from contrat import consigne_contrat
+        bloc_contrat = "\n\n" + consigne_contrat(contrat)
     base = (
         f"Tu generes un PRODUIT complet en Python. Objectif : {adn.objectif}\n\n"
         f"MURS ABSOLUS :\n{murs}\n\nORGANES :\n{organes}\n\n"
-        f"CAPACITES ET CONTRAINTES (utilise UNIQUEMENT ce qui t'est accorde) :\n{contraintes_generation(cap)}\n\n"
+        f"CAPACITES ET CONTRAINTES (utilise UNIQUEMENT ce qui t'est accorde) :\n{contraintes_generation(cap)}"
+        f"{bloc_contrat}\n\n"
         "Un seul module autonome, termine par "
         "`if __name__ == \"__main__\":` avec une demo + des assert prouvant que ca marche, "
         "et un message de succes clair. Declare honnetement tes effets."

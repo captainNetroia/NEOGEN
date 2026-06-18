@@ -151,4 +151,49 @@ def obtenir_produit(produit_id: str):
     code = registre.charger(produit_id)
     if code is None:
         raise HTTPException(status_code=404, detail="produit introuvable")
-    return {"id": produit_id, "code": code}
+    return {"id": produit_id, "code": code, "promu": registre.est_promu(produit_id),
+            "contrat": registre.charger_contrat(produit_id)}
+
+
+class DemandeExecution(BaseModel):
+    donnees: dict = Field(default_factory=dict, description="les vraies donnees d'entree du produit")
+
+
+@app.post("/produits/{produit_id}/promouvoir")
+def promouvoir_endpoint(produit_id: str):
+    """Validation humaine : promeut un produit (avec contrat) en appli web utilisable."""
+    contrat = registre.charger_contrat(produit_id)
+    if contrat is None:
+        raise HTTPException(status_code=400, detail="produit non promouvable (aucun contrat d'entree)")
+    registre.promouvoir(produit_id)
+    return {"promu": True, "app": f"/produits/{produit_id}/app"}
+
+
+@app.post("/produits/{produit_id}/executer")
+def executer_produit(produit_id: str, demande: DemandeExecution):
+    """Execute un produit PROMU sur de vraies donnees, en bac a sable."""
+    if not registre.est_promu(produit_id):
+        raise HTTPException(status_code=403, detail="produit non promu (validation humaine requise)")
+    code = registre.charger(produit_id)
+    if code is None:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    contrat = registre.charger_contrat(produit_id)
+    if contrat:
+        from contrat import ContratProduit, valider_entree
+        erreurs = valider_entree(ContratProduit(**contrat), demande.donnees)
+        if erreurs:
+            raise HTTPException(status_code=422, detail={"erreurs": erreurs})
+    from executeur_conteneur import executer_avec_entree
+    return executer_avec_entree(code, demande.donnees)
+
+
+@app.get("/produits/{produit_id}/app", response_class=HTMLResponse)
+def app_produit(produit_id: str):
+    """Sert l'appli web responsive d'un produit promu (formulaire -> resultat)."""
+    if not registre.est_promu(produit_id):
+        raise HTTPException(status_code=404, detail="produit non promu")
+    contrat = registre.charger_contrat(produit_id)
+    if contrat is None:
+        raise HTTPException(status_code=404, detail="aucun contrat")
+    from promotion import page_app
+    return page_app(produit_id, contrat)

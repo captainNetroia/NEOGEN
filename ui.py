@@ -125,9 +125,23 @@ async function loadProduits() {
   const ul = $('#produits'); ul.innerHTML = '';
   list.slice().reverse().forEach(p => {
     const li = document.createElement('li');
-    li.innerHTML = '<div class="t">' + p.intention.replace(/[<>]/g,'') + '</div>' +
+    li.innerHTML = '<div class="t">' + p.intention.replace(/[<>]/g,'') +
+                   (p.promouvable ? ' <span class="tag ok">appli</span>' : '') + '</div>' +
                    '<div class="s">' + p.lignes + ' lignes | ' + p.verdict + '</div>';
     li.onclick = () => showCode(p.id);
+    if (p.promouvable) {
+      const b = document.createElement('button'); b.className = 'ghost';
+      b.textContent = "Produire l'appli"; b.style.marginTop = '8px';
+      b.onclick = async (e) => {
+        e.stopPropagation(); b.disabled = true; b.textContent = 'Promotion...';
+        try {
+          const r = await (await fetch('/produits/' + encodeURIComponent(p.id) + '/promouvoir', {method:'POST'})).json();
+          if (r.app) window.open(r.app, '_blank');
+        } catch(err) { alert(err); }
+        finally { b.disabled = false; b.textContent = "Ouvrir l'appli"; }
+      };
+      li.appendChild(b);
+    }
     ul.appendChild(li);
   });
 }
