@@ -35,25 +35,45 @@ VARIANTES = [
 ]
 
 
-def generer_candidat(adn, client, consigne: str) -> ModuleGenere:
+def generer_candidat(adn, client, consigne: str, feedback=None, cap=None) -> ModuleGenere:
+    from capacites import Capacites, contraintes_generation
+    cap = cap or Capacites()
     murs = "\n".join(f"  - {m.id} : {m.label}" for m in adn.murs)
     organes = "\n".join(f"  - {o.nom} : {o.besoin}" for o in adn.organes)
     systeme = (
         f"Tu generes un PRODUIT complet en Python. Objectif : {adn.objectif}\n\n"
         f"MURS ABSOLUS :\n{murs}\n\nORGANES :\n{organes}\n\n"
         f"ORIENTATION DE CETTE VERSION : {consigne}\n\n"
-        "Python pur, bibliotheque standard, aucun reseau, n'ecris aucun fichier. Un module "
-        "autonome avec un bloc main de demonstration. Declare honnetement tes effets."
+        f"CAPACITES ET CONTRAINTES (utilise UNIQUEMENT ce qui t'est accorde) :\n{contraintes_generation(cap)}\n\n"
+        "Un module autonome avec un bloc main de demonstration. Declare honnetement tes effets."
     )
+    if feedback:
+        code_prec, erreur = feedback
+        systeme += ("\n\n--- TENTATIVE PRECEDENTE ECHOUEE ---\nCORRIGE le probleme et renvoie le "
+                    f"module complet corrige.\nERREUR :\n{erreur}\n\nCODE PRECEDENT :\n{code_prec}")
     resp = client.messages.parse(
         model=MODEL, max_tokens=12000, thinking={"type": "adaptive"},
         system=systeme,
-        messages=[{"role": "user", "content": "Genere le module complet."}],
+        messages=[{"role": "user", "content": "Genere (ou corrige) le module complet."}],
         output_format=ModuleGenere,
     )
     if resp.parsed_output is None:
         raise RuntimeError("Generation candidat echouee")
     return resp.parsed_output
+
+
+def produire_le_mieux_reel(adn, client, cap=None):
+    """Genere les VARIANTES, les note selon les curseurs de l'ADN, retourne la meilleure.
+    Renvoie (module_gagnant, consigne_gagnante, classement) sans l'executer."""
+    candidats = []
+    for nom, consigne in VARIANTES:
+        module = generer_candidat(adn, client, consigne, cap=cap)
+        score, detail = qualite_production(module, adn)
+        candidats.append((nom, consigne, module, score))
+    candidats.sort(key=lambda x: x[3], reverse=True)
+    gagnant = candidats[0]
+    classement = [(nom, score) for nom, _, _, score in candidats]
+    return gagnant[2], gagnant[1], classement
 
 
 def composante(nom_curseur: str, module: ModuleGenere, adn) -> float:

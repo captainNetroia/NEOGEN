@@ -87,6 +87,7 @@ PAGE = r"""<!doctype html>
     <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par des virgules (ex: api.stripe.com)">
     <div class="row">
       <label>tentatives <input type="number" id="max" value="2" min="1" max="5"></label>
+      <label><input type="checkbox" id="juger"> mode juge <span class="hint">(2 strategies, garde la meilleure)</span></label>
       <button id="analyser" class="ghost">Analyser</button>
       <button id="go">Fabriquer</button>
     </div>
@@ -177,6 +178,7 @@ $('#go').onclick = async () => {
   const max = parseInt($('#max').value) || 2;
   const persistance = $('#persistance').checked;
   const reseau = $('#reseau').checked;
+  const juger = $('#juger').checked;
   const domaines = $('#domaines').value.split(',').map(s => s.trim()).filter(Boolean);
   $('#go').disabled = true;
   $('#code').classList.add('hidden');
@@ -184,7 +186,7 @@ $('#go').onclick = async () => {
   try {
     const r = await fetch('/fabriquer', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({intention, max_tentatives:max, persistance, reseau, domaines_autorises:domaines})
+      body: JSON.stringify({intention, max_tentatives:max, juger, persistance, reseau, domaines_autorises:domaines})
     });
     const d = await r.json();
     if (r.status !== 200) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + (d.detail||''); }
@@ -194,6 +196,8 @@ $('#go').onclick = async () => {
       html += '<div class="meta">' + d.tentatives + ' tentative(s) | ' + d.lignes + ' lignes' +
               (d.produit_id ? ' | enregistre' : '') + '</div>';
       if (d.capacites) html += '<div class="meta">capacites : ' + d.capacites + '</div>';
+      if (d.classement && d.classement.length) html += '<div class="meta">strategies jugees : ' +
+        d.classement.map(c => c[0] + ' ' + c[1]).join(' | ') + ' (la meilleure est retenue)</div>';
       if (d.lecons && d.lecons.length) html += '<div class="lecons">' + d.lecons.join('\n') + '</div>';
       $('#status').innerHTML = html;
       await loadProduits();

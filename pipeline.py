@@ -34,6 +34,7 @@ class Resultat:
     lignes: int
     lecons: list = field(default_factory=list)
     code: str = ""
+    classement: list = field(default_factory=list)
 
 
 def _ledger(entree: dict):
@@ -146,6 +147,41 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
                                       verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes)
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
 
+    return r
+
+
+def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None) -> Resultat:
+    """
+    Chemin JUGE : l'organisme genere PLUSIEURS strategies, les note selon les curseurs
+    de l'ADN, garde la MEILLEURE, puis la passe par les garde-fous + execution + reparation.
+    La reparation regenere la strategie gagnante avec le feedback d'erreur.
+    """
+    from compositeur import forger_adn
+    from production_jugee import produire_le_mieux_reel, generer_candidat
+    import registre as _reg
+
+    client = _client()
+    adn = forger_adn(intention, client)
+    volume_nom = "viv_" + _reg._slug(intention) if (cap and getattr(cap, "persistance", False)) else None
+
+    etat = {"classement": None, "consigne": None}
+
+    def generer(_adn, feedback=None):
+        if feedback is None:
+            module, consigne, classement = produire_le_mieux_reel(_adn, client, cap=cap)
+            etat["classement"], etat["consigne"] = classement, consigne
+            return module
+        return generer_candidat(_adn, client, etat["consigne"], feedback=feedback, cap=cap)
+
+    r = fabriquer(intention, lambda i: adn, generer,
+                  reparer=reparer, max_tentatives=max_tentatives, tracer=True,
+                  cap=cap, volume_nom=volume_nom)
+    r.classement = etat["classement"]
+
+    if enregistrer and r.succes and r.code:
+        entree = _reg.enregistrer(intention, r.code,
+                                  verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes)
+        print(f"  [REGISTRE] produit enregistre : {entree['id']}")
     return r
 
 

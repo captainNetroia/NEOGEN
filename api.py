@@ -44,6 +44,7 @@ class DemandeFabrication(BaseModel):
                            description="ce que le produit doit faire, en langage naturel")
     reparer: bool = Field(default=True, description="auto-reparation sur echec d'execution")
     max_tentatives: int = Field(default=3, ge=1, le=5)
+    juger: bool = Field(default=False, description="mode juge : genere 2 strategies, garde la meilleure")
     # Capacites accordees au produit (Niveau 2). Vide = produit pur (calcul en memoire).
     persistance: bool = Field(default=False, description="accorde un espace disque isole (volume dedie)")
     reseau: bool = Field(default=False, description="accorde une sortie reseau vers une liste blanche")
@@ -58,6 +59,7 @@ class ReponseFabrication(BaseModel):
     lecons: list[str]
     produit_id: str | None = None
     capacites: str = "aucune"
+    classement: list = []
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -111,13 +113,17 @@ def fabriquer_endpoint(demande: DemandeFabrication):
         domaines_autorises=demande.domaines_autorises,
     )
     try:
-        r = fabriquer_reel(
-            demande.intention,
-            reparer=demande.reparer,
-            max_tentatives=demande.max_tentatives,
-            enregistrer=True,
-            cap=cap,
-        )
+        if demande.juger:
+            from pipeline import fabriquer_juge_reel
+            r = fabriquer_juge_reel(
+                demande.intention, reparer=demande.reparer,
+                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
+            )
+        else:
+            r = fabriquer_reel(
+                demande.intention, reparer=demande.reparer,
+                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
+            )
     except Exception as e:  # cle API manquante, panne reseau Claude, etc.
         raise HTTPException(status_code=502, detail=f"echec de fabrication : {e}")
 
@@ -130,7 +136,7 @@ def fabriquer_endpoint(demande: DemandeFabrication):
     return ReponseFabrication(
         succes=r.succes, verdict=r.verdict, tentatives=r.tentatives,
         lignes=r.lignes, lecons=r.lecons, produit_id=produit_id,
-        capacites=cap.resume(),
+        capacites=cap.resume(), classement=getattr(r, "classement", []) or [],
     )
 
 
