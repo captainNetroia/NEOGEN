@@ -86,6 +86,22 @@ def health():
     }
 
 
+class DemandeProposition(BaseModel):
+    intention: str = Field(min_length=3, max_length=2000)
+
+
+@app.post("/proposer")
+def proposer_endpoint(demande: DemandeProposition):
+    """L'organisme juge l'intention et PROPOSE murs + capacites. L'humain validera."""
+    from pipeline import _client
+    from proposer import proposer
+    try:
+        p = proposer(demande.intention, _client())
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"echec de la proposition : {e}")
+    return p.model_dump()
+
+
 @app.post("/fabriquer", response_model=ReponseFabrication)
 def fabriquer_endpoint(demande: DemandeFabrication):
     """Transforme une intention en produit : ADN -> code -> 3 garde-fous -> conteneur -> registre."""
