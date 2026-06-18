@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 import registre
+from capacites import Capacites
 from executeur_conteneur import docker_disponible
 from pipeline import fabriquer_reel
 from ui import PAGE
@@ -43,6 +44,10 @@ class DemandeFabrication(BaseModel):
                            description="ce que le produit doit faire, en langage naturel")
     reparer: bool = Field(default=True, description="auto-reparation sur echec d'execution")
     max_tentatives: int = Field(default=3, ge=1, le=5)
+    # Capacites accordees au produit (Niveau 2). Vide = produit pur (calcul en memoire).
+    persistance: bool = Field(default=False, description="accorde un espace disque isole (volume dedie)")
+    reseau: bool = Field(default=False, description="accorde une sortie reseau vers une liste blanche")
+    domaines_autorises: list[str] = Field(default_factory=list, description="liste blanche si reseau accorde")
 
 
 class ReponseFabrication(BaseModel):
@@ -52,6 +57,7 @@ class ReponseFabrication(BaseModel):
     lignes: int
     lecons: list[str]
     produit_id: str | None = None
+    capacites: str = "aucune"
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -83,12 +89,18 @@ def health():
 @app.post("/fabriquer", response_model=ReponseFabrication)
 def fabriquer_endpoint(demande: DemandeFabrication):
     """Transforme une intention en produit : ADN -> code -> 3 garde-fous -> conteneur -> registre."""
+    cap = Capacites(
+        persistance=demande.persistance,
+        reseau=demande.reseau,
+        domaines_autorises=demande.domaines_autorises,
+    )
     try:
         r = fabriquer_reel(
             demande.intention,
             reparer=demande.reparer,
             max_tentatives=demande.max_tentatives,
             enregistrer=True,
+            cap=cap,
         )
     except Exception as e:  # cle API manquante, panne reseau Claude, etc.
         raise HTTPException(status_code=502, detail=f"echec de fabrication : {e}")
@@ -102,6 +114,7 @@ def fabriquer_endpoint(demande: DemandeFabrication):
     return ReponseFabrication(
         succes=r.succes, verdict=r.verdict, tentatives=r.tentatives,
         lignes=r.lignes, lecons=r.lecons, produit_id=produit_id,
+        capacites=cap.resume(),
     )
 
 

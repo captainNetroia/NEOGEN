@@ -42,10 +42,13 @@ def _ledger(entree: dict):
         f.write(json.dumps(entree, ensure_ascii=False) + "\n")
 
 
-def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=3, tracer=True) -> Resultat:
+def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=3, tracer=True,
+              cap=None, volume_nom=None) -> Resultat:
     """
     forger_fn(intention) -> ADNProduit
     generer_fn(adn, feedback) -> ModuleGenere   (feedback = (code, erreur) ou None)
+    cap (Capacites) + volume_nom : capacites accordees au produit (persistance...) qui
+    configurent le bac a sable. None = produit pur (calcul en memoire, isolation max).
     """
     adn = forger_fn(intention)
     feedback, lecons = None, []
@@ -64,7 +67,7 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
                 break
             continue
 
-        dangers = scan_statique(module.code)
+        dangers = scan_statique(module.code, cap=cap)
         if dangers:
             lecons.append(f"scan: {dangers}")
             feedback = (module.code, f"Appels dangereux: {dangers}")
@@ -73,7 +76,7 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
                 break
             continue
 
-        rc, out, err, _ = executer_isole(module.code)
+        rc, out, err, _ = executer_isole(module.code, cap=cap, volume_nom=volume_nom)
         if rc == 0:
             succes, verdict, code_final = True, f"execute OK (tentative {t})", module.code
             break
@@ -114,21 +117,28 @@ def _client():
     return _CLIENT
 
 
-def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True) -> Resultat:
+def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None) -> Resultat:
     """
     Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
-    -> 3 garde-fous -> execution -> auto-reparation -> ledger + lignee.
-    Un produit qui TOURNE est persiste au registre (rechargeable).
+    -> 3 garde-fous -> execution (bac a sable selon capacites) -> auto-reparation
+    -> ledger + lignee. Un produit qui TOURNE est persiste au registre.
+    cap (Capacites) : capacites accordees au produit (persistance, reseau). None = pur.
     """
     from compositeur import forger_adn
     from usine_autoreparation import generer as generer_reel
+    import registre as _reg
 
     client = _client()
+    volume_nom = None
+    if cap is not None and getattr(cap, "persistance", False):
+        volume_nom = "viv_" + _reg._slug(intention)
+
     forger = lambda intention: forger_adn(intention, client)
-    generer = lambda adn, feedback=None: generer_reel(adn, client, feedback)
+    generer = lambda adn, feedback=None: generer_reel(adn, client, feedback, cap=cap)
 
     r = fabriquer(intention, forger, generer,
-                  reparer=reparer, max_tentatives=max_tentatives, tracer=True)
+                  reparer=reparer, max_tentatives=max_tentatives, tracer=True,
+                  cap=cap, volume_nom=volume_nom)
 
     if enregistrer and r.succes and r.code:
         import registre

@@ -70,21 +70,36 @@ def generer_module(adn, client) -> ModuleGenere:
 # ---------------------------------------------------------------------------
 # Couche 2 : scan statique du vrai code (defense en profondeur)
 # ---------------------------------------------------------------------------
-INTERDITS = {
+# Toujours interdits : vecteurs d'execution arbitraire (RCE), independamment des capacites.
+INTERDITS_TOUJOURS = {
     r"\bos\.system": "execution shell",
     r"\bsubprocess\b": "lancement de processus",
-    r"\bsocket\b": "reseau brut",
-    r"\burllib\b|\brequests\b|\bhttp\.client\b": "acces reseau",
     r"\beval\s*\(": "eval",
     r"\bexec\s*\(": "exec",
     r"__import__": "import dynamique",
+}
+# Interdits SAUF si la capacite RESEAU est accordee au produit.
+INTERDITS_RESEAU = {
+    r"\bsocket\b": "reseau brut",
+    r"\burllib\b|\brequests\b|\bhttp\.client\b": "acces reseau",
+}
+# Interdits SAUF si la capacite PERSISTANCE est accordee au produit.
+INTERDITS_FICHIER = {
     r"\bshutil\.rmtree|\bos\.remove|\bos\.unlink": "suppression de fichiers",
     r"open\s*\([^)]*['\"][wax]": "ecriture de fichier",
 }
+# Union (compat) : comportement strict par defaut quand aucune capacite n'est accordee.
+INTERDITS = {**INTERDITS_TOUJOURS, **INTERDITS_RESEAU, **INTERDITS_FICHIER}
 
 
-def scan_statique(code: str) -> list[str]:
-    return [raison for motif, raison in INTERDITS.items() if re.search(motif, code)]
+def scan_statique(code: str, cap=None) -> list[str]:
+    """Scan statique conscient des capacites : ce qui est accorde n'est plus 'dangereux'."""
+    motifs = dict(INTERDITS_TOUJOURS)
+    if not (cap is not None and getattr(cap, "reseau", False)):
+        motifs.update(INTERDITS_RESEAU)
+    if not (cap is not None and getattr(cap, "persistance", False)):
+        motifs.update(INTERDITS_FICHIER)
+    return [raison for motif, raison in motifs.items() if re.search(motif, code)]
 
 
 # ---------------------------------------------------------------------------
@@ -92,16 +107,19 @@ def scan_statique(code: str) -> list[str]:
 #   - de preference : conteneur Docker durci (isolation industrielle, sans reseau)
 #   - sinon (Docker eteint) : repli sur processus separe + dossier temp + timeout
 # ---------------------------------------------------------------------------
-def executer_isole(code: str, timeout: int = 20):
-    # Tentative d'isolation industrielle via conteneur Docker
+def executer_isole(code: str, timeout: int = 20, cap=None, volume_nom=None):
+    # Tentative d'isolation industrielle via conteneur Docker (avec capacites graduees)
     try:
         from executeur_conteneur import docker_disponible, image_presente, executer_en_conteneur
         ok, _ = docker_disponible()
         if ok and image_presente():
-            return executer_en_conteneur(code, timeout=max(timeout, 25))
+            return executer_en_conteneur(code, timeout=max(timeout, 25), cap=cap, volume_nom=volume_nom)
     except Exception:
         pass
-    # Repli : isolation processus
+    # Repli : isolation processus (Docker indisponible). Garde-fou DevSecOps : on refuse
+    # d'executer un produit reclamant des capacites (persistance/reseau) hors conteneur.
+    if cap is not None and (getattr(cap, "persistance", False) or getattr(cap, "reseau", False)):
+        return (-3, "", "Capacites demandees mais Docker indisponible : execution hors conteneur refusee.", "<repli>")
     d = tempfile.mkdtemp(prefix="vivarium_usine_")
     chemin = os.path.join(d, "produit.py")
     with open(chemin, "w", encoding="utf-8") as f:
