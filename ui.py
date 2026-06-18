@@ -42,6 +42,13 @@ PAGE = r"""<!doctype html>
   button { background:var(--acc); color:#06231f; border:0; border-radius:8px; padding:10px 20px;
            font-weight:700; cursor:pointer; font-size:15px; }
   button:disabled { opacity:.5; cursor:wait; }
+  button.ghost { background:transparent; color:var(--acc); border:1px solid var(--acc); }
+  #proposition { margin-top:14px; padding:14px; border:1px solid var(--acc); border-radius:8px;
+             background:rgba(79,209,197,.06); font-size:14px; }
+  #proposition h3 { margin:0 0 8px; font-size:14px; color:var(--acc); letter-spacing:.5px; }
+  #proposition .ligne { margin:4px 0; }
+  #proposition .reform { margin-top:8px; color:var(--warn); }
+  #proposition .murs { margin-top:8px; color:var(--mut); font-size:13px; }
   #status { margin-top:14px; font-size:14px; }
   .tag { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:700; }
   .tag.ok { background:rgba(63,185,80,.15); color:var(--ok); }
@@ -80,8 +87,10 @@ PAGE = r"""<!doctype html>
     <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par des virgules (ex: api.stripe.com)">
     <div class="row">
       <label>tentatives <input type="number" id="max" value="2" min="1" max="5"></label>
+      <button id="analyser" class="ghost">Analyser</button>
       <button id="go">Fabriquer</button>
     </div>
+    <div id="proposition" class="hidden"></div>
     <div id="status"></div>
     <pre id="code" class="code hidden"></pre>
   </section>
@@ -124,6 +133,42 @@ async function loadProduits() {
 
 $('#reseau').onchange = () => {
   $('#domaines').classList.toggle('hidden', !$('#reseau').checked);
+};
+
+const esc = s => (s || '').replace(/[<>]/g, '');
+
+$('#analyser').onclick = async () => {
+  const intention = $('#intention').value.trim();
+  if (intention.length < 3) { $('#status').innerHTML = '<span class="tag ko">vide</span> ecris une intention.'; return; }
+  $('#analyser').disabled = true;
+  $('#proposition').classList.add('hidden');
+  $('#status').innerHTML = 'L\'organisme analyse l\'intention et propose un ADN...';
+  try {
+    const p = await (await fetch('/proposer', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({intention})
+    })).json();
+    const d = p.discernement || {};
+    // pre-cocher les capacites proposees par l'organisme
+    $('#persistance').checked = !!p.persistance;
+    $('#reseau').checked = !!p.reseau;
+    $('#domaines').value = (p.domaines_proposes || []).join(', ');
+    $('#domaines').classList.toggle('hidden', !p.reseau);
+    let html = '<h3>Proposition de l\'organisme</h3>';
+    html += '<div class="ligne">Discernement : ' + (d.merite_attaque ? 'merite qu\'on s\'y attaque' : 'a recadrer') +
+            ' (valeur ' + d.valeur + ', faisabilite ' + d.faisabilite + ', clarte ' + d.clarte + ')</div>';
+    html += '<div class="ligne">' + esc(d.raison) + '</div>';
+    if (d.reformulation) html += '<div class="reform">Reformulation suggeree : ' + esc(d.reformulation) + '</div>';
+    const caps = (p.persistance ? 'persistance ' : '') + (p.reseau ? 'reseau ' : '');
+    html += '<div class="ligne">Capacites proposees : ' + (caps.trim() || 'aucune (produit pur)') + '</div>';
+    if (p.murs_proposes && p.murs_proposes.length) html += '<div class="murs">Murs proposes : ' + p.murs_proposes.map(esc).join(', ') + '</div>';
+    html += '<div class="ligne" style="margin-top:8px;color:var(--mut)">Ajuste les capacites ci-dessus si besoin, puis Fabriquer.</div>';
+    $('#proposition').innerHTML = html;
+    $('#proposition').classList.remove('hidden');
+    $('#status').innerHTML = '';
+  } catch(e) {
+    $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + e;
+  } finally { $('#analyser').disabled = false; }
 };
 
 $('#go').onclick = async () => {
