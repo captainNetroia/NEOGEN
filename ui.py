@@ -89,6 +89,7 @@ PAGE = r"""<!doctype html>
       <label>tentatives <input type="number" id="max" value="2" min="1" max="5"></label>
       <label><input type="checkbox" id="juger"> mode juge <span class="hint">(2 strategies, garde la meilleure)</span></label>
       <button id="analyser" class="ghost">Analyser</button>
+      <button id="conseils" class="ghost">Conseils</button>
       <button id="go">Fabriquer</button>
     </div>
     <div id="proposition" class="hidden"></div>
@@ -186,6 +187,40 @@ $('#analyser').onclick = async () => {
   } catch(e) {
     $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(e);
   } finally { $('#analyser').disabled = false; }
+};
+
+function liste(titre, arr) {
+  if (!arr || !arr.length) return '';
+  return '<div class="ligne"><b>' + titre + '</b><ul style="margin:4px 0 0;padding-left:18px">' +
+    arr.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
+}
+
+$('#conseils').onclick = async () => {
+  const intention = $('#intention').value.trim();
+  if (intention.length < 3) { $('#status').innerHTML = '<span class="tag ko">vide</span> ecris une intention.'; return; }
+  $('#conseils').disabled = true;
+  $('#proposition').classList.add('hidden');
+  $('#status').innerHTML = 'Le conseiller analyse (conformite + cadrage)...';
+  try {
+    const c = await (await fetch('/conseil', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({intention})
+    })).json();
+    if (c.detail) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(c.detail); $('#conseils').disabled=false; return; }
+    const cf = c.conformite || {}, cd = c.cadrage || {};
+    let html = '<h3>Conseil (indicatif IA)</h3>';
+    html += '<div class="ligne"><b>Conformite</b> (risque ' + esc(cf.niveau_risque||'?') + ')</div>';
+    html += '<ul style="margin:4px 0;padding-left:18px">' + (cf.points||[]).map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>';
+    html += liste('Questions cles', cd.questions_cles);
+    html += liste('Donnees a collecter', cd.donnees_a_collecter);
+    html += liste('Sources a chercher', cd.sources_a_chercher);
+    html += liste('Pieges', cd.pieges);
+    html += '<div class="reform">' + esc(cf.avertissement||'Indicatif, a confirmer par un juriste.') + '</div>';
+    $('#proposition').innerHTML = html;
+    $('#proposition').classList.remove('hidden');
+    $('#status').innerHTML = '';
+  } catch(e) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + errMsg(e); }
+  finally { $('#conseils').disabled = false; }
 };
 
 $('#go').onclick = async () => {

@@ -92,6 +92,18 @@ class DemandeProposition(BaseModel):
     intention: str = Field(min_length=3, max_length=2000)
 
 
+@app.post("/conseil")
+def conseil_endpoint(demande: DemandeProposition):
+    """Conseiller : note de conformite (indicative) + cadrage analytique pour une intention."""
+    from pipeline import _client
+    from conseillers import conseiller
+    try:
+        c = conseiller(demande.intention, _client())
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"echec du conseil : {e}")
+    return c.model_dump()
+
+
 @app.post("/proposer")
 def proposer_endpoint(demande: DemandeProposition):
     """L'organisme juge l'intention et PROPOSE murs + capacites. L'humain validera."""
