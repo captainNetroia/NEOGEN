@@ -33,6 +33,12 @@ PAGE = r"""<!doctype html>
   .row label { color:var(--mut); font-size:13px; }
   .row input[type=number] { width:56px; background:#0d131c; color:var(--txt);
              border:1px solid var(--line); border-radius:6px; padding:6px; }
+  .row.caps { flex-wrap:wrap; gap:10px 18px; }
+  .capslabel { color:var(--mut); font-size:13px; }
+  .row.caps label { color:var(--txt); display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .hint { color:var(--mut); font-size:12px; }
+  #domaines { width:100%; margin-top:10px; background:#0d131c; color:var(--txt);
+             border:1px solid var(--line); border-radius:6px; padding:9px; font-size:14px; }
   button { background:var(--acc); color:#06231f; border:0; border-radius:8px; padding:10px 20px;
            font-weight:700; cursor:pointer; font-size:15px; }
   button:disabled { opacity:.5; cursor:wait; }
@@ -66,6 +72,12 @@ PAGE = r"""<!doctype html>
 <main>
   <section class="panel">
     <textarea id="intention" placeholder="Decris ce que tu veux fabriquer, en une phrase. Ex : un convertisseur de temperature celsius/fahrenheit"></textarea>
+    <div class="row caps">
+      <span class="capslabel">Capacites accordees :</span>
+      <label><input type="checkbox" id="persistance"> persistance <span class="hint">(disque isole)</span></label>
+      <label><input type="checkbox" id="reseau"> reseau <span class="hint">(liste blanche)</span></label>
+    </div>
+    <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par des virgules (ex: api.stripe.com)">
     <div class="row">
       <label>tentatives <input type="number" id="max" value="2" min="1" max="5"></label>
       <button id="go">Fabriquer</button>
@@ -110,17 +122,24 @@ async function loadProduits() {
   });
 }
 
+$('#reseau').onchange = () => {
+  $('#domaines').classList.toggle('hidden', !$('#reseau').checked);
+};
+
 $('#go').onclick = async () => {
   const intention = $('#intention').value.trim();
   if (intention.length < 3) { $('#status').innerHTML = '<span class="tag ko">vide</span> ecris une intention.'; return; }
   const max = parseInt($('#max').value) || 2;
+  const persistance = $('#persistance').checked;
+  const reseau = $('#reseau').checked;
+  const domaines = $('#domaines').value.split(',').map(s => s.trim()).filter(Boolean);
   $('#go').disabled = true;
   $('#code').classList.add('hidden');
   $('#status').innerHTML = 'L\'organisme travaille : forge de l\'ADN, generation, 3 garde-fous, execution en conteneur...';
   try {
     const r = await fetch('/fabriquer', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({intention, max_tentatives:max})
+      body: JSON.stringify({intention, max_tentatives:max, persistance, reseau, domaines_autorises:domaines})
     });
     const d = await r.json();
     if (r.status !== 200) { $('#status').innerHTML = '<span class="tag ko">erreur</span> ' + (d.detail||''); }
@@ -129,6 +148,7 @@ $('#go').onclick = async () => {
       let html = tag + ' ' + d.verdict;
       html += '<div class="meta">' + d.tentatives + ' tentative(s) | ' + d.lignes + ' lignes' +
               (d.produit_id ? ' | enregistre' : '') + '</div>';
+      if (d.capacites) html += '<div class="meta">capacites : ' + d.capacites + '</div>';
       if (d.lecons && d.lecons.length) html += '<div class="lecons">' + d.lecons.join('\n') + '</div>';
       $('#status').innerHTML = html;
       await loadProduits();
