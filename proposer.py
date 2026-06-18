@@ -18,7 +18,7 @@ import sys
 
 from pydantic import BaseModel, Field
 
-from generator import _load_api_key, MODEL
+from generator import _load_api_key, MODEL, parse_resilient
 from jugement import JugementOpportunite, CAPACITES
 from compositeur import REGLES_MURS
 
@@ -53,8 +53,8 @@ def proposer(intention: str, client) -> PropositionADN:
         "Rappelle-toi : ce n'est qu'une PROPOSITION, l'humain validera. Sois honnete et sobre : "
         "ne propose pas une capacite 'au cas ou'."
     )
-    resp = client.messages.parse(
-        model=MODEL, max_tokens=4000, thinking={"type": "adaptive"},
+    resp = parse_resilient(
+        client, model=MODEL, max_tokens=4000, thinking={"type": "adaptive"},
         system=systeme,
         messages=[{"role": "user", "content": f"Intention : {intention}"}],
         output_format=PropositionADN,

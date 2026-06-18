@@ -13,6 +13,7 @@ Modele : claude-opus-4-8, thinking adaptatif, sortie structuree (Pydantic).
 
 import os
 import re
+import time
 from pathlib import Path
 
 import anthropic
@@ -22,6 +23,64 @@ from vivarium import Cell, Genome
 
 CRED_FILE = Path(r"C:\Netroia\credentials\anthropic-api.env")
 MODEL = "claude-opus-4-8"
+
+
+# ---------------------------------------------------------------------------
+# Resilience : circuit breaker + retries (porte de NetroPraxis circuit_breaker.rs)
+# Protege contre les pannes API transitoires (ECONNRESET, timeouts, surcharge, 5xx).
+# ---------------------------------------------------------------------------
+class CircuitBreaker:
+    def __init__(self, seuil: int = 4, cooldown: float = 30.0):
+        self.seuil, self.cooldown = seuil, cooldown
+        self.echecs, self.ouvert_jusqu = 0, 0.0
+
+    def disponible(self) -> bool:
+        return time.time() >= self.ouvert_jusqu
+
+    def succes(self):
+        self.echecs, self.ouvert_jusqu = 0, 0.0
+
+    def echec(self):
+        self.echecs += 1
+        if self.echecs >= self.seuil:
+            self.ouvert_jusqu = time.time() + self.cooldown
+
+
+_BREAKER = CircuitBreaker()
+
+_MARQUEURS_TRANSITOIRES = ("connection", "timeout", "timed out", "overloaded", "econnreset",
+                           "reset by peer", "temporarily", "503", "502", "529", "rate limit", "429")
+
+
+def _est_transitoire(e: Exception) -> bool:
+    nom = type(e).__name__.lower()
+    txt = str(e).lower()
+    if any(k in nom for k in ("connection", "timeout", "ratelimit", "internalserver", "overloaded")):
+        return True
+    return any(k in txt for k in _MARQUEURS_TRANSITOIRES)
+
+
+def parse_resilient(client, *, tentatives: int = 3, base_delai: float = 2.0, **kwargs):
+    """Wrappe client.messages.parse : retries (backoff) sur erreurs transitoires + circuit breaker.
+    Les erreurs non-transitoires (400, refus, schema) remontent immediatement."""
+    if not _BREAKER.disponible():
+        raise RuntimeError("Circuit API ouvert : trop d'echecs recents, protection active. Reessayer plus tard.")
+    derniere = None
+    for i in range(tentatives):
+        try:
+            r = client.messages.parse(**kwargs)
+            _BREAKER.succes()
+            return r
+        except Exception as e:
+            derniere = e
+            if not _est_transitoire(e):
+                _BREAKER.echec()
+                raise
+            _BREAKER.echec()
+            if not _BREAKER.disponible() or i == tentatives - 1:
+                break
+            time.sleep(base_delai * (2 ** i))
+    raise derniere
 
 
 # ---------------------------------------------------------------------------

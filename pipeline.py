@@ -16,6 +16,7 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-17.
 from __future__ import annotations
 import os
 import json
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -91,6 +92,7 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
     if tracer:
         from sanitizer import nettoyer, nettoyer_valeur
         _ledger({
+            "run_id": uuid.uuid4().hex[:8],
             "timestamp": datetime.now().isoformat(timespec="seconds"),
             "intention": nettoyer(intention), "succes": succes, "verdict": nettoyer(verdict),
             "tentatives": t, "lignes": lignes,

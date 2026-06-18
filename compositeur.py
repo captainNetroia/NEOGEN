@@ -20,7 +20,7 @@ import sys
 import anthropic
 from pydantic import BaseModel, Field
 
-from generator import _load_api_key, MODEL
+from generator import _load_api_key, MODEL, parse_resilient
 
 
 # ---------------------------------------------------------------------------
@@ -91,8 +91,8 @@ def forger_adn(intention: str, client) -> ADNProduit:
         "- curseurs : 3 a 4 priorites relatives (securite, simplicite, vitesse...), poids 0-100.\n"
         "- organes : les 3 a 5 fonctions essentielles du produit (pas plus), chacune avec un besoin clair."
     )
-    resp = client.messages.parse(
-        model=MODEL, max_tokens=8000, thinking={"type": "adaptive"},
+    resp = parse_resilient(
+        client, model=MODEL, max_tokens=8000, thinking={"type": "adaptive"},
         system=systeme,
         messages=[{"role": "user", "content": f"Intention : {intention}"}],
         output_format=ADNProduit,

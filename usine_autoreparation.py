@@ -20,7 +20,7 @@ import sys
 
 import anthropic
 
-from generator import _load_api_key, MODEL
+from generator import _load_api_key, MODEL, parse_resilient
 from compositeur import forger_adn, membrane
 from usine import ModuleGenere, scan_statique, executer_isole
 
@@ -51,8 +51,8 @@ def generer(adn, client, feedback=None, cap=None, contrat=None) -> ModuleGenere:
             "CORRIGE le probleme et renvoie le module complet corrige.\n\n"
             f"ERREUR :\n{erreur}\n\nCODE PRECEDENT :\n{code_prec}"
         )
-    resp = client.messages.parse(
-        model=MODEL, max_tokens=16000, thinking={"type": "adaptive"},
+    resp = parse_resilient(
+        client, model=MODEL, max_tokens=16000, thinking={"type": "adaptive"},
         system=base,
         messages=[{"role": "user", "content": "Genere (ou corrige) le module complet."}],
         output_format=ModuleGenere,
