@@ -80,15 +80,12 @@ def executer_en_conteneur(code: str, timeout: int = 25,
     """
     cap = cap or Capacites()
 
-    # RESEAU : invariant DevSecOps -> aucune sortie brute. Tant que la liste blanche
-    # n'est pas appliquee par un proxy d'egress, on REFUSE d'ouvrir le reseau (on ne
-    # viole pas l'invariant en silence). La capacite reste declarable ; son execution
-    # reelle arrive a l'etape suivante (proxy d'egress + reseau interne).
+    # RESEAU : invariant DevSecOps -> aucune sortie brute. La sortie passe par un proxy
+    # d'egress qui n'autorise que la liste blanche de domaines (cf. executeur_reseau).
     if cap.reseau:
-        return (-2, "",
-                "RESEAU accorde mais enforcement liste blanche pas encore actif "
-                "(proxy d'egress = prochaine etape). Execution reseau refusee par securite.",
-                "<reseau>")
+        from executeur_reseau import executer_avec_reseau
+        return executer_avec_reseau(code, cap.domaines_autorises, timeout=timeout,
+                                    cap=cap, volume_nom=volume_nom)
 
     cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]
 
