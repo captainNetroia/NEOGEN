@@ -1,5 +1,5 @@
 """
-VIVARIUM - Le Compositeur : une intention -> un produit entier
+NEOGEN - Le Compositeur : une intention -> un produit entier
 
 Tu donnes une intention ("un gestionnaire de mots de passe"). Le Compositeur :
   1. forge l'ADN du produit (objectif + murs + curseurs + organes) via Claude,
@@ -82,7 +82,7 @@ class CelluleGeneree(BaseModel):
 # ---------------------------------------------------------------------------
 def forger_adn(intention: str, client) -> ADNProduit:
     systeme = (
-        "Tu es le Compositeur de VIVARIUM. On te donne une intention de produit. "
+        "Tu es le Compositeur de NEOGEN. On te donne une intention de produit. "
         "Tu forges son ADN :\n"
         "- objectif : la raison d'etre du produit, une phrase.\n"
         "- murs : les contraintes absolues, choisies parmi ce vocabulaire : "
@@ -150,7 +150,7 @@ def composer(intention: str, max_organes: int = 4):
     client = anthropic.Anthropic(api_key=_load_api_key())
 
     print("=" * 72)
-    print(f"VIVARIUM - LE COMPOSITEUR : '{intention}'")
+    print(f"NEOGEN - LE COMPOSITEUR : '{intention}'")
     print("=" * 72)
 
     print("\n[1] Claude forge l'ADN du produit...")

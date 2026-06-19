@@ -1,5 +1,5 @@
 """
-VIVARIUM - Promotion : un produit validE devient une appli web responsive
+NEOGEN - Promotion : un produit validE devient une appli web responsive
 
 A partir du contrat (schema d'entree) d'un produit promu, on genere une page HTML
 autonome, mobile-first, qui :
@@ -21,7 +21,7 @@ _TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>__TITRE__ - VIVARIUM</title>
+<title>__TITRE__ - NEOGEN</title>
 <style>
   :root { --bg:#0a0e14; --panel:#121821; --line:#1f2a3a; --txt:#e6edf3; --mut:#8b98a9;
           --acc:#4fd1c5; --ok:#3fb950; --ko:#f85149; }
@@ -80,7 +80,7 @@ _TEMPLATE = r"""<!doctype html>
     <button class="act" id="go">Lancer</button>
   </div>
   <div id="resultat"></div>
-  <div class="footer">Genere et gouverne par VIVARIUM. Execute en bac a sable isole.</div>
+  <div class="footer">Genere et gouverne par NEOGEN. Execute en bac a sable isole.</div>
 </div>
 <script>
 const SCHEMA = __SCHEMA__;
@@ -217,7 +217,7 @@ build();
 
 def page_app(produit_id: str, contrat: dict) -> str:
     """Genere la page web responsive d'un produit promu, pilotee par son schema."""
-    description = (contrat.get("description") or "Outil genere par VIVARIUM").replace("<", "").replace(">", "")
+    description = (contrat.get("description") or "Outil genere par NEOGEN").replace("<", "").replace(">", "")
     titre = description[:40]
     return (_TEMPLATE
             .replace("__SCHEMA__", json.dumps({"champs": contrat.get("champs", [])}, ensure_ascii=False))

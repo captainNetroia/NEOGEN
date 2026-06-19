@@ -1,5 +1,5 @@
 """
-VIVARIUM - Usine multi-organes : recoller des pieces independantes
+NEOGEN - Usine multi-organes : recoller des pieces independantes
 
 Jusqu'ici l'Usine generait UN module coherent d'un coup. Ici on construit une
 appli a partir de plusieurs ORGANES generes SEPAREMENT, puis recolles.
@@ -92,14 +92,14 @@ def generer_organe(contrat: Contrat, organe: ContratOrgane, client) -> ImplOrgan
 
 
 def assembler(impls: list[str], code_assemblage: str) -> str:
-    entete = "# Produit assemble par VIVARIUM a partir d'organes generes separement\n"
+    entete = "# Produit assemble par NEOGEN a partir d'organes generes separement\n"
     return entete + "\n\n".join(impls) + "\n\n# --- assemblage / orchestration ---\n" + code_assemblage
 
 
 def fabriquer_multi(intention: str):
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - USINE MULTI-ORGANES : '{intention}'")
+    print(f"NEOGEN - USINE MULTI-ORGANES : '{intention}'")
     print("=" * 72)
 
     print("\n[ADN] Claude forge l'ADN...")

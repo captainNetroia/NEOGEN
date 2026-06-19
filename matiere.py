@@ -1,5 +1,5 @@
 """
-VIVARIUM - La physique du sens (premiere goutte) branchee sur l'ADN
+NEOGEN - La physique du sens (premiere goutte) branchee sur l'ADN
 
 Idee de Jordan : donner une physique aux mots, aux symboles, a la pensee.
 Une Matiere porte des proprietes physiques. Les LOIS sont ecrites une seule
@@ -232,7 +232,7 @@ def _scene(titre, a, b, phys=DEFAUT):
 
 
 def main():
-    print("VIVARIUM - LA PREMIERE GOUTTE (physique du sens, branchee sur l'ADN)")
+    print("NEOGEN - LA PREMIERE GOUTTE (physique du sens, branchee sur l'ADN)")
     eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)
     feu = Matiere("feu", 0.1, 0.85, 0.98, 0.2, 0.6)
     produits = _scene("1. eau rencontre feu", eau, feu)

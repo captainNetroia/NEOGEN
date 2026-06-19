@@ -1,20 +1,21 @@
-# VIVARIUM — Description Technique pour Dépôt eSoleau INPI
+# NEOGEN — Description Technique pour Dépôt eSoleau INPI
 
 **Auteur** : Jordan VINCENT — NetroIA  
 **SIRET** : 94811960700026  
-**Date de rédaction** : 2026-06-18  
-**Objet** : Antériorité datée des concepts originaux du système VIVARIUM  
-**Usage** : Dépôt enveloppe eSoleau sur inpi.fr (service DSO — Dépôt Soleau en ligne)
+**Date de rédaction** : 2026-06-19  
+**Objet** : Antériorité datée des concepts originaux du système NEOGEN  
+**Usage** : Dépôt enveloppe eSoleau sur inpi.fr (service DSO — Dépôt Soleau en ligne)  
+**Note** : Le système a été développé sous le nom de code VIVARIUM (repo git privé) avant renommage en NEOGEN le 2026-06-19.
 
 ---
 
 ## 1. Identité du système
 
-**Nom** : VIVARIUM  
+**Nom** : NEOGEN  
 **Nature** : Système de fabrication de logiciels gouvernés par intelligence artificielle  
 **Concept central** : Une intention en langage naturel devient une application exécutable, gouvernée par un ADN co-construit, évoluant par sélection darwinienne avec protection contre la triche.
 
-VIVARIUM n'est pas un générateur de code classique. Il est un **organisme** : il propose ses propres contraintes, s'améliore par évolution contrôlée, protège ses invariants contre toute modification non autorisée, et soumet chaque produit à la validation humaine avant tout déploiement.
+NEOGEN n'est pas un générateur de code classique. Il est un **organisme** : il propose ses propres contraintes, s'améliore par évolution contrôlée, protège ses invariants contre toute modification non autorisée, et soumet chaque produit à la validation humaine avant tout déploiement.
 
 ---
 
@@ -68,7 +69,7 @@ Le système inclut un mécanisme de détection de la "loi de Goodhart" appliqué
 ### 2.4 Chemin de Promotion : de la logique validée à l'application web
 
 **Description** :  
-VIVARIUM introduit un concept de "chemin de promotion" pour transformer un produit validé en application web utilisable :
+NEOGEN introduit un concept de "chemin de promotion" pour transformer un produit validé en application web utilisable :
 
 1. **Contrat de produit** : Le produit généré expose une interface standardisée (`executer(donnees: dict) -> dict`) avec un schéma d'entrée déclaré (types de champs, labels, sous-champs, exemple).
 
@@ -118,16 +119,17 @@ Ces inventions s'appliquent dans le contexte d'un **système de fabrication et d
 - Les modèles de langage sous-jacents (Claude, GPT, etc.) — ceux-ci appartiennent à leurs auteurs.
 - Le principe général des conteneurs Docker ou des environnements sandboxés — ceux-ci sont des technologies existantes utilisées comme briques.
 - Le principe général de l'évolution génétique ou du machine learning — ce qui est revendiqué est leur application spécifique dans ce contexte.
-- Les MCPs (Model Context Protocol) tiers — ceux-ci sont des protocoles existants que les utilisateurs finaux connectent avec leurs propres comptes. VIVARIUM fournit l'interface de connexion, pas les services tiers.
+- Les MCPs (Model Context Protocol) tiers — ceux-ci sont des protocoles existants que les utilisateurs finaux connectent avec leurs propres comptes. NEOGEN fournit l'interface de connexion, pas les services tiers.
 
 ---
 
 ## 5. Antériorité technique
 
-Le système VIVARIUM a été conçu, développé et testé à partir du 2026-06-17. Les commits git constituent une preuve d'antériorité complémentaire :
-- Repo : https://github.com/captainNetroia/VIVARIUM (privé)
+Le système NEOGEN (développé sous le nom de code VIVARIUM) a été conçu, développé et testé à partir du 2026-06-17. Les commits git constituent une preuve d'antériorité complémentaire :
+- Repo : https://github.com/captainNetroia/VIVARIUM (privé — renommé NEOGEN)
 - Premier commit fonctionnel : 2026-06-17
 - Commit Phase C (conseiller + chemin de promotion complet) : 2026-06-18
+- Renommage VIVARIUM → NEOGEN : 2026-06-19
 
 ---
 
@@ -135,13 +137,13 @@ Le système VIVARIUM a été conçu, développé et testé à partir du 2026-06-
 
 1. Rendre ce document au format PDF (via imprimante PDF ou export).
 2. Se connecter sur **inpi.fr** → Dépôts en ligne → Enveloppe Soleau (DSO).
-3. Déposer ce fichier PDF + captures d'écran de l'interface VIVARIUM fonctionnelle.
+3. Déposer ce fichier PDF + captures d'écran de l'interface NEOGEN fonctionnelle.
 4. Le coût est de 15 EUR pour 1 enveloppe (2 exemplaires électroniques horodatés).
 5. Référence du dépôt Vokyn (même catégorie) : DSO2026021463 — suivre la même procédure.
 6. Conserver la référence DSO obtenue dans `C:\Netroia\credentials\` ou `C:\Netroia\CONTEXT-ACTIF.md`.
 
-> **Important** : Ce dépôt doit être effectué AVANT toute mise en ligne publique de VIVARIUM (V1 gratuite). L'ordre juridique compte.
+> **Important** : Ce dépôt doit être effectué AVANT toute mise en ligne publique de NEOGEN (V1 gratuite). L'ordre juridique compte.
 
 ---
 
-*Document préparé le 2026-06-18 — Jordan VINCENT, NetroIA, SIRET 94811960700026*
+*Document préparé le 2026-06-19 — Jordan VINCENT, NetroIA, SIRET 94811960700026*

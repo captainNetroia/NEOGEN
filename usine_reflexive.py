@@ -1,5 +1,5 @@
 """
-VIVARIUM - L'Usine reflexive : comprendre l'erreur, pas juste la corriger
+NEOGEN - L'Usine reflexive : comprendre l'erreur, pas juste la corriger
 
 Idee de Jordan : un historique des erreurs ET de leur resolution, pour
 COMPRENDRE pourquoi une erreur survient a cet instant, dans cet environnement.
@@ -74,7 +74,7 @@ def reflechir(intention, adn, tentative, code, erreur, client) -> Diagnostic:
         f"Etape : execution du code genere"
     )
     systeme = (
-        "Tu es la fonction de remise en question de VIVARIUM. Une erreur vient de survenir "
+        "Tu es la fonction de remise en question de NEOGEN. Une erreur vient de survenir "
         "pendant la fabrication d'un produit. Avant toute correction, tu dois COMPRENDRE "
         "l'erreur : sa cause racine, pourquoi elle survient a cet instant precis, quel "
         "facteur de l'environnement y a contribue, et quelle lecon generale en tirer. "
@@ -96,7 +96,7 @@ def reflechir(intention, adn, tentative, code, erreur, client) -> Diagnostic:
 def reparer_reflexif(intention: str, max_tentatives: int = 4, faute_injectee: bool = False):
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - L'USINE REFLEXIVE : '{intention}'")
+    print(f"NEOGEN - L'USINE REFLEXIVE : '{intention}'")
     print("=" * 72)
 
     lecons_passees = charger_lecons()

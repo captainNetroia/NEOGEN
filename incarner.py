@@ -1,5 +1,5 @@
 """
-VIVARIUM - Incarner : l'IA donne une physique a n'importe quel mot
+NEOGEN - Incarner : l'IA donne une physique a n'importe quel mot
 
 Jusqu'ici je reglais a la main que "eau" a densite 0.55, charge -0.3.
 Ici, tu donnes un mot, et Claude lui attribue sa nature physique. Puis on
@@ -69,7 +69,7 @@ def confronter(mot_a: str, mot_b: str):
     client = anthropic.Anthropic(api_key=_load_api_key())
 
     print("=" * 70)
-    print(f"VIVARIUM - INCARNER : '{mot_a}' rencontre '{mot_b}'")
+    print(f"NEOGEN - INCARNER : '{mot_a}' rencontre '{mot_b}'")
     print(f"(Claude attribue la physique de chaque mot - vrai appel {MODEL})")
     print("=" * 70)
 

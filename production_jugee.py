@@ -1,5 +1,5 @@
 """
-VIVARIUM - Production jugee : l'organisme choisit la MEILLEURE facon de produire
+NEOGEN - Production jugee : l'organisme choisit la MEILLEURE facon de produire
 
 Le jugement (selection.py) notait les lois. Ici on l'eleve au niveau PRODUCTION :
 pour une meme intention, l'organisme genere PLUSIEURS strategies, les NOTE selon
@@ -113,7 +113,7 @@ def qualite_production(module: ModuleGenere, adn) -> tuple[float, dict]:
 def produire_le_mieux(intention: str):
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - PRODUCTION JUGEE : '{intention}'")
+    print(f"NEOGEN - PRODUCTION JUGEE : '{intention}'")
     print("=" * 72)
 
     print("\n[ADN] Claude forge l'ADN (objectif + murs + curseurs)...")

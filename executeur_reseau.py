@@ -1,5 +1,5 @@
 """
-VIVARIUM - Executeur reseau : egress par liste blanche via proxy
+NEOGEN - Executeur reseau : egress par liste blanche via proxy
 
 Quand un produit recoit la capacite RESEAU avec une liste blanche de domaines, on
 ne lui ouvre PAS Internet en grand. On monte une topologie a 2 reseaux :

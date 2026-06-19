@@ -1,5 +1,5 @@
 """
-VIVARIUM - Service FastAPI : l'organisme devient exploitable
+NEOGEN - Service FastAPI : l'organisme devient exploitable
 
 Expose le pipeline reel de production derriere une API HTTP :
   POST /fabriquer      intention -> produit gouverne, execute en conteneur
@@ -33,7 +33,7 @@ from pipeline import fabriquer_reel
 from ui import PAGE
 
 app = FastAPI(
-    title="VIVARIUM",
+    title="NEOGEN",
     description="Une intention parlee devient une application gouvernee, generee et executee en conteneur durci.",
     version="5.0",
 )
@@ -71,7 +71,7 @@ def racine():
 @app.get("/info")
 def info():
     return {
-        "service": "VIVARIUM",
+        "service": "NEOGEN",
         "version": "5.0",
         "endpoints": ["/ (UI)", "/fabriquer (POST)", "/produits", "/produits/{id}", "/health", "/info"],
     }

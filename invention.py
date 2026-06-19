@@ -1,5 +1,5 @@
 """
-VIVARIUM - Le monde invente une loi qui lui manque
+NEOGEN - Le monde invente une loi qui lui manque
 
 Quand le reel dit "il devrait se passer quelque chose" mais qu'aucune loi ne le
 produit, le systeme COMPOSE une loi nouvelle a partir d'un vocabulaire de
@@ -126,7 +126,7 @@ def inventer(cas_cible, tag_attendu, cas_interdits, max_conditions=3):
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 70)
-    print("VIVARIUM - LE MONDE INVENTE UNE LOI QUI LUI MANQUE")
+    print("NEOGEN - LE MONDE INVENTE UNE LOI QUI LUI MANQUE")
     print("=" * 70)
 
     eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)

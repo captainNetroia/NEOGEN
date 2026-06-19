@@ -1,5 +1,5 @@
 """
-VIVARIUM - Proposition d'ADN : l'organisme propose les murs/capacites d'un produit
+NEOGEN - Proposition d'ADN : l'organisme propose les murs/capacites d'un produit
 
 Coeur du flux co-construit (idee Jordan, 2026-06-17) : un produit part de ZERO,
 sans mur. Ici l'organisme JUGE l'intention (discernement) PUIS PROPOSE :
@@ -38,7 +38,7 @@ class PropositionADN(BaseModel):
 def proposer(intention: str, client) -> PropositionADN:
     vocab_murs = "; ".join(f"{k} ({v})" for k, v in REGLES_MURS.items())
     systeme = (
-        "Tu es la faculte de PROPOSITION de VIVARIUM. Un produit part de ZERO, sans mur. "
+        "Tu es la faculte de PROPOSITION de NEOGEN. Un produit part de ZERO, sans mur. "
         "Pour l'intention donnee, tu fais DEUX choses :\n"
         "1) DISCERNEMENT : juge si ca merite qu'on s'y attaque (valeur, faisabilite, clarte), "
         "et propose une reformulation si l'intention est floue ou peu faisable.\n"
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     intention = " ".join(sys.argv[1:]) or "un coffre-fort de mots de passe"
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - PROPOSITION D'ADN : '{intention}'")
+    print(f"NEOGEN - PROPOSITION D'ADN : '{intention}'")
     print("=" * 72)
     p = proposer(intention, client)
     d = p.discernement

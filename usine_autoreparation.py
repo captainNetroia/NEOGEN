@@ -1,5 +1,5 @@
 """
-VIVARIUM - L'Usine auto-reparatrice
+NEOGEN - L'Usine auto-reparatrice
 
 L'Usine generait du code et l'executait une fois. Ici, si l'execution echoue,
 le systeme renvoie l'erreur a Claude et REGENERE un code corrige, en boucle,
@@ -65,7 +65,7 @@ def generer(adn, client, feedback=None, cap=None, contrat=None) -> ModuleGenere:
 def reparer(intention: str, max_tentatives: int = 4, faute_injectee: bool = False):
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - L'USINE AUTO-REPARATRICE : '{intention}'")
+    print(f"NEOGEN - L'USINE AUTO-REPARATRICE : '{intention}'")
     print("=" * 72)
 
     print("\n[ADN] Claude forge l'ADN...")

@@ -1,5 +1,5 @@
 """
-VIVARIUM - Evolution a 2 vitesses : l'organisme ameliore ses lois en securite
+NEOGEN - Evolution a 2 vitesses : l'organisme ameliore ses lois en securite
 
   VITESSE RAPIDE (live)  : produit avec le GENOME DE LOIS stable (promu). Jamais perturbe.
   VITESSE LENTE (jumeau) : propose une mutation d'une loi -> l'evalue sur un JUMEAU
@@ -174,7 +174,7 @@ def cycle_rapide(genome: dict):
 
 def main():
     print("=" * 72)
-    print("VIVARIUM - EVOLUTION A 2 VITESSES (jumeau + etalon immuable)")
+    print("NEOGEN - EVOLUTION A 2 VITESSES (jumeau + etalon immuable)")
     print("=" * 72)
 
     genome = charger_genome()

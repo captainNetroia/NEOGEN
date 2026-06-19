@@ -1,5 +1,5 @@
 """
-VIVARIUM - L'Usine unifiee : fabriquer en heritant, apprendre en fabriquant
+NEOGEN - L'Usine unifiee : fabriquer en heritant, apprendre en fabriquant
 
 Jusqu'ici, la memoire generationnelle accumulait des lecons, mais l'Usine ne les
 consultait jamais. Ce module unit les deux fils en UN organisme :
@@ -32,7 +32,7 @@ def fabriquer_avec_heritage(intention: str, max_tentatives: int = 4, faute_injec
     client = anthropic.Anthropic(api_key=_load_api_key())
 
     print("=" * 72)
-    print(f"VIVARIUM - L'USINE UNIFIEE : '{intention}'")
+    print(f"NEOGEN - L'USINE UNIFIEE : '{intention}'")
     print("=" * 72)
 
     # --- HERITAGE : on charge les lecons de la lignee ---

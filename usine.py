@@ -1,10 +1,10 @@
 """
-VIVARIUM - L'Usine : une intention -> du code complet qui TOURNE
+NEOGEN - L'Usine : une intention -> du code complet qui TOURNE
 
 Le Compositeur produisait un plan avec organes esquisses. L'Usine va plus loin :
 elle genere le CODE COMPLET du produit et l'EXECUTE pour de vrai.
 
-Trois couches de securite avant la moindre execution (philosophie VIVARIUM) :
+Trois couches de securite avant la moindre execution (philosophie NEOGEN) :
   1. MEMBRANE      : les effets declares respectent les murs forges.
   2. SCAN STATIQUE : on inspecte le vrai code pour des appels dangereux
                      (reseau, suppression de fichiers, exec...) avant de lancer.
@@ -120,7 +120,7 @@ def executer_isole(code: str, timeout: int = 20, cap=None, volume_nom=None):
     # d'executer un produit reclamant des capacites (persistance/reseau) hors conteneur.
     if cap is not None and (getattr(cap, "persistance", False) or getattr(cap, "reseau", False)):
         return (-3, "", "Capacites demandees mais Docker indisponible : execution hors conteneur refusee.", "<repli>")
-    d = tempfile.mkdtemp(prefix="vivarium_usine_")
+    d = tempfile.mkdtemp(prefix="NEOGEN_usine_")
     chemin = os.path.join(d, "produit.py")
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(code)
@@ -140,7 +140,7 @@ def fabriquer(intention: str):
     client = anthropic.Anthropic(api_key=_load_api_key())
 
     print("=" * 72)
-    print(f"VIVARIUM - L'USINE : '{intention}' -> du code qui tourne")
+    print(f"NEOGEN - L'USINE : '{intention}' -> du code qui tourne")
     print("=" * 72)
 
     print("\n[1] Claude forge l'ADN du produit...")

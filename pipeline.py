@@ -1,5 +1,5 @@
 """
-VIVARIUM - Pipeline unifie : un seul point d'entree pour la production
+NEOGEN - Pipeline unifie : un seul point d'entree pour la production
 
 Regle la dette de fragmentation : les 7 variantes usine_* refaisaient la meme
 logique. Ici, UN orchestrateur configurable :
@@ -220,7 +220,7 @@ def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistre
 # ---------------------------------------------------------------------------
 def smoke_test() -> bool:
     print("=" * 60)
-    print("VIVARIUM - SMOKE TEST DU PIPELINE (sans API)")
+    print("NEOGEN - SMOKE TEST DU PIPELINE (sans API)")
     print("=" * 60)
 
     adn = ADNProduit(
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         intention = " ".join(sys.argv[1:])
         print("=" * 60)
-        print(f"VIVARIUM - PRODUCTION REELLE : '{intention}'")
+        print(f"NEOGEN - PRODUCTION REELLE : '{intention}'")
         print("=" * 60)
         r = fabriquer_reel(intention)
         print(f"\n  succes={r.succes} | {r.verdict} | {r.tentatives} tentative(s) | {r.lignes} lignes")

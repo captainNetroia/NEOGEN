@@ -1,5 +1,5 @@
 """
-VIVARIUM - La boucle vivante : le monde se soigne tout seul
+NEOGEN - La boucle vivante : le monde se soigne tout seul
 
 On ferme la boucle. Le monde demarre SANS loi de fonte. Quand le reel lui dit
 qu'une rencontre devrait reagir et qu'aucune loi ne le produit, il :
@@ -80,7 +80,7 @@ class MondeVivant:
 
 def main():
     print("=" * 72)
-    print("VIVARIUM - LA BOUCLE VIVANTE (le monde se soigne tout seul)")
+    print("NEOGEN - LA BOUCLE VIVANTE (le monde se soigne tout seul)")
     print("=" * 72)
 
     eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)

@@ -1,5 +1,5 @@
 """
-VIVARIUM - Sanitizer fail-closed (porte de NetroPraxis/coach-dev-local)
+NEOGEN - Sanitizer fail-closed (porte de NetroPraxis/coach-dev-local)
 
 Gardien : aucune donnee (entree client, sortie d'erreur d'un produit, intention) ne doit
 atteindre un log, un ledger ou un LLM avec un secret en clair. On detecte et on redacte
@@ -71,7 +71,7 @@ def nettoyer_valeur(v):
 
 if __name__ == "__main__":
     print("=" * 64)
-    print("VIVARIUM - SANITIZER (fail-closed) : demo")
+    print("NEOGEN - SANITIZER (fail-closed) : demo")
     print("=" * 64)
     echantillons = [
         "voici ma cle AWS AKIA1234567890ABCDEF dans le texte",

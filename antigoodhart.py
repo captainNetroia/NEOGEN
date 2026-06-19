@@ -1,5 +1,5 @@
 """
-VIVARIUM - Anti-Goodhart : l'observateur independant (etalon cache)
+NEOGEN - Anti-Goodhart : l'observateur independant (etalon cache)
 
 Loi de Goodhart : "quand une mesure devient une cible, elle cesse d'etre une bonne
 mesure". L'organisme pourrait ameliorer son score sur l'etalon VISIBLE (VERITE/CORPUS)
@@ -84,7 +84,7 @@ def _genome(lois):
 
 def main():
     print("=" * 72)
-    print("VIVARIUM - ANTI-GOODHART : l'observateur independant (etalon cache)")
+    print("NEOGEN - ANTI-GOODHART : l'observateur independant (etalon cache)")
     print("=" * 72)
 
     base = _genome([])  # part sans loi

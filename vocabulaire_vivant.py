@@ -1,5 +1,5 @@
 """
-VIVARIUM - Le grand vertige : l'IA propose une brique neuve
+NEOGEN - Le grand vertige : l'IA propose une brique neuve
 
 Quand le vocabulaire de briques (conditions + effets) ne suffit pas a combler
 un manque, l'invention echoue. Alors on demande a Claude de proposer une BRIQUE
@@ -102,7 +102,7 @@ def compiler_brique(brique: BriqueEffet):
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 72)
-    print("VIVARIUM - LE GRAND VERTIGE : l'IA propose une brique neuve")
+    print("NEOGEN - LE GRAND VERTIGE : l'IA propose une brique neuve")
     print("=" * 72)
 
     eau = Matiere("eau", 0.55, 0.9, 0.2, 0.6, -0.3)

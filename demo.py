@@ -1,11 +1,11 @@
 """
-VIVARIUM - Demonstration cas neutre : un mini gestionnaire de notes.
+NEOGEN - Demonstration cas neutre : un mini gestionnaire de notes.
 On fait pousser l'organisme et on observe chaque garde-fou s'activer.
 Lancer : python demo.py
 """
 
 import os
-from vivarium import Vivarium, Cell
+from NEOGEN import NEOGEN, Cell
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 GENOME = os.path.join(BASE, "genome.json")
@@ -21,7 +21,7 @@ def titre(t):
     print("=" * 70)
 
 
-# La remise en question : VIVARIUM rend la main a l'humain quand un mur est frole.
+# La remise en question : NEOGEN rend la main a l'humain quand un mur est frole.
 # Ici l'humain approuve si une protection est presente, refuse sinon.
 def humain(cell: Cell):
     eff = cell.effective_effects()
@@ -61,8 +61,8 @@ def reset_data():
 
 def main():
     reset_data()
-    titre("VIVARIUM v1 - Noyau grave charge")
-    v = Vivarium(GENOME, human_decision=humain, energy=60)
+    titre("NEOGEN v1 - Noyau grave charge")
+    v = NEOGEN(GENOME, human_decision=humain, energy=60)
     print(f"Objectif : {v.genome.objective}")
     print("Murs absolus :")
     for w in v.genome.walls:
@@ -159,7 +159,7 @@ def main():
     print(f"Energie restante : {v.energy}")
     print(f"Cellules vivantes : {sorted(v.cells.keys())}")
     print(f"Entrees au ledger de lignee : {len(v.ledger.entries)} (ineffacables, dans data/ledger.jsonl)")
-    print("\nVIVARIUM a tenu tous ses murs. Le liquide a coule, l'enclos a tenu.")
+    print("\nNEOGEN a tenu tous ses murs. Le liquide a coule, l'enclos a tenu.")
 
 
 if __name__ == "__main__":

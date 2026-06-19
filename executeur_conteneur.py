@@ -1,5 +1,5 @@
 """
-VIVARIUM - Executeur conteneur : isolation de niveau industriel (Docker)
+NEOGEN - Executeur conteneur : isolation de niveau industriel (Docker)
 
 Remplace l'isolation processus de usine.py par un VRAI conteneur durci.
 Le code genere tourne dans un conteneur Docker ephemere :
@@ -30,7 +30,7 @@ IMAGE = "python:3.12-slim"
 _MARQUEUR_OK = "___VIVARIUM_RESULT___"
 _MARQUEUR_ERR = "___VIVARIUM_ERROR___"
 _RUNNER = (
-    "\n\n# --- runner VIVARIUM (promotion : execute sur donnees reelles) ---\n"
+    "\n\n# --- runner NEOGEN (promotion : execute sur donnees reelles) ---\n"
     "import os as _o, json as _j\n"
     "try:\n"
     "    _d = _j.loads(_o.environ.get('VIVARIUM_INPUT', 'null'))\n"
@@ -168,7 +168,7 @@ def executer_avec_entree(code: str, donnees: dict, timeout: int = 25,
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("VIVARIUM - EXECUTEUR CONTENEUR (test d'isolation industrielle)")
+    print("NEOGEN - EXECUTEUR CONTENEUR (test d'isolation industrielle)")
     print("=" * 70)
 
     ok, info = docker_disponible()

@@ -1,4 +1,4 @@
-# VIVARIUM - orchestration du service API
+# NEOGEN - orchestration du service API
 #
 # ATTENTION SECURITE : ce service monte le socket Docker de l'hote pour pouvoir
 # creer les conteneurs-bacs-a-sable du code genere. Cela donne au conteneur de
@@ -14,9 +14,9 @@
 # (ou definir ANTHROPIC_API_KEY dans un fichier .env a cote, non commite)
 
 services:
-  vivarium-api:
+  neogen-api:
     build: .
-    container_name: vivarium-api
+    container_name: neogen-api
     ports:
       - "8000:8000"
     environment:

@@ -1,5 +1,5 @@
 """
-VIVARIUM - Capacites : le modele a DEUX niveaux de murs
+NEOGEN - Capacites : le modele a DEUX niveaux de murs
 
 Idee de Jordan (2026-06-17) : un createur ne doit pas etre bloque par des murs
 qui l'empechent de produire de vrais besoins. Les murs d'un PRODUIT partent de

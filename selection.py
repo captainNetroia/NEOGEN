@@ -1,5 +1,5 @@
 """
-VIVARIUM - Selection darwinienne : juger et elaguer les lois
+NEOGEN - Selection darwinienne : juger et elaguer les lois
 
 L'organisme note chaque loi contre un CORPUS de verites (l'etalon), garde les
 fortes, elague les faibles. Fondation de l'auto-jugement de la qualite.
@@ -112,7 +112,7 @@ def selectionner(lois: list[LoiSynthetisee], seuil: float = 0.5):
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 72)
-    print("VIVARIUM - SELECTION DARWINIENNE DES LOIS")
+    print("NEOGEN - SELECTION DARWINIENNE DES LOIS")
     print("=" * 72)
 
     # Un patrimoine melange : une loi forte, une qui deborde, une redondante, une inutile

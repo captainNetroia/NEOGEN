@@ -1,7 +1,7 @@
 """
-VIVARIUM - Compositeur incarne : la physique du sens forge la gouvernance
+NEOGEN - Compositeur incarne : la physique du sens forge la gouvernance
 
-Fusion des deux fils de VIVARIUM :
+Fusion des deux fils de NEOGEN :
   - le fil profond : la PHYSIQUE DU SENS (matiere.py / incarner.py) - les mots
     portent une nature physique (cohesion, fluidite, charge, temperature...).
   - le fil pratique : le COMPOSITEUR - intention -> ADN (curseurs + murs).
@@ -84,7 +84,7 @@ def deriver_gouvernance(physique_moy: dict) -> tuple[dict, list[tuple[str, str]]
 def composer_incarne(intention: str):
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - COMPOSITEUR INCARNE : '{intention}'")
+    print(f"NEOGEN - COMPOSITEUR INCARNE : '{intention}'")
     print("=" * 72)
 
     print("\n[1] Extraction des concepts cles de l'intention...")

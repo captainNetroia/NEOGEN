@@ -1,5 +1,5 @@
 """
-VIVARIUM - Conseillers : raisonnement juridique + cadrage analytique (Phase C)
+NEOGEN - Conseillers : raisonnement juridique + cadrage analytique (Phase C)
 
 Dans le flux Analyser, l'organisme ne se contente pas de proposer un ADN : il CONSEILLE.
 Deux conseillers, en UN appel structure :
@@ -43,7 +43,7 @@ class Conseil(BaseModel):
 
 def conseiller(intention: str, client) -> Conseil:
     systeme = (
-        "Tu es le CONSEILLER de VIVARIUM. Pour une intention de produit/besoin, tu produis "
+        "Tu es le CONSEILLER de NEOGEN. Pour une intention de produit/besoin, tu produis "
         "DEUX choses, concretes et professionnelles :\n"
         "1) CONFORMITE : une note juridique/RGPD INDICATIVE (risques, obligations, donnees "
         "personnelles, retention...) adaptee a CE produit. Niveau de risque honnete. "
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     intention = " ".join(sys.argv[1:]) or "un coffre-fort de documents medicaux pour un cabinet"
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - CONSEILLER : '{intention}'")
+    print(f"NEOGEN - CONSEILLER : '{intention}'")
     print("=" * 72)
     c = conseiller(intention, client)
     print(f"\n[CONFORMITE] risque {c.conformite.niveau_risque}")

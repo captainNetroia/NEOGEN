@@ -1,5 +1,5 @@
 """
-VIVARIUM - Le monde apprend de ses limites
+NEOGEN - Le monde apprend de ses limites
 
 La physique du sens part avec des constantes par defaut. Sur certaines paires,
 le comportement emergent est faux (eau+huile ne devrait pas se melanger).
@@ -102,7 +102,7 @@ def _montrer(phys: Physique, titre: str):
 
 def main():
     print("=" * 68)
-    print("VIVARIUM - LE MONDE APPREND DE SES LIMITES")
+    print("NEOGEN - LE MONDE APPREND DE SES LIMITES")
     print("=" * 68)
 
     print("\n--- AVANT : physique par defaut, erreur =", erreur(DEFAUT), "---")

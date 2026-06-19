@@ -1,5 +1,5 @@
 """
-VIVARIUM - Le discernement amont : quel probleme merite qu'on s'y attaque ?
+NEOGEN - Le discernement amont : quel probleme merite qu'on s'y attaque ?
 
 Avant de generer quoi que ce soit, l'organisme JUGE l'intention :
   - merite-t-elle qu'on s'y attaque (valeur, clarte, faisabilite) ?
@@ -51,7 +51,7 @@ class JugementOpportunite(BaseModel):
 
 def juger_opportunite(intention: str, client) -> JugementOpportunite:
     systeme = (
-        "Tu es la faculte de DISCERNEMENT de VIVARIUM. On te donne une intention de produit. "
+        "Tu es la faculte de DISCERNEMENT de NEOGEN. On te donne une intention de produit. "
         "Avant toute generation, tu juges si elle merite qu'on s'y attaque MAINTENANT.\n\n"
         + CAPACITES +
         "\n\nNote valeur, faisabilite, clarte (0-100). 'merite_attaque' est vrai si, globalement, "
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     intention = " ".join(sys.argv[1:]) or "une application qui gere tout pour mon entreprise"
     client = anthropic.Anthropic(api_key=_load_api_key())
     print("=" * 72)
-    print(f"VIVARIUM - DISCERNEMENT : '{intention}'")
+    print(f"NEOGEN - DISCERNEMENT : '{intention}'")
     print("=" * 72)
     j = juger_opportunite(intention, client)
     print(f"\n  MERITE QU'ON S'Y ATTAQUE : {'OUI' if j.merite_attaque else 'NON'}")

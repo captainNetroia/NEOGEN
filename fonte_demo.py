@@ -1,5 +1,5 @@
 """
-VIVARIUM - Demo : une loi qui manquait, ajoutee une fois, marche partout.
+NEOGEN - Demo : une loi qui manquait, ajoutee une fois, marche partout.
 
 glace + feu donnait INERTE : le monde ne connaissait pas la fonte.
 On a ajoute UNE loi generique (loi_fonte). Sans appel API, on rejoue glace+feu

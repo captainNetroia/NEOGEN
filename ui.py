@@ -1,11 +1,14 @@
 """
-VIVARIUM - UI : Liquid Glass + shader WebGL + faux-3D escalier
+NEOGEN - UI : Bento 3D interactif + shader WebGL
 
-Fond : fragment shader GLSL (domain-warped fBm, pastels fluides).
-Cards : Liquid Glass Apple-style (backdrop-filter blur 40px, rgba blanc 8%, highlight interne).
-3D    : transform perspective sur parent (fonctionne avec backdrop-filter).
-       Staircase translateX par enfant = illusion profondeur.
-Aucune dependance externe. Aucun CDN. Zero iridescent/arc-en-ciel.
+Fond  : fragment shader GLSL (domain-warped fBm, pastels fluides), fallback gradient.
+Bento : 6 onglets de nav en VRAI 3D (perspective + preserve-3d), depths varies,
+        parallaxe a la souris (rotation du plan vers le curseur + float idle).
+Verre : frosted SIMULE (gradients translucides + reflet specular suivant la souris).
+        PAS de backdrop-filter sur les cartes : il casse preserve-3d. Sur le fond
+        shader doux, rend comme du verre depoli (style UI Bento).
+        Aucune dependance externe, aucun CDN.
+Nav   : clic carte -> showSection(). Sections en Liquid Glass (.glass, panels 2D).
 
 Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-19.
 """
@@ -15,7 +18,7 @@ PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VIVARIUM</title>
+<title>NEOGEN</title>
 <style>
 :root {
   --txt:#0f172a; --mut:#64748b; --line:rgba(15,23,42,.08);
@@ -24,7 +27,8 @@ PAGE = r"""<!doctype html>
   --c-analyse:#2563eb; --c-integration:#ea580c; --c-don:#db2777;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:#f0f4ff;color:var(--txt);
+body{background:linear-gradient(135deg,#ede9fe 0%,#dbeafe 40%,#fde8f7 100%);
+  color:var(--txt);
   font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;
   min-height:100vh;overflow-x:hidden;}
 
@@ -66,74 +70,89 @@ header h1 b{color:var(--acc);font-weight:700;}
 .landing-title h2 b{font-weight:700;color:var(--acc);}
 .landing-title p{color:var(--mut);font-size:14px;margin-top:10px;max-width:460px;line-height:1.7;}
 
-/* 3D ESCALIER
-   Technique : perspective() sur le parent (2D, pas preserve-3d)
-   -> backdrop-filter fonctionne sur les enfants
-   + translateX individuel = effet staircase/profondeur
-*/
-.stack-wrap{
-  transform:perspective(1100px) rotateX(16deg) rotateY(-10deg);
-  width:500px;
+/* ============ BENTO 3D INTERACTIF ============
+   Plan incline en VRAI 3D (preserve-3d) + parallaxe souris (JS).
+   Verre frosted SIMULE (gradients + reflet specular), PAS de
+   backdrop-filter : il casserait preserve-3d. Sur le fond shader
+   doux ca rend comme du verre depoli, fidele a UI Bento. */
+.bento{
+  perspective:1250px;
+  width:min(960px,94vw);
+  margin:8px auto 0;
+  padding:26px 10px 36px;
+}
+.bento-3d{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-auto-rows:128px;
+  gap:22px;
+  transform-style:preserve-3d;
+  transform:rotateX(14deg) rotateY(-16deg);
+  will-change:transform;
 }
 
-/* LIQUID GLASS CARD */
+/* CARTE BENTO */
 .layer{
   position:relative;
-  height:72px;
-  border-radius:20px;
+  border-radius:22px;
   cursor:pointer;
-  margin-bottom:10px;
-
-  /* Liquid Glass - recette Apple iOS 26 */
-  background:rgba(255,255,255,.08);
-  backdrop-filter:blur(40px) saturate(220%);
-  -webkit-backdrop-filter:blur(40px) saturate(220%);
-  border:1px solid rgba(255,255,255,.42);
+  transform-style:preserve-3d;
+  transform:translateZ(var(--z,0px));
+  background:linear-gradient(135deg,
+     rgba(255,255,255,.68), rgba(255,255,255,.24) 52%, rgba(255,255,255,.42));
+  border:1px solid rgba(255,255,255,.72);
   box-shadow:
-    inset 0 1.5px 0 rgba(255,255,255,.72),
-    inset 1px 0 0 rgba(255,255,255,.18),
-    0 8px 32px rgba(0,0,0,.06),
-    0 2px 6px rgba(0,0,0,.03);
-
-  display:flex;align-items:center;padding:0 22px;gap:14px;
-  transition:transform .3s cubic-bezier(.23,1,.32,1),box-shadow .25s;
+    inset 0 2px 0 rgba(255,255,255,.95),
+    inset 0 -16px 30px rgba(255,255,255,.10),
+    0 26px 50px rgba(15,23,42,.18),
+    0 8px 16px rgba(15,23,42,.10);
+  display:flex;align-items:center;gap:14px;padding:0 22px;
+  transition:transform .4s cubic-bezier(.23,1,.32,1),box-shadow .3s;
+  overflow:hidden;
 }
-
-/* Accent bas (simple ligne coloree, sans animation) */
+/* reflet specular qui suit la souris (--mx/--my heritees de .bento-3d) */
+.layer::before{
+  content:'';position:absolute;inset:0;border-radius:22px;pointer-events:none;
+  background:radial-gradient(220px 220px at var(--mx,30%) var(--my,0%),
+     rgba(255,255,255,.6),rgba(255,255,255,0) 62%);
+  opacity:.5;mix-blend-mode:screen;transition:opacity .3s;
+}
+/* ligne d'accent bas */
 .layer::after{
-  content:'';position:absolute;
-  bottom:0;left:14%;right:14%;height:1.5px;
-  background:var(--lc,var(--acc));
-  border-radius:0 0 20px 20px;
-  opacity:.45;transition:opacity .25s,height .2s;
+  content:'';position:absolute;bottom:0;left:12%;right:12%;height:2px;
+  background:var(--lc,var(--acc));border-radius:0 0 22px 22px;
+  opacity:.55;transition:opacity .25s,height .2s;
+  box-shadow:0 0 10px var(--lc,var(--acc));
 }
-.layer:hover::after{opacity:.85;height:2px;}
+.layer:hover::after{opacity:1;height:3px;}
+.layer:hover::before{opacity:.8;}
 
-/* Staircase : carte du haut a droite, carte du bas a gauche */
-.layer:nth-child(1){transform:translateX(20px); --lc:var(--c-creation);}
-.layer:nth-child(2){transform:translateX(11px); --lc:var(--c-production);}
-.layer:nth-child(3){transform:translateX(2px);  --lc:var(--c-compte);}
-.layer:nth-child(4){transform:translateX(-7px); --lc:var(--c-analyse);}
-.layer:nth-child(5){transform:translateX(-16px);--lc:var(--c-integration);}
-.layer:nth-child(6){transform:translateX(-25px);--lc:var(--c-don);}
+/* profondeurs variees (effet bento) + couleur d'accent */
+.layer:nth-child(1){--z:70px; --lc:var(--c-creation);}
+.layer:nth-child(2){--z:28px; --lc:var(--c-production);}
+.layer:nth-child(3){--z:54px; --lc:var(--c-compte);}
+.layer:nth-child(4){--z:40px; --lc:var(--c-analyse);}
+.layer:nth-child(5){--z:62px; --lc:var(--c-integration);}
+.layer:nth-child(6){--z:20px; --lc:var(--c-don);}
 
-/* Hover: monte + glow couleur */
-.layer:nth-child(1):hover{transform:translateX(20px) translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(8,145,178,.15),0 4px 12px rgba(0,0,0,.06);}
-.layer:nth-child(2):hover{transform:translateX(11px) translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(22,163,74,.15),0 4px 12px rgba(0,0,0,.06);}
-.layer:nth-child(3):hover{transform:translateX(2px)  translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(124,58,237,.15),0 4px 12px rgba(0,0,0,.06);}
-.layer:nth-child(4):hover{transform:translateX(-7px) translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(37,99,235,.15),0 4px 12px rgba(0,0,0,.06);}
-.layer:nth-child(5):hover{transform:translateX(-16px)translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(234,88,12,.15),0 4px 12px rgba(0,0,0,.06);}
-.layer:nth-child(6):hover{transform:translateX(-25px)translateY(-5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.8),0 16px 40px rgba(219,39,119,.15),0 4px 12px rgba(0,0,0,.06);}
+/* hover : avance vers l'utilisateur + glow couleur */
+.layer:hover{transform:translateZ(calc(var(--z,0px) + 40px)) scale(1.02);}
+.layer:nth-child(1):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(8,145,178,.32),0 10px 20px rgba(15,23,42,.12);}
+.layer:nth-child(2):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(22,163,74,.32),0 10px 20px rgba(15,23,42,.12);}
+.layer:nth-child(3):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(124,58,237,.32),0 10px 20px rgba(15,23,42,.12);}
+.layer:nth-child(4):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(37,99,235,.32),0 10px 20px rgba(15,23,42,.12);}
+.layer:nth-child(5):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(234,88,12,.32),0 10px 20px rgba(15,23,42,.12);}
+.layer:nth-child(6):hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.95),0 34px 64px rgba(219,39,119,.32),0 10px 20px rgba(15,23,42,.12);}
 
 .layer-marker{width:10px;height:10px;border-radius:50%;background:var(--lc,var(--acc));
-  box-shadow:0 0 8px var(--lc,var(--acc));flex-shrink:0;}
-.layer-label{flex:1;}
-.layer-label h3{font-size:15px;font-weight:700;letter-spacing:.3px;color:var(--txt);}
-.layer-label p{font-size:12px;color:var(--mut);margin-top:1px;}
-.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;flex-shrink:0;}
-.badge.live{background:rgba(22,163,74,.1);color:var(--ok);border:1px solid rgba(22,163,74,.2);}
-.badge.soon{background:rgba(100,116,139,.07);color:var(--mut);border:1px solid rgba(100,116,139,.14);}
-.layer-arrow{color:var(--mut);font-size:18px;transition:transform .2s,color .2s;}
+  box-shadow:0 0 8px var(--lc,var(--acc));flex-shrink:0;position:relative;z-index:1;}
+.layer-label{flex:1;position:relative;z-index:1;}
+.layer-label h3{font-size:16px;font-weight:700;letter-spacing:.3px;color:var(--txt);}
+.layer-label p{font-size:12px;color:var(--mut);margin-top:2px;line-height:1.35;}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;flex-shrink:0;position:relative;z-index:1;}
+.badge.live{background:rgba(22,163,74,.14);color:var(--ok);border:1px solid rgba(22,163,74,.28);}
+.badge.soon{background:rgba(100,116,139,.12);color:var(--mut);border:1px solid rgba(100,116,139,.22);}
+.layer-arrow{color:var(--mut);font-size:18px;transition:transform .2s,color .2s;position:relative;z-index:1;}
 .layer:hover .layer-arrow{transform:translateX(5px);color:var(--acc);}
 
 /* SECTIONS */
@@ -144,13 +163,17 @@ header h1 b{color:var(--acc);font-weight:700;}
 .sec-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
 .sec-header p{color:var(--mut);font-size:14px;margin-top:6px;}
 
-/* Liquid Glass pour les panels internes */
+/* Glassmorphism pour les panels internes */
 .glass{
-  background:rgba(255,255,255,.08);
-  backdrop-filter:blur(40px) saturate(220%);
-  -webkit-backdrop-filter:blur(40px) saturate(220%);
-  border:1px solid rgba(255,255,255,.42);
-  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.7),0 8px 32px rgba(0,0,0,.06);
+  background:rgba(255,255,255,.18);
+  backdrop-filter:blur(32px) saturate(200%);
+  -webkit-backdrop-filter:blur(32px) saturate(200%);
+  border:1px solid rgba(255,255,255,.72);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.9),
+    inset 0 0 0 0.5px rgba(255,255,255,.4),
+    0 24px 56px rgba(80,40,180,.1),
+    0 6px 16px rgba(0,0,0,.06);
   border-radius:20px;
 }
 .panel{padding:20px;margin-bottom:18px;border-radius:16px;}
@@ -221,21 +244,13 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 .hidden{display:none !important;}
 
 /* RESPONSIVE */
+@media(max-width:780px){
+  .bento-3d{grid-template-columns:repeat(2,1fr);transform:rotateX(10deg) rotateY(-10deg);}
+}
 @media(max-width:600px){
-  .stack-wrap{width:90vw;transform:perspective(900px) rotateX(12deg) rotateY(-6deg);}
-  .layer{height:66px;}
-  .layer:nth-child(1){transform:translateX(15px);}
-  .layer:nth-child(2){transform:translateX(8px);}
-  .layer:nth-child(3){transform:translateX(1px);}
-  .layer:nth-child(4){transform:translateX(-6px);}
-  .layer:nth-child(5){transform:translateX(-13px);}
-  .layer:nth-child(6){transform:translateX(-20px);}
-  .layer:nth-child(1):hover{transform:translateX(15px) translateY(-4px);}
-  .layer:nth-child(2):hover{transform:translateX(8px)  translateY(-4px);}
-  .layer:nth-child(3):hover{transform:translateX(1px)  translateY(-4px);}
-  .layer:nth-child(4):hover{transform:translateX(-6px) translateY(-4px);}
-  .layer:nth-child(5):hover{transform:translateX(-13px)translateY(-4px);}
-  .layer:nth-child(6):hover{transform:translateX(-20px)translateY(-4px);}
+  .bento{perspective:900px;}
+  .bento-3d{grid-template-columns:1fr;grid-auto-rows:84px;gap:16px;transform:rotateX(6deg) rotateY(-6deg);}
+  .layer:nth-child(n){--z:24px;}
   header{padding:14px 16px;}
   .section{padding:16px 16px 40px;}
   .landing-title h2{font-size:28px;}
@@ -248,7 +263,7 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 <canvas id="bg-canvas"></canvas>
 
 <header>
-  <h1 onclick="showLanding()">VIVA<b>RIUM</b></h1>
+  <h1 onclick="showLanding()">NEO<b>GEN</b></h1>
   <div id="docker-status"><span class="dot off"></span>chargement...</div>
 </header>
 
@@ -260,11 +275,12 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 <!-- LANDING -->
 <div id="landing">
   <div class="landing-title">
-    <h2>VIVA<b>RIUM</b></h2>
+    <h2>NEO<b>GEN</b></h2>
     <p>Une intention devient une application gouvernee, generee et executee en conteneur durci.</p>
   </div>
 
-  <div class="stack-wrap">
+  <div class="bento">
+    <div class="bento-3d">
 
     <div class="layer" onclick="showSection('creation')">
       <span class="layer-marker" style="--lc:var(--c-creation)"></span>
@@ -303,11 +319,12 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 
     <div class="layer" onclick="showSection('don')">
       <span class="layer-marker" style="--lc:var(--c-don)"></span>
-      <div class="layer-label"><h3>Soutenir</h3><p>Contribuer au projet VIVARIUM</p></div>
+      <div class="layer-label"><h3>Soutenir</h3><p>Contribuer au projet NEOGEN</p></div>
       <span class="badge soon">bientot</span>
       <span class="layer-arrow">›</span>
     </div>
 
+    </div>
   </div>
 </div>
 
@@ -375,7 +392,7 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 <div id="section-integrations" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-integration)"></span>Integrations</h2>
-    <p>Connecte tes propres comptes et outils a VIVARIUM.</p>
+    <p>Connecte tes propres comptes et outils a NEOGEN.</p>
   </div>
   <div class="placeholder glass">
     <div class="ph-icon">⊛</div><h3>Bientot disponible</h3>
@@ -386,7 +403,7 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 <!-- DON -->
 <div id="section-don" class="section">
   <div class="sec-header">
-    <h2><span class="sec-dot" style="background:var(--c-don)"></span>Soutenir VIVARIUM</h2>
+    <h2><span class="sec-dot" style="background:var(--c-don)"></span>Soutenir NEOGEN</h2>
     <p>Contribuer au developpement du projet.</p>
   </div>
   <div class="placeholder glass">
@@ -431,11 +448,11 @@ void main(){
               fbm(uv+1.6*q+vec2(8.3+tt*.18,2.8)));
   float f=fbm(uv+1.9*r);
 
-  /* Palette pastel : lavande / teal / vert menthe / rose blush */
-  vec3 c1=vec3(.82,.72,.98); /* lavande */
-  vec3 c2=vec3(.60,.90,.94); /* teal clair */
-  vec3 c3=vec3(.74,.97,.86); /* menthe */
-  vec3 c4=vec3(.99,.86,.90); /* blush */
+  /* Palette vivante : violet / bleu vif / rose / corail */
+  vec3 c1=vec3(.62,.42,.97); /* violet profond */
+  vec3 c2=vec3(.42,.68,.98); /* bleu vif */
+  vec3 c3=vec3(.97,.55,.88); /* rose */
+  vec3 c4=vec3(.99,.72,.56); /* corail */
 
   f=clamp(f,0.,1.);
   vec3 col;
@@ -443,8 +460,8 @@ void main(){
   else if(f<.66)col=mix(c2,c3,(f-.33)/.33);
   else col=mix(c3,c4,(f-.66)/.34);
 
-  /* Melange vers blanc - garde le cote clair */
-  col=mix(vec3(1.),col,.32);
+  /* Fond clair avec couleur bien presente (glassmorphism) */
+  col=mix(vec3(1.),col,.52);
 
   gl_FragColor=vec4(col,1.);
 }`;
@@ -483,6 +500,45 @@ void main(){
     requestAnimationFrame(draw);
   }
   draw();
+})();
+
+/* ===== BENTO 3D : parallaxe souris + float idle ===== */
+(function(){
+  const plane=document.querySelector('.bento-3d');
+  const stage=document.querySelector('.bento');
+  if(!plane||!stage) return;
+  const baseY=-16, baseX=14;        // inclinaison de repos
+  let tx=baseY, ty=baseX;           // cibles
+  let cx=baseY, cy=baseX;           // courantes (lerp)
+  let mx=30, my=0;                  // position du reflet (%)
+  let active=false, idle=0;
+
+  stage.addEventListener('pointermove', e=>{
+    const r=stage.getBoundingClientRect();
+    const nx=((e.clientX-r.left)/r.width)*2-1;   // -1..1
+    const ny=((e.clientY-r.top)/r.height)*2-1;
+    tx=baseY + nx*15;                            // rotateY
+    ty=baseX - ny*12;                            // rotateX
+    mx=((e.clientX-r.left)/r.width)*100;
+    my=((e.clientY-r.top)/r.height)*100;
+    active=true;
+  });
+  stage.addEventListener('pointerleave', ()=>{ active=false; });
+
+  function frame(){
+    if(!active){                                 // derive douce au repos
+      idle+=0.012;
+      tx=baseY + Math.sin(idle)*5;
+      ty=baseX + Math.cos(idle*0.8)*3;
+    }
+    cx+=(tx-cx)*0.08;
+    cy+=(ty-cy)*0.08;
+    plane.style.transform='rotateX('+cy.toFixed(2)+'deg) rotateY('+cx.toFixed(2)+'deg)';
+    plane.style.setProperty('--mx', mx.toFixed(1)+'%');
+    plane.style.setProperty('--my', my.toFixed(1)+'%');
+    requestAnimationFrame(frame);
+  }
+  frame();
 })();
 
 /* ===== NAVIGATION ===== */

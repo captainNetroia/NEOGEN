@@ -1,5 +1,5 @@
 """
-VIVARIUM - La memoire generationnelle
+NEOGEN - La memoire generationnelle
 
 Idee de Jordan : que le savoir acquis ne soit pas un tas plat, mais une suite de
 GENERATIONS. Chaque generation HERITE du patrimoine de la precedente, VIT (apprend
@@ -167,7 +167,7 @@ def vivre(numero_a_naitre: int) -> tuple[Patrimoine, str]:
 # ---------------------------------------------------------------------------
 def main():
     print("=" * 70)
-    print("VIVARIUM - MEMOIRE GENERATIONNELLE")
+    print("NEOGEN - MEMOIRE GENERATIONNELLE")
     print("=" * 70)
 
     parent = charger_derniere()

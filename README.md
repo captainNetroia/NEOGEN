@@ -1,6 +1,7 @@
-# VIVARIUM
+# NEOGEN
 
 Architecture Génétique à Noyau Gravé. Prototype v1 (cas neutre).
+_(Anciennement VIVARIUM — renommé NEOGEN le 2026-06-19)_
 
 Conçu par Jordan VINCENT (NetroIA) avec Claude, le 2026-06-16.
 

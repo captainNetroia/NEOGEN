@@ -1,5 +1,5 @@
 """
-VIVARIUM - Registre des produits : la memoire des creations qui tiennent
+NEOGEN - Registre des produits : la memoire des creations qui tiennent
 
 Le pipeline fabrique des produits gouvernes. Sans registre, chaque produit
 reussi etait oublie une fois affiche. Ici, tout produit qui PASSE les 3
@@ -39,7 +39,7 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
     nom_fichier = f"{_slug(intention)}-{horodatage}.py"
     chemin = os.path.join(DIR_PRODUITS, nom_fichier)
     with open(chemin, "w", encoding="utf-8") as f:
-        f.write(f"# VIVARIUM - produit pour : {intention}\n")
+        f.write(f"# NEOGEN - produit pour : {intention}\n")
         f.write(f"# fabrique le {datetime.now().isoformat(timespec='seconds')} | {verdict}\n\n")
         f.write(code)
 
@@ -119,7 +119,7 @@ def charger(produit_id: str) -> str | None:
 if __name__ == "__main__":
     entrees = lister()
     print("=" * 60)
-    print(f"VIVARIUM - REGISTRE DES PRODUITS : {len(entrees)} produit(s)")
+    print(f"NEOGEN - REGISTRE DES PRODUITS : {len(entrees)} produit(s)")
     print("=" * 60)
     for e in entrees:
         print(f"  [{e['timestamp']}] {e['intention'][:45]}")

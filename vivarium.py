@@ -1,11 +1,11 @@
 """
-VIVARIUM - Architecture Genetique a Noyau Grave
+NEOGEN - Architecture Genetique a Noyau Grave
 Prototype v1 - cas neutre (zero dependance, stdlib uniquement)
 
 Trois couches :
   1. NOYAU GRAVE  (Genome)     : objectif, murs, curseurs, droit humain, regle d'amendement
   2. MEMBRANE     (Membrane)   : generation + quarantaine adversariale + controle des murs + escalade
-  3. CYTOPLASME   (Vivarium)   : cellules vivantes, curseurs, ledger de lignee, apoptose, budget
+  3. CYTOPLASME   (NEOGEN)   : cellules vivantes, curseurs, ledger de lignee, apoptose, budget
   + SIGNALISATION (Signaling)  : langage inter-cellulaire avec provenance, confiance, decay
 
 Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-16.
@@ -270,9 +270,9 @@ class Membrane:
 
 
 # ----------------------------------------------------------------------------
-# 3. VIVARIUM : l'organisme complet
+# 3. NEOGEN : l'organisme complet
 # ----------------------------------------------------------------------------
-class Vivarium:
+class NEOGEN:
     def __init__(self, genome_path: str, human_decision: Callable, energy: int = 100):
         self.genome = Genome(genome_path)
         self.ledger = Ledger()

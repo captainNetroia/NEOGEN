@@ -1,11 +1,11 @@
 """
-VIVARIUM - Generateur de cellules via Claude
+NEOGEN - Generateur de cellules via Claude
 Etape v2 : remplace le generateur simule par du vrai code genere par Claude.
 
 Donne un besoin en langage naturel ("ajoute une recherche de notes"), Claude
 renvoie une cellule structuree (nom, description, effets declares, scores
 curseurs, et le code Python reel). La cellule passe ensuite par la Membrane de
-vivarium.py, qui la valide contre les murs du noyau grave.
+NEOGEN.py, qui la valide contre les murs du noyau grave.
 
 Cle API : chargee depuis C:\\Netroia\\credentials\\anthropic-api.env (jamais en dur).
 Modele : claude-opus-4-8, thinking adaptatif, sortie structuree (Pydantic).
@@ -19,7 +19,7 @@ from pathlib import Path
 import anthropic
 from pydantic import BaseModel, Field
 
-from vivarium import Cell, Genome
+from NEOGEN import Cell, Genome
 
 CRED_FILE = Path(r"C:\Netroia\credentials\anthropic-api.env")
 MODEL = "claude-opus-4-8"
@@ -137,7 +137,7 @@ def _system_prompt(genome: Genome) -> str:
     murs = "\n".join(f"  - {w['id']} : {w['label']}" for w in genome.walls)
     curseurs = ", ".join(f"{k} ({v})" for k, v in genome.cursors.items())
     return (
-        "Tu es le generateur de cellules de VIVARIUM, un organisme logiciel a noyau grave.\n"
+        "Tu es le generateur de cellules de NEOGEN, un organisme logiciel a noyau grave.\n"
         "On te donne un besoin. Tu produis UNE fonction Python autonome, et tu declares "
         "honnetement ses effets. Ta cellule sera mise en quarantaine et confrontee aux murs : "
         "si tu mens sur tes effets, elle est rejetee.\n\n"
@@ -160,7 +160,7 @@ def _system_prompt(genome: Genome) -> str:
 # Generation
 # ---------------------------------------------------------------------------
 def generate_cell(need: str, genome: Genome, origin: str = "generated") -> Cell:
-    """Demande a Claude une cellule pour 'need', renvoie une vivarium.Cell prete pour la Membrane."""
+    """Demande a Claude une cellule pour 'need', renvoie une NEOGEN.Cell prete pour la Membrane."""
     client = anthropic.Anthropic(api_key=_load_api_key())
 
     response = client.messages.parse(
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     print(cell.code)
 
     # On la passe immediatement par la Membrane pour la valider contre les murs.
-    from vivarium import Vivarium
+    from NEOGEN import NEOGEN
 
     def humain(c):
         eff = c.effective_effects()
@@ -216,7 +216,7 @@ if __name__ == "__main__":
                   or (eff.get("network_access") and eff.get("authorized_network")))
         return (ok, "garde-fou present" if ok else "protection insuffisante")
 
-    v = Vivarium(str(BASE / "genome.json"), human_decision=humain)
+    v = NEOGEN(str(BASE / "genome.json"), human_decision=humain)
     decision, reason, score = v.integrate(cell)
     print(f"\n[MEMBRANE] {decision} (score={score})")
     print(f"           {reason}")

@@ -1,5 +1,5 @@
 """
-VIVARIUM - Contrat de produit : l'entree externe au lieu de donnees en dur
+NEOGEN - Contrat de produit : l'entree externe au lieu de donnees en dur
 
 Un produit "jouet" a ses donnees en dur dans son __main__. Un produit PROMU doit
 prendre de VRAIES donnees. Le contrat declare :
