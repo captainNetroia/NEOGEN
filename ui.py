@@ -243,9 +243,56 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 
 .hidden{display:none !important;}
 
+/* SIDEBAR — visible uniquement en mode section */
+.sidebar{
+  position:fixed;left:0;top:57px;
+  width:220px;height:calc(100vh - 57px);
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(40px) saturate(200%);
+  -webkit-backdrop-filter:blur(40px) saturate(200%);
+  border-right:1px solid rgba(255,255,255,.45);
+  box-shadow:2px 0 20px rgba(0,0,0,.04);
+  display:none;flex-direction:column;
+  z-index:90;padding:16px 0;overflow-y:auto;
+}
+body.in-section .sidebar{display:flex;}
+body.in-section .section.active{margin-left:220px;max-width:none;}
+body.in-section #breadcrumb{display:none !important;}
+
+.side-home{display:flex;align-items:center;gap:8px;
+  padding:0 16px 14px;border-bottom:1px solid rgba(15,23,42,.08);
+  margin-bottom:10px;cursor:pointer;transition:color .15s;}
+.side-home:hover .side-title{color:var(--acc);}
+.side-title{font-size:15px;letter-spacing:2px;font-weight:300;color:var(--txt);}
+.side-title b{color:var(--acc);font-weight:700;}
+.side-back{font-size:13px;color:var(--mut);transition:color .15s;}
+.side-home:hover .side-back{color:var(--acc);}
+
+.side-item{display:flex;align-items:center;gap:9px;
+  padding:9px 16px;cursor:pointer;border-radius:10px;
+  margin:1px 8px;transition:background .15s,color .15s,box-shadow .2s;
+  color:var(--mut);font-size:14px;will-change:transform;}
+.side-item:hover{background:rgba(255,255,255,.65);color:var(--txt);
+  box-shadow:2px 3px 18px rgba(0,0,0,.09),inset 0 1px 0 rgba(255,255,255,.7);}
+.side-item.active{background:rgba(255,255,255,.78);color:var(--txt);font-weight:600;
+  box-shadow:2px 3px 14px rgba(0,0,0,.07),inset 0 1px 0 rgba(255,255,255,.7);}
+.side-dot{width:8px;height:8px;border-radius:50%;background:var(--lc,var(--mut));
+  flex-shrink:0;box-shadow:0 0 5px var(--lc,transparent);
+  transition:box-shadow .2s;}
+.side-item:hover .side-dot,.side-item.active .side-dot{
+  box-shadow:0 0 8px var(--lc,transparent),0 0 18px var(--lc,transparent);}
+.side-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px;margin-left:auto;}
+.side-badge.live{background:rgba(22,163,74,.14);color:var(--ok);}
+.side-badge.soon{background:rgba(100,116,139,.12);color:var(--mut);}
+
 /* RESPONSIVE */
 @media(max-width:780px){
   .bento-3d{grid-template-columns:repeat(2,1fr);transform:rotateX(10deg) rotateY(-10deg);}
+}
+@media(max-width:700px){
+  .sidebar{display:none !important;}
+  body.in-section .section.active{margin-left:0 !important;}
+  body.in-section #breadcrumb{display:flex !important;}
 }
 @media(max-width:600px){
   .bento{perspective:900px;}
@@ -271,6 +318,38 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
   <span style="font-size:16px">←</span>
   <span id="bc-label">Accueil</span>
 </div>
+
+<!-- SIDEBAR (flottant, visible en mode section) -->
+<nav class="sidebar" id="sidebar">
+  <div class="side-home" onclick="showLanding()">
+    <span class="side-back">←</span>
+    <span class="side-title">NEO<b>GEN</b></span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-creation)" onclick="showSection('creation')" id="side-creation">
+    <span class="side-dot"></span>Creation
+    <span class="side-badge live">live</span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-production)" onclick="showSection('production')" id="side-production">
+    <span class="side-dot"></span>Production
+    <span class="side-badge live">live</span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-compte)" onclick="showSection('compte')" id="side-compte">
+    <span class="side-dot"></span>Compte
+    <span class="side-badge soon">bientot</span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-analyse)" onclick="showSection('analyse')" id="side-analyse">
+    <span class="side-dot"></span>Analyse
+    <span class="side-badge soon">bientot</span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
+    <span class="side-dot"></span>Integrations
+    <span class="side-badge soon">bientot</span>
+  </div>
+  <div class="side-item" style="--lc:var(--c-don)" onclick="showSection('don')" id="side-don">
+    <span class="side-dot"></span>Soutenir
+    <span class="side-badge soon">bientot</span>
+  </div>
+</nav>
 
 <!-- LANDING -->
 <div id="landing">
@@ -541,6 +620,80 @@ void main(){
   frame();
 })();
 
+/* ===== SIDEBAR : float apesanteur par item ===== */
+(function(){
+  const items=Array.from(document.querySelectorAll('.side-item'));
+  if(!items.length)return;
+  const n=items.length;
+  const phase=items.map((_,i)=>i*(Math.PI*2/n));
+  const hov=new Array(n).fill(false);
+  const cY=new Array(n).fill(0),cX=new Array(n).fill(0);
+  items.forEach((el,i)=>{
+    el.addEventListener('pointerenter',()=>{hov[i]=true;});
+    el.addEventListener('pointerleave',()=>{hov[i]=false;});
+  });
+  let t=0;
+  function frame(){
+    t+=0.009;
+    items.forEach((el,i)=>{
+      const act=hov[i]||el.classList.contains('active');
+      /* actif/survol : monte sur baseline +(-3px) mais continue a respirer */
+      const tY=act?-3+Math.sin(t+phase[i])*.8:Math.sin(t+phase[i])*3.5;
+      /* legere derive X pour l'effet apesanteur 2D */
+      const tX=act?4:Math.cos(t*.65+phase[i])*1.2;
+      cY[i]+=(tY-cY[i])*.1;
+      cX[i]+=(tX-cX[i])*.1;
+      el.style.transform='translateY('+cY[i].toFixed(2)+'px) translateX('+cX[i].toFixed(2)+'px)';
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ===== SECTION BREATH : vie dans les panels et cartes ===== */
+const _breath=(function(){
+  const seen=new WeakSet();
+  let items=[];
+  let t=0;
+
+  function add(el,ampY,ampX){
+    if(seen.has(el))return;
+    seen.add(el);
+    el.style.willChange='transform';
+    /* phase de Fibonacci (1.37 rad) : aucune synchronisation visible entre items */
+    items.push({el,phase:items.length*1.37,ampY,ampX,cY:0,cX:0});
+  }
+
+  function scan(){
+    /* panel formulaire : tres lent, amplitude minimale pour ne pas gener la saisie */
+    document.querySelectorAll('.glass.panel').forEach(el=>add(el,1.2,.2));
+    /* placeholders (pages bientot) */
+    document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,4,.6));
+    /* icones ph-icon : lévitation plus prononcee */
+    document.querySelectorAll('.ph-icon').forEach(el=>add(el,7,0));
+    /* cartes produits (generees dynamiquement) */
+    document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,3.5,.8));
+  }
+
+  function frame(){
+    t+=.008;
+    /* purge les elements detaches du DOM (ex: grid.innerHTML='') */
+    if(items.length)items=items.filter(o=>document.contains(o.el));
+    items.forEach(o=>{
+      const tY=Math.sin(t+o.phase)*o.ampY;
+      const tX=Math.cos(t*.62+o.phase)*o.ampX;
+      o.cY+=(tY-o.cY)*.07;
+      o.cX+=(tX-o.cX)*.07;
+      o.el.style.transform='translateY('+o.cY.toFixed(2)+'px) translateX('+o.cX.toFixed(2)+'px)';
+    });
+    requestAnimationFrame(frame);
+  }
+
+  scan();
+  frame();
+  return{scan};
+})();
+
 /* ===== NAVIGATION ===== */
 const $=s=>document.querySelector(s);
 const errMsg=x=>{if(x==null)return'';if(typeof x==='string')return x;if(x.message)return x.message;try{return JSON.stringify(x);}catch(e){return String(x);}};
@@ -553,12 +706,19 @@ function showSection(name){
   const s=$('#section-'+name);if(s)s.classList.add('active');
   $('#breadcrumb').classList.add('visible');
   $('#bc-label').textContent=LABELS[name]||name;
+  document.body.classList.add('in-section');
+  document.querySelectorAll('.side-item').forEach(el=>el.classList.remove('active'));
+  const si=$('#side-'+name);if(si)si.classList.add('active');
+  history.replaceState(null,'','#'+name);
   if(name==='production')loadProduits();
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   $('#landing').style.display='';
   $('#breadcrumb').classList.remove('visible');
+  document.body.classList.remove('in-section');
+  document.querySelectorAll('.side-item').forEach(el=>el.classList.remove('active'));
+  history.replaceState(null,'','#');
   if($('#code-view'))$('#code-view').classList.add('hidden');
 }
 
@@ -686,9 +846,19 @@ async function loadProduits(){
     }
     card.appendChild(actions);grid.appendChild(card);
   });
+  _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
 }
 
 health();
+
+/* Hash routing : on load + bouton back navigateur */
+const SECTIONS=['creation','production','compte','analyse','integrations','don'];
+function routeHash(){
+  const h=location.hash.slice(1);
+  if(h&&SECTIONS.includes(h))showSection(h);
+}
+window.addEventListener('popstate',routeHash);
+routeHash();
 </script>
 </body>
 </html>

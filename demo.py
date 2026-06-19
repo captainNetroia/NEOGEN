@@ -5,7 +5,7 @@ Lancer : python demo.py
 """
 
 import os
-from NEOGEN import NEOGEN, Cell
+from vivarium import NEOGEN, Cell
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 GENOME = os.path.join(BASE, "genome.json")

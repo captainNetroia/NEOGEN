@@ -19,7 +19,7 @@ from pathlib import Path
 import anthropic
 from pydantic import BaseModel, Field
 
-from NEOGEN import Cell, Genome
+from vivarium import Cell, Genome
 
 CRED_FILE = Path(r"C:\Netroia\credentials\anthropic-api.env")
 MODEL = "claude-opus-4-8"
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     print(cell.code)
 
     # On la passe immediatement par la Membrane pour la valider contre les murs.
-    from NEOGEN import NEOGEN
+    from vivarium import NEOGEN
 
     def humain(c):
         eff = c.effective_effects()
