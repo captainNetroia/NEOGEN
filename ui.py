@@ -254,6 +254,32 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 /* Production */
 .produit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
 
+/* Compte */
+.profil-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+.profil-field{display:flex;flex-direction:column;gap:5px;}
+.profil-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);}
+.profil-field input{background:rgba(255,255,255,.55);color:var(--txt);
+  border:1px solid rgba(255,255,255,.55);border-radius:8px;
+  padding:8px 12px;font-size:14px;font-family:inherit;}
+.profil-field input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+.hist-item{display:flex;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid rgba(15,23,42,.06);font-size:13px;}
+.hist-item:last-child{border-bottom:none;}
+.hist-intention{flex:1;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hist-meta{color:var(--mut);font-size:12px;flex-shrink:0;}
+
+/* Analyse */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+.stat-card{padding:18px 16px;border-radius:14px;text-align:center;}
+.stat-val{font-size:30px;font-weight:700;color:var(--txt);line-height:1;letter-spacing:-1px;}
+.stat-lbl{font-size:11px;color:var(--mut);margin-top:5px;text-transform:uppercase;letter-spacing:.7px;}
+.cap-bar-wrap{margin-bottom:12px;}
+.cap-bar-wrap:last-child{margin-bottom:0;}
+.cap-bar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;color:var(--txt);}
+.cap-bar{height:6px;border-radius:99px;background:rgba(100,116,139,.15);}
+.cap-bar-fill{height:100%;border-radius:99px;background:var(--acc);
+  transition:width .7s cubic-bezier(.23,1,.32,1);}
+
 /* Integrations */
 .integ-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:4px;}
 .integ-category{padding:16px 18px;border-radius:16px;}
@@ -409,11 +435,11 @@ body.in-section #breadcrumb{display:none !important;}
   </div>
   <div class="side-item" style="--lc:var(--c-compte)" onclick="showSection('compte')" id="side-compte">
     <span class="side-dot"></span>Compte
-    <span class="side-badge soon">bientot</span>
+    <span class="side-badge live">live</span>
   </div>
   <div class="side-item" style="--lc:var(--c-analyse)" onclick="showSection('analyse')" id="side-analyse">
     <span class="side-dot"></span>Analyse
-    <span class="side-badge soon">bientot</span>
+    <span class="side-badge live">live</span>
   </div>
   <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
     <span class="side-dot"></span>Integrations
@@ -535,11 +561,26 @@ body.in-section #breadcrumb{display:none !important;}
 <div id="section-compte" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
-    <p>Ton profil, historique et preferences.</p>
+    <p>Ton profil, modele actif et historique de production.</p>
   </div>
-  <div class="placeholder glass">
-    <div class="ph-icon">◎</div><h3>Bientot disponible</h3>
-    <p>Historique de production, preferences, parametres personnalises.</p>
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Profil</div>
+    <div class="profil-grid">
+      <div class="profil-field"><label>Nom</label><input type="text" id="profil-nom" placeholder="Ton nom..."></div>
+      <div class="profil-field"><label>Email</label><input type="email" id="profil-email" placeholder="ton@email.com"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="profil-save-btn">Enregistrer</button>
+      <span id="profil-status" style="font-size:13px"></span>
+    </div>
+  </div>
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Modele actif</div>
+    <div id="compte-model-info" style="font-size:14px;color:var(--txt)">chargement...</div>
+  </div>
+  <div class="panel glass">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Historique de production</div>
+    <div id="compte-historique"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
   </div>
 </div>
 
@@ -547,11 +588,16 @@ body.in-section #breadcrumb{display:none !important;}
 <div id="section-analyse" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-analyse)"></span>Analyse</h2>
-    <p>Diagnostics avances, metriques d'evolution.</p>
+    <p>Metriques de production, capacites utilisees, repartition tentatives.</p>
   </div>
-  <div class="placeholder glass">
-    <div class="ph-icon">◈</div><h3>Bientot disponible</h3>
-    <p>Metriques des produits, evolution du genome, courbes Anti-Goodhart.</p>
+  <div class="stat-grid" id="analyse-stats"></div>
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Capacites utilisees</div>
+    <div id="analyse-caps"></div>
+  </div>
+  <div class="panel glass">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Repartition tentatives</div>
+    <div id="analyse-tentatives"></div>
   </div>
 </div>
 
@@ -648,11 +694,43 @@ body.in-section #breadcrumb{display:none !important;}
 <div id="section-don" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-don)"></span>Soutenir NEOGEN</h2>
-    <p>Contribuer au developpement du projet.</p>
+    <p>Chaque contribution finance le calcul, le developpement et la protection IP.</p>
   </div>
-  <div class="placeholder glass">
-    <div class="ph-icon">♡</div><h3>Bientot disponible</h3>
-    <p>Soutenir via Stripe. Chaque contribution finance le calcul et le developpement.</p>
+  <div style="max-width:560px;margin:0 auto">
+    <div class="panel glass" style="text-align:center;padding:36px 32px;margin-bottom:16px">
+      <div class="ph-icon" style="font-size:52px;margin-bottom:18px">♡</div>
+      <h3 style="font-size:19px;font-weight:700;margin-bottom:10px;color:var(--txt)">NEOGEN est un projet ouvert</h3>
+      <p style="color:var(--mut);font-size:14px;line-height:1.75;margin-bottom:28px">
+        Un organisme logiciel autonome, aligne et auto-ameliorant.<br>
+        Ton soutien fait pousser le noyau.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch">
+        <a href="https://github.com/captainNetroia/VIVARIUM" target="_blank"
+           style="display:flex;align-items:center;justify-content:center;gap:10px;
+           padding:13px 24px;border-radius:12px;
+           background:rgba(255,255,255,.3);backdrop-filter:blur(10px);
+           color:var(--txt);text-decoration:none;font-weight:600;font-size:14px;
+           border:1px solid rgba(255,255,255,.55);transition:background .15s"
+           onmouseover="this.style.background='rgba(255,255,255,.5)'"
+           onmouseout="this.style.background='rgba(255,255,255,.3)'">
+          ⊙ &nbsp;Voir le projet sur GitHub
+        </a>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;
+           padding:13px 24px;border-radius:12px;cursor:default;
+           background:rgba(219,39,119,.07);
+           border:1px solid rgba(219,39,119,.18);
+           color:var(--c-don);font-size:14px;font-weight:600">
+          ◆ &nbsp;Paiement Stripe — bientot disponible
+        </div>
+      </div>
+    </div>
+    <div class="panel glass" style="padding:20px 24px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Ou va ton soutien</div>
+      <div class="hist-item"><span style="font-size:16px">⚡</span><span class="hist-intention">Calcul GPU pour la generation et l'evolution</span></div>
+      <div class="hist-item"><span style="font-size:16px">⊕</span><span class="hist-intention">Developpement des phases D a G (integrations, GTM, applis)</span></div>
+      <div class="hist-item"><span style="font-size:16px">⊟</span><span class="hist-intention">Protection IP (INPI, eSoleau, RGPD)</span></div>
+      <div class="hist-item"><span style="font-size:16px">◈</span><span class="hist-intention">Hebergement serveur dedie et infrastructure</span></div>
+    </div>
   </div>
 </div>
 
@@ -876,6 +954,8 @@ function showSection(name){
   const si=$('#side-'+name);if(si)si.classList.add('active');
   history.replaceState(null,'','#'+name);
   if(name==='production')loadProduits();
+  if(name==='compte')loadCompte();
+  if(name==='analyse')loadAnalyse();
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -1012,6 +1092,89 @@ async function loadProduits(){
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
+}
+
+/* Compte */
+async function loadCompte(){
+  const nomEl=$('#profil-nom'),emailEl=$('#profil-email');
+  if(nomEl)nomEl.value=localStorage.getItem('neogen_profil_nom')||'';
+  if(emailEl)emailEl.value=localStorage.getItem('neogen_profil_email')||'';
+  const saveBtn=$('#profil-save-btn'),profSt=$('#profil-status');
+  if(saveBtn&&!saveBtn._b){saveBtn._b=true;
+    saveBtn.onclick=()=>{
+      localStorage.setItem('neogen_profil_nom',nomEl.value.trim());
+      localStorage.setItem('neogen_profil_email',emailEl.value.trim());
+      profSt.innerHTML='<span class="tag ok">enregistre</span>';
+      setTimeout(()=>profSt.innerHTML='',2500);
+    };
+  }
+  const mInfo=$('#compte-model-info');
+  if(mInfo){
+    const ap=localStorage.getItem('neogen_active_provider'),am=localStorage.getItem('neogen_active_model');
+    mInfo.innerHTML=ap&&am
+      ?`<span class="tag ok">${esc(ap)}</span> <b>${esc(am)}</b>`
+      :'<span class="tag ko">aucun</span> — configure dans Integrations';
+  }
+  const hist=$('#compte-historique');if(!hist)return;
+  try{
+    const d=await(await fetch('/produits')).json();
+    const list=(d.produits||[]).slice().reverse();
+    if(!list.length){hist.innerHTML='<div style="color:var(--mut);font-size:13px;padding:8px 0">Aucun produit fabrique.</div>';return;}
+    hist.innerHTML=list.slice(0,12).map(p=>
+      `<div class="hist-item">
+        <span class="tag ${p.succes!==false?'ok':'ko'}">${p.succes!==false?'ok':'ko'}</span>
+        <span class="hist-intention">${esc(p.intention)}</span>
+        <span class="hist-meta">${p.lignes||'?'} lignes</span>
+      </div>`
+    ).join('');
+  }catch(e){hist.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
+
+/* Analyse */
+async function loadAnalyse(){
+  const statsEl=$('#analyse-stats'),capsEl=$('#analyse-caps'),tentEl=$('#analyse-tentatives');
+  const empty=msg=>{if(statsEl)statsEl.innerHTML='<div style="color:var(--mut);font-size:13px">'+msg+'</div>';};
+  try{
+    const d=await(await fetch('/produits')).json();
+    const list=d.produits||[];
+    if(!list.length){empty('Fabrique ton premier produit dans Creation.');return;}
+    const total=list.length;
+    const succes=list.filter(p=>p.succes!==false).length;
+    const lignesTotal=list.reduce((a,p)=>a+(p.lignes||0),0);
+    const tentMoy=total?(list.reduce((a,p)=>a+(p.tentatives||1),0)/total).toFixed(1):0;
+    if(statsEl){
+      statsEl.innerHTML=[
+        {val:total,lbl:'Produits'},
+        {val:Math.round(succes/total*100)+'%',lbl:'Taux succes'},
+        {val:lignesTotal,lbl:'Lignes generees'},
+        {val:tentMoy,lbl:'Moy. tentatives'},
+      ].map(s=>`<div class="stat-card glass"><div class="stat-val">${s.val}</div><div class="stat-lbl">${s.lbl}</div></div>`).join('');
+      if(window._breath)_breath.scan();
+    }
+    if(capsEl){
+      const wP=list.filter(p=>p.capacites&&p.capacites.includes('persistance')).length;
+      const wN=list.filter(p=>p.capacites&&p.capacites.includes('reseau')).length;
+      const wJ=list.filter(p=>p.classement&&p.classement.length).length;
+      [
+        {lbl:'Sans capacite',n:total-wP-wN,c:'var(--acc)'},
+        {lbl:'Persistance',n:wP,c:'var(--c-compte)'},
+        {lbl:'Reseau',n:wN,c:'var(--c-integration)'},
+        {lbl:'Mode juge',n:wJ,c:'var(--c-analyse)'},
+      ].forEach(o=>{
+        const pct=total?Math.round(o.n/total*100):0;
+        capsEl.innerHTML+='<div class="cap-bar-wrap"><div class="cap-bar-label"><span>'+o.lbl+'</span><span>'+o.n+'</span></div>'
+          +'<div class="cap-bar"><div class="cap-bar-fill" style="width:'+pct+'%;background:'+o.c+'"></div></div></div>';
+      });
+    }
+    if(tentEl){
+      const dist={};list.forEach(p=>{const t=p.tentatives||1;dist[t]=(dist[t]||0)+1;});
+      const maxN=Math.max(...Object.values(dist));
+      tentEl.innerHTML=Object.entries(dist).sort((a,b)=>+a[0]-+b[0]).map(([t,n])=>
+        '<div class="cap-bar-wrap"><div class="cap-bar-label"><span>'+t+' tentative'+(+t>1?'s':'')+'</span><span>'+n+'</span></div>'
+        +'<div class="cap-bar"><div class="cap-bar-fill" style="width:'+Math.round(n/maxN*100)+'%"></div></div></div>'
+      ).join('');
+    }
+  }catch(e){empty('Erreur de chargement.');}
 }
 
 /* Integrations — multi-provider + switch actif + custom */
