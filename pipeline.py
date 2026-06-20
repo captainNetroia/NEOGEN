@@ -147,7 +147,7 @@ def _client():
 
 
 def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
-                   progress=None, client=None) -> Resultat:
+                   progress=None, client=None, parent_id=None) -> Resultat:
     """
     Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
     -> 3 garde-fous -> execution (bac a sable selon capacites) -> auto-reparation
@@ -155,6 +155,7 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
     cap (Capacites) : capacites accordees au produit (persistance, reseau). None = pur.
     progress(evt) : callback optionnel de progression (streaming live).
     client : client LLM injecte (gateway multi-provider). None = Anthropic par defaut.
+    parent_id : si fourni (upgrade Phase 4), le produit est une nouvelle generation de cette lignee.
     """
     from compositeur import forger_adn
     from usine_autoreparation import generer as generer_reel
@@ -175,7 +176,8 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
     if enregistrer and r.succes and r.code:
         import registre
         entree = registre.enregistrer(intention, r.code,
-                                      verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes)
+                                      verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
+                                      parent_id=parent_id)
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
 
     return r

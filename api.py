@@ -198,6 +198,105 @@ def obtenir_produit(produit_id: str):
             "contrat": registre.charger_contrat(produit_id)}
 
 
+# ── Genealogie (Phase 4) : arbre des generations, diff, revert, upgrade ────────
+
+@app.get("/produits/{produit_id}/generations")
+def generations_produit(produit_id: str):
+    """Arbre de la lignee : toutes les generations + version active + diff vs generation precedente."""
+    lignee = registre.lignee_produit(produit_id)
+    if not lignee:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    lineage = lignee[0].get("lineage")
+    actif = registre.actif_de(lineage) or lignee[-1]["id"]
+    noeuds = []
+    precedent = None
+    for e in lignee:
+        delta = None
+        if precedent is not None:
+            d = registre.diff_codes(precedent["id"], e["id"])
+            delta = {"ajouts": d["ajouts"], "retraits": d["retraits"],
+                     "lignes_delta": d["lignes_b"] - d["lignes_a"]}
+        noeuds.append({
+            "id": e["id"], "generation": e.get("generation", 1),
+            "parent_id": e.get("parent_id"), "timestamp": e.get("timestamp"),
+            "verdict": e.get("verdict"), "lignes": e.get("lignes"),
+            "promu": registre.est_promu(e["id"]), "actif": e["id"] == actif,
+            "delta": delta,
+        })
+        precedent = e
+    return {"lineage": lineage, "intention": lignee[-1].get("intention"),
+            "actif": actif, "total": len(noeuds), "generations": noeuds}
+
+
+@app.get("/produits/{produit_id}/diff")
+def diff_produit(produit_id: str, vs: str | None = None):
+    """Diff unifie entre produit_id et 'vs' (defaut : sa generation parente)."""
+    lignee = registre.lignee_produit(produit_id)
+    if not lignee:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    cible = next((e for e in lignee if e["id"] == produit_id), None)
+    base = vs or (cible.get("parent_id") if cible else None)
+    if not base:
+        return {"ajouts": 0, "retraits": 0, "lignes_a": 0,
+                "lignes_b": (cible or {}).get("lignes", 0),
+                "diff": "(generation d'origine : aucune generation precedente a comparer)"}
+    return registre.diff_codes(base, produit_id)
+
+
+@app.post("/produits/{produit_id}/revert")
+def revert_produit(produit_id: str):
+    """Revenir a une ancienne generation : la marque comme version active de la lignee.
+    Ne supprime rien (les generations restent tracees) ; change juste le pointeur courant."""
+    lignee = registre.lignee_produit(produit_id)
+    if not lignee:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    lineage = lignee[0].get("lineage")
+    registre.definir_actif(lineage, produit_id)
+    return {"ok": True, "lineage": lineage, "actif": produit_id}
+
+
+class DemandeUpgrade(BaseModel):
+    intention: str | None = Field(default=None, description="nouvelle intention (defaut : celle du parent)")
+    reparer: bool = True
+    max_tentatives: int = Field(default=3, ge=1, le=5)
+    persistance: bool = False
+    reseau: bool = False
+    domaines_autorises: list[str] = Field(default_factory=list)
+
+
+@app.post("/produits/{produit_id}/upgrade")
+def upgrade_produit(produit_id: str, demande: DemandeUpgrade,
+                    x_llm_provider: str | None = Header(default=None),
+                    x_llm_model: str | None = Header(default=None),
+                    x_llm_key: str | None = Header(default=None),
+                    x_llm_base: str | None = Header(default=None)):
+    """Faire EVOLUER un produit : re-fabrique une nouvelle generation de sa lignee, sous
+    gouvernance complete (membrane + scan + conteneur + reparation). parent_id = produit_id."""
+    from sanitizer import nettoyer
+    base = next((e for e in registre.lister() if e["id"] == produit_id), None)
+    if base is None:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    intention = (demande.intention or base.get("intention") or "").strip()
+    if len(intention) < 3:
+        raise HTTPException(status_code=400, detail="intention trop courte")
+    cap = Capacites(persistance=demande.persistance, reseau=demande.reseau,
+                    domaines_autorises=demande.domaines_autorises)
+    try:
+        cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="fort")
+        r = fabriquer_reel(intention, reparer=demande.reparer,
+                           max_tentatives=demande.max_tentatives, enregistrer=True,
+                           cap=cap, client=cl, parent_id=produit_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=nettoyer(f"echec de l'evolution : {e}"))
+    nouveau = None
+    if r.succes:
+        entrees = registre.lister()
+        if entrees:
+            nouveau = entrees[-1]["id"]
+    return {"succes": r.succes, "verdict": nettoyer(r.verdict), "tentatives": r.tentatives,
+            "lignes": r.lignes, "produit_id": nouveau, "parent_id": produit_id}
+
+
 class DemandeExecution(BaseModel):
     donnees: dict = Field(default_factory=dict, description="les vraies donnees d'entree du produit")
 

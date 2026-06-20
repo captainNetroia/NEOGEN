@@ -23,6 +23,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DIR_PRODUITS = os.path.join(BASE, "data", "produits")
 INDEX = os.path.join(BASE, "data", "registre_produits.jsonl")
 PROMOTIONS = os.path.join(BASE, "data", "promotions.jsonl")
+ACTIFS = os.path.join(BASE, "data", "lineage_actif.jsonl")
 
 
 def _slug(texte: str) -> str:
@@ -30,10 +31,21 @@ def _slug(texte: str) -> str:
     return (s or "produit")[:40]
 
 
+def _norm(e: dict) -> dict:
+    """Retro-compat : complete les entrees anterieures a la genealogie (Phase 4)."""
+    e.setdefault("generation", 1)
+    e.setdefault("parent_id", None)
+    e.setdefault("lineage", _slug(e.get("intention", "")))
+    return e
+
+
 def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int,
-                contrat: dict | None = None) -> dict:
+                contrat: dict | None = None, parent_id: str | None = None) -> dict:
     """Persiste un produit reussi et retourne son entree d'index.
-    Si contrat (dict du schema d'entree) est fourni, le produit est PROMOUVABLE."""
+    Si contrat (dict du schema d'entree) est fourni, le produit est PROMOUVABLE.
+    GENEALOGIE (Phase 4) : si parent_id est donne, le produit est une nouvelle generation
+    de la lignee du parent. Sinon, auto-chainage par intention : si une lignee de meme slug
+    existe deja, ce produit en devient la generation suivante (parent = la plus recente)."""
     os.makedirs(DIR_PRODUITS, exist_ok=True)
     horodatage = datetime.now().strftime("%Y%m%dT%H%M%S")
     nom_fichier = f"{_slug(intention)}-{horodatage}.py"
@@ -48,6 +60,23 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         with open(os.path.join(DIR_PRODUITS, produit_id + ".schema.json"), "w", encoding="utf-8") as f:
             json.dump(contrat, f, ensure_ascii=False, indent=2)
 
+    # Resolution de la lignee + numero de generation.
+    toutes = lister()
+    parent = next((e for e in toutes if e["id"] == parent_id), None) if parent_id else None
+    if parent:
+        lineage = parent.get("lineage") or _slug(parent.get("intention", ""))
+        generation = int(parent.get("generation", 1)) + 1
+    else:
+        lineage = _slug(intention)
+        meme = [e for e in toutes if e.get("lineage") == lineage]
+        if meme:
+            dernier = meme[-1]
+            parent_id = dernier["id"]
+            generation = int(dernier.get("generation", len(meme))) + 1
+        else:
+            parent_id = None
+            generation = 1
+
     entree = {
         "id": produit_id,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -57,10 +86,15 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         "tentatives": tentatives,
         "lignes": lignes,
         "promouvable": contrat is not None,
+        "lineage": lineage,
+        "generation": generation,
+        "parent_id": parent_id,
     }
     os.makedirs(os.path.dirname(INDEX), exist_ok=True)
     with open(INDEX, "a", encoding="utf-8") as f:
         f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+    # La derniere generation creee devient l'active de sa lignee.
+    definir_actif(lineage, produit_id)
     return entree
 
 
@@ -95,7 +129,7 @@ def est_promu(produit_id: str) -> bool:
 
 
 def lister() -> list[dict]:
-    """Toutes les entrees du registre, plus recentes en dernier."""
+    """Toutes les entrees du registre, plus recentes en dernier (normalisees genealogie)."""
     if not os.path.exists(INDEX):
         return []
     out = []
@@ -103,8 +137,63 @@ def lister() -> list[dict]:
         for ligne in f:
             ligne = ligne.strip()
             if ligne:
-                out.append(json.loads(ligne))
+                out.append(_norm(json.loads(ligne)))
     return out
+
+
+# ---------------------------------------------------------------------------
+# GENEALOGIE (Phase 4) : lignee d'un produit, diff entre generations, version active
+# ---------------------------------------------------------------------------
+def lignee_produit(produit_id: str) -> list[dict]:
+    """Toutes les generations de la meme lignee que produit_id, triees par generation."""
+    toutes = lister()
+    cible = next((e for e in toutes if e["id"] == produit_id), None)
+    if not cible:
+        return []
+    lin = cible.get("lineage")
+    membres = [e for e in toutes if e.get("lineage") == lin]
+    membres.sort(key=lambda e: (int(e.get("generation", 1)), e.get("timestamp", "")))
+    return membres
+
+
+def diff_codes(id_a: str, id_b: str) -> dict:
+    """Diff unifie entre deux generations (id_a = ancienne, id_b = nouvelle)."""
+    import difflib
+    a = charger(id_a) or ""
+    b = charger(id_b) or ""
+    al, bl = a.splitlines(), b.splitlines()
+    diff = list(difflib.unified_diff(al, bl, fromfile=id_a, tofile=id_b, lineterm=""))
+    ajouts = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
+    retraits = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
+    return {
+        "ajouts": ajouts, "retraits": retraits,
+        "lignes_a": len(al), "lignes_b": len(bl),
+        "diff": "\n".join(diff[:500]),  # borne pour ne pas exploser le flux
+    }
+
+
+def definir_actif(lineage: str, produit_id: str) -> None:
+    """Marque la version active (courante) d'une lignee. Append : la derniere ligne prime."""
+    os.makedirs(os.path.dirname(ACTIFS), exist_ok=True)
+    with open(ACTIFS, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"lineage": lineage, "id": produit_id,
+                            "timestamp": datetime.now().isoformat(timespec="seconds")},
+                           ensure_ascii=False) + "\n")
+
+
+def actif_de(lineage: str) -> str | None:
+    """Id de la version active d'une lignee (None si jamais defini)."""
+    if not os.path.exists(ACTIFS):
+        return None
+    actif = None
+    with open(ACTIFS, encoding="utf-8") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if ligne:
+                d = json.loads(ligne)
+                if d.get("lineage") == lineage:
+                    actif = d.get("id")
+    return actif
 
 
 def charger(produit_id: str) -> str | None:

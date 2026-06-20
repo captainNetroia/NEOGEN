@@ -500,6 +500,34 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 .produit-card .cs{color:var(--mut);font-size:12px;margin-bottom:12px;}
 .produit-card .cactions{display:flex;gap:8px;flex-wrap:wrap;}
 .produit-card button{font-size:13px;padding:7px 14px;}
+.gen-badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;
+  background:rgba(124,58,237,.12);color:#7c3aed;margin-left:6px;}
+
+/* Arbre de genealogie (Phase 4) */
+.lineage-view{margin-top:16px;}
+.lineage-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.lineage-head h3{font-size:16px;font-weight:600;color:var(--txt);}
+.lineage-tree{display:flex;flex-direction:column;gap:0;}
+.gen-node{position:relative;padding:14px 16px;border-radius:12px;margin-left:18px;
+  background:rgba(255,255,255,.32);border:1px solid rgba(15,23,42,.1);margin-bottom:18px;}
+.gen-node.actif{border-color:rgba(8,145,178,.55);background:rgba(8,145,178,.06);
+  box-shadow:0 2px 14px rgba(8,145,178,.12);}
+.gen-node::before{content:'';position:absolute;left:-18px;top:24px;width:18px;height:2px;
+  background:rgba(15,23,42,.18);}
+.gen-node:not(:last-child)::after{content:'';position:absolute;left:-18px;top:24px;
+  width:2px;height:calc(100% + 18px);background:rgba(15,23,42,.18);}
+.gen-node-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.gen-num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,var(--c-compte),#7c3aed);color:#fff;font-size:12px;font-weight:700;flex-shrink:0;}
+.gen-node.actif .gen-num{background:linear-gradient(135deg,var(--c-creation),var(--acc));}
+.gen-meta{color:var(--mut);font-size:12px;}
+.gen-delta{font-size:11px;font-weight:600;}
+.gen-delta .add{color:var(--ok);}.gen-delta .del{color:var(--ko);}
+.gen-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;}
+.gen-actions button{font-size:12px;padding:5px 11px;}
+.gen-diff{margin-top:10px;max-height:240px;overflow:auto;font-size:11px;line-height:1.45;
+  background:rgba(0,0,0,.85);color:#e5e7eb;border-radius:8px;padding:10px;white-space:pre;display:none;}
+.gen-diff .dadd{color:#86efac;}.gen-diff .ddel{color:#fca5a5;}.gen-diff .dhdr{color:#7dd3fc;}
 
 .hidden{display:none !important;}
 
@@ -809,6 +837,7 @@ body.in-section #breadcrumb{display:none !important;}
     <p>Produits generes, valides, prets a l'emploi.</p>
   </div>
   <div id="produit-grid" class="produit-grid"></div>
+  <div id="lineage-view" class="lineage-view hidden"></div>
   <pre id="code-view" class="hidden"></pre>
 </div>
 
@@ -1576,7 +1605,8 @@ async function loadProduits(){
   }
   list.forEach(p=>{
     const card=document.createElement('div');card.className='produit-card glass';
-    card.innerHTML='<div class="ct">'+esc(p.intention)+(p.promouvable?' <span class="tag ok">appli</span>':'')+'</div>'+
+    const genBadge=(p.generation&&p.generation>1)?' <span class="gen-badge">gen '+p.generation+'</span>':'';
+    card.innerHTML='<div class="ct">'+esc(p.intention)+(p.promouvable?' <span class="tag ok">appli</span>':'')+genBadge+'</div>'+
                    '<div class="cs">'+p.lignes+' lignes | '+esc(p.verdict)+'</div>';
     const actions=document.createElement('div');actions.className='cactions';
     const btnCode=document.createElement('button');btnCode.className='ghost';btnCode.textContent='Code';
@@ -1586,6 +1616,9 @@ async function loadProduits(){
       cv.scrollIntoView({behavior:'smooth',block:'nearest'});
     };
     actions.appendChild(btnCode);
+    const btnLin=document.createElement('button');btnLin.className='ghost';btnLin.textContent='Lignee';
+    btnLin.onclick=()=>openLineage(p.id);
+    actions.appendChild(btnLin);
     if(p.promouvable){
       const btnApp=document.createElement('button');btnApp.textContent="Ouvrir l'appli";
       btnApp.onclick=async(e)=>{
@@ -1600,6 +1633,88 @@ async function loadProduits(){
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
+}
+
+/* --- Genealogie (Phase 4) : arbre des generations, diff, revert, upgrade --- */
+async function openLineage(produitId){
+  const el=$('#lineage-view');if(!el)return;
+  el.classList.remove('hidden');
+  el.innerHTML='<div class="step-help">Chargement de la lignee...</div>';
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  try{
+    const d=await(await fetch('/produits/'+encodeURIComponent(produitId)+'/generations')).json();
+    if(d.detail){el.innerHTML='<span class="tag ko">erreur</span> '+errMsg(d.detail);return;}
+    renderLineage(d);
+  }catch(e){el.innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
+}
+
+function renderLineage(d){
+  const el=$('#lineage-view');
+  let html='<div class="lineage-head"><h3>Lignee : '+esc(d.intention||'')+'</h3>'
+    +'<span class="tag">'+d.total+' generation(s)</span>'
+    +'<button class="ghost" style="margin-left:auto;font-size:12px;padding:5px 11px" onclick="document.getElementById(\'lineage-view\').classList.add(\'hidden\')">Fermer</button></div>';
+  html+='<div class="lineage-tree">';
+  (d.generations||[]).forEach(n=>{
+    let delta='';
+    if(n.delta){
+      delta='<span class="gen-delta"><span class="add">+'+n.delta.ajouts+'</span> / <span class="del">-'+n.delta.retraits+'</span></span>';
+    }
+    html+='<div class="gen-node'+(n.actif?' actif':'')+'" id="gennode-'+esc(n.id)+'">'
+      +'<div class="gen-node-head"><span class="gen-num">'+n.generation+'</span>'
+      +'<b>Generation '+n.generation+'</b>'
+      +(n.actif?' <span class="tag ok">active</span>':'')
+      +(n.promu?' <span class="tag">appli</span>':'')
+      +delta+'</div>'
+      +'<div class="gen-meta">'+esc(n.timestamp||'')+' &middot; '+n.lignes+' lignes &middot; '+esc(n.verdict||'')+'</div>'
+      +'<div class="gen-actions">'
+      +'<button class="ghost" onclick="toggleDiff(\''+esc(n.id)+'\')">Voir diff</button>'
+      +(n.actif?'':'<button class="ghost" onclick="revertGen(\''+esc(n.id)+'\')">Revenir ici</button>')
+      +'<button onclick="upgradeGen(\''+esc(n.id)+'\',this)">Faire evoluer &rsaquo;</button>'
+      +'</div>'
+      +'<div class="gen-diff" id="gendiff-'+esc(n.id)+'"></div>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function _colorDiff(txt){
+  return txt.split('\n').map(l=>{
+    const e=esc(l);
+    if(l.startsWith('+')&&!l.startsWith('+++'))return '<span class="dadd">'+e+'</span>';
+    if(l.startsWith('-')&&!l.startsWith('---'))return '<span class="ddel">'+e+'</span>';
+    if(l.startsWith('@@')||l.startsWith('+++')||l.startsWith('---'))return '<span class="dhdr">'+e+'</span>';
+    return e;
+  }).join('\n');
+}
+
+async function toggleDiff(id){
+  const box=document.getElementById('gendiff-'+id);if(!box)return;
+  if(box.style.display==='block'){box.style.display='none';return;}
+  box.style.display='block';box.textContent='diff en cours...';
+  try{
+    const d=await(await fetch('/produits/'+encodeURIComponent(id)+'/diff')).json();
+    if(d.diff&&d.diff.trim()){box.innerHTML=_colorDiff(d.diff);}
+    else{box.textContent='(aucune difference / generation d origine)';}
+  }catch(e){box.textContent=errMsg(e);}
+}
+
+async function revertGen(id){
+  try{
+    const r=await(await fetch('/produits/'+encodeURIComponent(id)+'/revert',{method:'POST'})).json();
+    if(r.ok)openLineage(id);
+  }catch(e){alert(errMsg(e));}
+}
+
+async function upgradeGen(id,btn){
+  if(btn){btn.disabled=true;btn.textContent='evolution en cours (~30s)...';}
+  try{
+    const r=await(await fetch('/produits/'+encodeURIComponent(id)+'/upgrade',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({})})).json();
+    if(r.detail){alert(errMsg(r.detail));return;}
+    if(r.succes&&r.produit_id){await loadProduits();openLineage(r.produit_id);}
+    else{alert('Evolution echouee : '+(r.verdict||'echec'));}
+  }catch(e){alert(errMsg(e));}
+  finally{if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}}
 }
 
 /* Auth helpers */
