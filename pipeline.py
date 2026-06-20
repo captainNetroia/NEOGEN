@@ -147,19 +147,20 @@ def _client():
 
 
 def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
-                   progress=None) -> Resultat:
+                   progress=None, client=None) -> Resultat:
     """
     Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
     -> 3 garde-fous -> execution (bac a sable selon capacites) -> auto-reparation
     -> ledger + lignee. Un produit qui TOURNE est persiste au registre.
     cap (Capacites) : capacites accordees au produit (persistance, reseau). None = pur.
     progress(evt) : callback optionnel de progression (streaming live).
+    client : client LLM injecte (gateway multi-provider). None = Anthropic par defaut.
     """
     from compositeur import forger_adn
     from usine_autoreparation import generer as generer_reel
     import registre as _reg
 
-    client = _client()
+    client = client or _client()
     volume_nom = None
     if cap is not None and getattr(cap, "persistance", False):
         volume_nom = "viv_" + _reg._slug(intention)
@@ -208,18 +209,19 @@ def fabriquer_outil(intention, contrat, *, reparer=True, max_tentatives=3, cap=N
 
 
 def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
-                        progress=None) -> Resultat:
+                        progress=None, client=None) -> Resultat:
     """
     Chemin JUGE : l'organisme genere PLUSIEURS strategies, les note selon les curseurs
     de l'ADN, garde la MEILLEURE, puis la passe par les garde-fous + execution + reparation.
     La reparation regenere la strategie gagnante avec le feedback d'erreur.
     progress(evt) : callback optionnel de progression (streaming live).
+    client : client LLM injecte (gateway multi-provider). None = Anthropic par defaut.
     """
     from compositeur import forger_adn
     from production_jugee import produire_le_mieux_reel, generer_candidat
     import registre as _reg
 
-    client = _client()
+    client = client or _client()
     adn = forger_adn(intention, client)
     volume_nom = "viv_" + _reg._slug(intention) if (cap and getattr(cap, "persistance", False)) else None
 

@@ -665,6 +665,12 @@ body.in-section #breadcrumb{display:none !important;}
       <button id="btn-scan">Scanner l'intention</button>
       <button id="btn-conseils" class="ghost">Conseils (conformite)</button>
     </div>
+    <div id="stale-notice" class="hidden" style="margin-top:8px;padding:5px 12px;border-radius:8px;
+      background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);
+      font-size:12px;color:var(--warn);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      Intention modifiee &mdash; resultats anterieurs ci-dessous
+      <button id="btn-reanalyse" style="padding:3px 10px;font-size:12px">&#8635; Refaire l'analyse</button>
+    </div>
     <div id="discernement" class="hidden"></div>
     <div id="conseil-box" class="hidden"></div>
     <div id="scan-status"></div>
@@ -1183,7 +1189,8 @@ const MURS_LABELS={
   requires_auth:'Authentification requise',
   no_data_exfiltration:'Aucune exfiltration de donnees',
 };
-const studio={intention:'',proposition:null,murs:[],persistance:false,reseau:false,domaines:'',juger:false};
+const studio={intention:'',proposition:null,murs:[],persistance:false,reseau:false,domaines:'',juger:false,
+  intentionAnalysee:'',intentionConseil:''};
 
 function studioGoto(n){
   document.querySelectorAll('#section-creation .studio-step').forEach(s=>s.classList.toggle('active',+s.dataset.step===n));
@@ -1202,9 +1209,9 @@ $('#btn-scan').onclick=async()=>{
   studio.intention=intention;
   $('#btn-scan').disabled=true;
   $('#scan-status').innerHTML="L'organisme scanne l'intention et propose un ADN...";
-  $('#discernement').classList.add('hidden');
+  // Ne pas masquer l'ancien discernement — il reste visible jusqu'aux nouveaux resultats
   try{
-    const p=await(await fetch('/proposer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intention})})).json();
+    const p=await(await fetch('/proposer',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({intention})})).json();
     if(p.detail){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(p.detail);return;}
     studio.proposition=p;
     studio.persistance=!!p.persistance;studio.reseau=!!p.reseau;
@@ -1222,6 +1229,8 @@ $('#btn-scan').onclick=async()=>{
     $('#discernement').innerHTML=html;$('#discernement').classList.remove('hidden');
     $('#scan-status').innerHTML='';
     $('#to-step2').classList.remove('hidden');
+    studio.intentionAnalysee=intention;
+    $('#stale-notice').classList.add('hidden');
     renderBulles();
   }catch(e){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
   finally{$('#btn-scan').disabled=false;}
@@ -1230,10 +1239,14 @@ $('#btn-scan').onclick=async()=>{
 $('#btn-conseils').onclick=async()=>{
   const intention=$('#intention').value.trim();
   if(intention.length<3){$('#scan-status').innerHTML='<span class="tag ko">vide</span> ecris une intention.';return;}
+  // Cache : meme intention + contenu existant -> juste afficher sans rappel API
+  if(studio.intentionConseil===intention&&$('#conseil-box').innerHTML!==''){
+    $('#conseil-box').classList.remove('hidden');return;
+  }
   $('#btn-conseils').disabled=true;$('#conseil-box').classList.add('hidden');
   $('#scan-status').innerHTML='Le conseiller analyse (conformite + cadrage)...';
   try{
-    const c=await(await fetch('/conseil',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intention})})).json();
+    const c=await(await fetch('/conseil',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({intention})})).json();
     if(c.detail){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(c.detail);return;}
     const cf=c.conformite||{},cd=c.cadrage||{};
     let html='<div class="compo-premiere">';
@@ -1244,8 +1257,24 @@ $('#btn-conseils').onclick=async()=>{
     html+=liste('Pieges',cd.pieges);
     html+='<div class="reform" style="margin-top:6px">'+esc(cf.avertissement||'Indicatif, confirmer par un juriste.')+'</div></div>';
     $('#conseil-box').innerHTML=html;$('#conseil-box').classList.remove('hidden');$('#scan-status').innerHTML='';
+    studio.intentionConseil=intention;
   }catch(e){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
   finally{$('#btn-conseils').disabled=false;}
+};
+
+// Listener textarea : affiche le badge stale si intention modifiee apres analyse
+$('#intention').addEventListener('input',()=>{
+  if(!studio.intentionAnalysee)return;
+  const changed=$('#intention').value.trim()!==studio.intentionAnalysee;
+  $('#stale-notice').classList.toggle('hidden',!changed);
+});
+// Refaire l'analyse : force re-run scan (+ conseil si deja visible)
+$('#btn-reanalyse').onclick=()=>{
+  const hadConseil=!$('#conseil-box').classList.contains('hidden');
+  studio.intentionAnalysee='';studio.intentionConseil='';
+  $('#stale-notice').classList.add('hidden');
+  $('#btn-scan').click();
+  if(hadConseil)setTimeout(()=>$('#btn-conseils').click(),200);
 };
 
 $('#to-step2').onclick=()=>{renderBulles();studioGoto(2);};
@@ -1298,7 +1327,7 @@ $('#to-step3').onclick=async()=>{
     const body={intention:studio.intention,murs:studio.murs.map(m=>m.cle),
       persistance:studio.persistance,reseau:studio.reseau,
       domaines_autorises:studio.domaines.split(',').map(s=>s.trim()).filter(Boolean),juger:studio.juger};
-    const c=await(await fetch('/composer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    const c=await(await fetch('/composer',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)})).json();
     if(c.detail){box.innerHTML='<span class="tag ko">erreur</span> '+errMsg(c.detail);return;}
     let html='<div class="compo-objectif"><b>Objectif :</b> '+esc(c.objectif)+'</div>';
     html+='<div class="compo-section-lbl">Murs dans l\'ADN</div>';
@@ -1348,6 +1377,7 @@ function updatePower(){
 
 /* --- Etape 5 : forge en direct (SSE) --- */
 const FORGE_LABELS={
+  moteur:'Moteur LLM',
   forge_adn:'Forge de l\'ADN',adn_pret:'ADN forge',generation:'Generation du code',
   code_genere:'Code genere',jugement:'Selection de strategie',membrane:'Membrane (murs)',
   scan:'Scan statique',conteneur:'Conteneur durci',execution:'Execution',
@@ -1380,7 +1410,7 @@ $('#btn-forger').onclick=()=>{
   $('#btn-forger').disabled=true;
   studioGoto(5);
   forgeAdd('start','Lancement de la forge','intention envoyee','run');
-  fetch('/fabriquer/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  fetch('/fabriquer/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)})
     .then(resp=>{
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
       function pump(){
@@ -1424,6 +1454,7 @@ function renderCandidates(candidates){
 function handleForgeEvt(evt){
   const s=evt.stade;
   if(s==='candidates_ready'){renderCandidates(evt.candidates);return;}
+  if(s==='moteur'){forgeAdd('moteur','Moteur LLM',evt.msg||'','ok');return;}
   if(s==='fini'){
     document.querySelectorAll('#forge-flow .forge-evt.run').forEach(el=>{el.className='forge-evt ok';el.querySelector('.fe-icon').textContent='✓';});
     const tag=evt.succes?'<span class="tag ok">execute</span>':'<span class="tag ko">echec</span>';
@@ -1453,7 +1484,9 @@ function handleForgeEvt(evt){
 $('#btn-recommencer').onclick=()=>{
   studio.intention='';studio.proposition=null;studio.murs=[];
   studio.persistance=studio.reseau=studio.juger=false;studio.domaines='';
+  studio.intentionAnalysee='';studio.intentionConseil='';
   $('#intention').value='';$('#discernement').classList.add('hidden');$('#conseil-box').classList.add('hidden');
+  $('#stale-notice').classList.add('hidden');
   $('#scan-status').innerHTML='';$('#to-step2').classList.add('hidden');
   studioGoto(1);
 };
@@ -1498,6 +1531,21 @@ async function loadProduits(){
 /* Auth helpers */
 function _authToken(){return localStorage.getItem('neogen_auth_token');}
 function _authHdrs(){const t=_authToken();return t?{'Authorization':'Bearer '+t}:{};}
+
+/* Gateway helper : ajoute provider/modele/cle ACTIFS aux en-tetes de production.
+   La cle vit cote client (localStorage) ; le backend la consomme par requete, jamais persistee. */
+function _llmHdrs(extra){
+  const h=Object.assign({'Content-Type':'application/json'},extra||{});
+  const p=localStorage.getItem('neogen_active_provider');
+  const m=localStorage.getItem('neogen_active_model');
+  if(p&&m){
+    h['X-LLM-Provider']=p;h['X-LLM-Model']=m;
+    const k=localStorage.getItem('neogen_key_'+p)||'';
+    if(p==='local'){ if(k)h['X-LLM-Base']=k; }   /* pour local, le champ porte l'URL de base */
+    else if(k){ h['X-LLM-Key']=k; }
+  }
+  return h;
+}
 async function _fetchMe(){
   const t=_authToken();if(!t)return null;
   try{

@@ -22,7 +22,7 @@ _MOTIFS = [
     (re.compile(r"\bshpat_[a-fA-F0-9]{32}\b"), "TOKEN_SHOPIFY"),
     (re.compile(r"\bghp_[A-Za-z0-9]{36}\b"), "TOKEN_GITHUB"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b"), "TOKEN_GITHUB"),
-    (re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"), "CLE_OPENAI"),
+    (re.compile(r"\bsk-[A-Za-z0-9_\-]{20,}"), "CLE_OPENAI"),  # gere sk-..., sk-proj-..., sk-svcacct-...
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "CLE_AWS"),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"), "JWT"),
     (re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "CLE_GOOGLE"),

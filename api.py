@@ -99,52 +99,76 @@ class DemandeProposition(BaseModel):
     intention: str = Field(min_length=3, max_length=2000)
 
 
+def _llm_client(provider=None, model=None, key=None, base=None, tier="fort"):
+    """Construit le client LLM depuis les en-tetes X-LLM-* (gateway multi-provider).
+    Aucune cle persistee : elle vit le temps de la requete. Provider absent => Anthropic defaut."""
+    from gateway import client as _gw, contexte_depuis_headers
+    ctx = contexte_depuis_headers(provider, model, key, base)
+    return _gw(ctx, tier=tier)
+
+
 @app.post("/conseil")
-def conseil_endpoint(demande: DemandeProposition):
+def conseil_endpoint(demande: DemandeProposition,
+                     x_llm_provider: str | None = Header(default=None),
+                     x_llm_model: str | None = Header(default=None),
+                     x_llm_key: str | None = Header(default=None),
+                     x_llm_base: str | None = Header(default=None)):
     """Conseiller : note de conformite (indicative) + cadrage analytique pour une intention."""
-    from pipeline import _client
+    from sanitizer import nettoyer
     from conseillers import conseiller
     try:
-        c = conseiller(demande.intention, _client())
+        cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="leger")
+        c = conseiller(demande.intention, cl)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"echec du conseil : {e}")
+        raise HTTPException(status_code=502, detail=nettoyer(f"echec du conseil : {e}"))
     return c.model_dump()
 
 
 @app.post("/proposer")
-def proposer_endpoint(demande: DemandeProposition):
+def proposer_endpoint(demande: DemandeProposition,
+                      x_llm_provider: str | None = Header(default=None),
+                      x_llm_model: str | None = Header(default=None),
+                      x_llm_key: str | None = Header(default=None),
+                      x_llm_base: str | None = Header(default=None)):
     """L'organisme juge l'intention et PROPOSE murs + capacites. L'humain validera."""
-    from pipeline import _client
+    from sanitizer import nettoyer
     from proposer import proposer
     try:
-        p = proposer(demande.intention, _client())
+        cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="fort")
+        p = proposer(demande.intention, cl)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"echec de la proposition : {e}")
+        raise HTTPException(status_code=502, detail=nettoyer(f"echec de la proposition : {e}"))
     return p.model_dump()
 
 
 @app.post("/fabriquer", response_model=ReponseFabrication)
-def fabriquer_endpoint(demande: DemandeFabrication):
+def fabriquer_endpoint(demande: DemandeFabrication,
+                       x_llm_provider: str | None = Header(default=None),
+                       x_llm_model: str | None = Header(default=None),
+                       x_llm_key: str | None = Header(default=None),
+                       x_llm_base: str | None = Header(default=None)):
     """Transforme une intention en produit : ADN -> code -> 3 garde-fous -> conteneur -> registre."""
+    from sanitizer import nettoyer
     cap = Capacites(
         persistance=demande.persistance,
         reseau=demande.reseau,
         domaines_autorises=demande.domaines_autorises,
     )
     try:
+        cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="fort")
         if demande.juger:
             from pipeline import fabriquer_juge_reel
             r = fabriquer_juge_reel(
                 demande.intention, reparer=demande.reparer,
-                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
+                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap, client=cl,
             )
         else:
             r = fabriquer_reel(
                 demande.intention, reparer=demande.reparer,
-                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
+                max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap, client=cl,
             )
-    except Exception as e:  # cle API manquante, panne reseau Claude, etc.
-        raise HTTPException(status_code=502, detail=f"echec de fabrication : {e}")
+    except Exception as e:  # cle API manquante, panne reseau, provider injoignable, etc.
+        raise HTTPException(status_code=502, detail=nettoyer(f"echec de fabrication : {e}"))
 
     produit_id = None
     if r.succes:
@@ -230,7 +254,11 @@ class DemandeComposition(BaseModel):
 
 
 @app.post("/composer")
-def composer_endpoint(demande: DemandeComposition):
+def composer_endpoint(demande: DemandeComposition,
+                      x_llm_provider: str | None = Header(default=None),
+                      x_llm_model: str | None = Header(default=None),
+                      x_llm_key: str | None = Header(default=None),
+                      x_llm_base: str | None = Header(default=None)):
     """Etape 2 du studio : recap lisible de l'ADN compose + ce que fera la 1ere generation."""
     from compositeur import REGLES_MURS
     from capacites import CATALOGUE_CAPACITES
@@ -243,19 +271,18 @@ def composer_endpoint(demande: DemandeComposition):
         dom = ", ".join(demande.domaines_autorises) or "(liste blanche a preciser)"
         capacites.append({"cle": "reseau", "explication": CATALOGUE_CAPACITES["reseau"] + f" Domaines : {dom}."})
 
-    # Description de la premiere generation : un appel Claude court.
+    # Description de la premiere generation : un appel LLM court (tier leger).
     try:
-        from pipeline import _client
-        client = _client()
+        from sanitizer import nettoyer
+        client = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="leger")
         contexte = (
             f"Intention : {demande.intention}\n"
             f"Murs retenus : {', '.join(demande.murs) or 'aucun'}\n"
             f"Capacites : {', '.join(c['cle'] for c in capacites) or 'aucune (produit pur)'}\n"
             f"Mode juge : {'oui' if demande.juger else 'non'}"
         )
-        from generator import MODEL
         resp = client.messages.create(
-            model=MODEL, max_tokens=400,
+            max_tokens=400,
             system=("Tu es NEOGEN. En 2 a 3 phrases simples et concretes, decris ce que fera "
                     "l'application des sa PREMIERE generation, compte tenu de l'intention, des murs "
                     "et des capacites. Pas de jargon, pas de promesse exageree. Phrase directe."),
@@ -263,7 +290,7 @@ def composer_endpoint(demande: DemandeComposition):
         )
         description = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
     except Exception as e:
-        description = f"(apercu indisponible : {e})"
+        description = nettoyer(f"(apercu indisponible : {e})")
 
     return {
         "objectif": demande.intention,
@@ -275,18 +302,26 @@ def composer_endpoint(demande: DemandeComposition):
 
 
 @app.post("/fabriquer/stream")
-def fabriquer_stream(demande: DemandeFabrication):
+def fabriquer_stream(demande: DemandeFabrication,
+                     x_llm_provider: str | None = Header(default=None),
+                     x_llm_model: str | None = Header(default=None),
+                     x_llm_key: str | None = Header(default=None),
+                     x_llm_base: str | None = Header(default=None)):
     """Etape 4 du studio : forge le produit en diffusant chaque stade en Server-Sent Events."""
     import queue
     import threading
     from sanitizer import nettoyer
     from capacites import Capacites
+    from gateway import contexte_depuis_headers, resume_ctx
 
     cap = Capacites(
         persistance=demande.persistance,
         reseau=demande.reseau,
         domaines_autorises=demande.domaines_autorises,
     )
+    # Resolution du provider/modele PAR REQUETE (cle jamais persistee ni loggee).
+    _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
     _SENTINEL = object()
@@ -300,19 +335,22 @@ def fabriquer_stream(demande: DemandeFabrication):
 
     def travailler():
         try:
+            from gateway import client as _gw
+            cl = _gw(_ctx, tier="fort")
+            file_evts.put({"stade": "moteur", "msg": nettoyer(_moteur)})
             if demande.juger:
                 from pipeline import fabriquer_juge_reel
                 r = fabriquer_juge_reel(
                     demande.intention, reparer=demande.reparer,
                     max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
-                    progress=progress,
+                    progress=progress, client=cl,
                 )
             else:
                 from pipeline import fabriquer_reel
                 r = fabriquer_reel(
                     demande.intention, reparer=demande.reparer,
                     max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap,
-                    progress=progress,
+                    progress=progress, client=cl,
                 )
             produit_id = None
             if r.succes:
