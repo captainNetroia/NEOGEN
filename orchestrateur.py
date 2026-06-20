@@ -180,12 +180,22 @@ def orchestrer(intention: str, ctx=None, *, cap=None, reparer=True, max_tentativ
 
     volume_nom = ("viv_" + _reg._slug(intention)) if (cap and getattr(cap, "persistance", False)) else None
 
-    # generer_fn pour le pipeline : (re)delegue tous les organes puis assemble.
+    # generer_fn pour le pipeline : delegue les organes, mais sur repair ne re-delegue
+    # QUE les organes cites dans l'erreur — les autres sont reutilises du cache.
+    _cache_impls: dict[str, str] = {}
+
     def generer_fn(_adn, feedback=None):
         impls = []
+        erreur_txt = (feedback[1] if feedback else "").lower()
         for o in plan.organes:
             cl = gateway.client(ctx_tiers, tier=o.tier)
             modele = getattr(cl, "model", "?")
+            # Reutilise si: repair en cours ET organe non cite dans l'erreur ET deja en cache.
+            if feedback and o.nom_fonction not in erreur_txt and o.nom_fonction in _cache_impls:
+                impls.append(_cache_impls[o.nom_fonction])
+                _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
+                       "modele": modele, "statut": "reutilise"})
+                continue
             _emit({"stade": "sous_agent", "organe": o.nom_fonction, "role": o.role,
                    "tier": o.tier, "modele": modele, "statut": "en_cours"})
             try:
@@ -194,6 +204,7 @@ def orchestrer(intention: str, ctx=None, *, cap=None, reparer=True, max_tentativ
                 _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
                        "modele": modele, "statut": "echec", "raison": str(e)[:200]})
                 raise
+            _cache_impls[o.nom_fonction] = impl.code
             impls.append(impl.code)
             _emit({"stade": "sous_agent", "organe": o.nom_fonction, "role": o.role,
                    "tier": o.tier, "modele": modele, "statut": "fait",

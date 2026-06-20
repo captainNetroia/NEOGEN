@@ -46,7 +46,13 @@ class CircuitBreaker:
             self.ouvert_jusqu = time.time() + self.cooldown
 
 
-_BREAKER = CircuitBreaker()
+_BREAKERS: dict[str, CircuitBreaker] = {}  # un breaker par provider, pas un global
+
+def _breaker_pour(client) -> CircuitBreaker:
+    prov = getattr(client, "provider", "anthropic")
+    if prov not in _BREAKERS:
+        _BREAKERS[prov] = CircuitBreaker()
+    return _BREAKERS[prov]
 
 _MARQUEURS_TRANSITOIRES = ("connection", "timeout", "timed out", "overloaded", "econnreset",
                            "reset by peer", "temporarily", "503", "502", "529", "rate limit", "429")
@@ -61,23 +67,26 @@ def _est_transitoire(e: Exception) -> bool:
 
 
 def parse_resilient(client, *, tentatives: int = 3, base_delai: float = 2.0, **kwargs):
-    """Wrappe client.messages.parse : retries (backoff) sur erreurs transitoires + circuit breaker.
+    """Wrappe client.messages.parse : retries (backoff) sur erreurs transitoires + circuit breaker
+    isole par provider (panne Anthropic n'affecte pas OpenAI, etc.).
     Les erreurs non-transitoires (400, refus, schema) remontent immediatement."""
-    if not _BREAKER.disponible():
-        raise RuntimeError("Circuit API ouvert : trop d'echecs recents, protection active. Reessayer plus tard.")
+    breaker = _breaker_pour(client)
+    if not breaker.disponible():
+        prov = getattr(client, "provider", "anthropic")
+        raise RuntimeError(f"Circuit '{prov}' ouvert : trop d'echecs recents. Reessayer plus tard.")
     derniere = None
     for i in range(tentatives):
         try:
             r = client.messages.parse(**kwargs)
-            _BREAKER.succes()
+            breaker.succes()
             return r
         except Exception as e:
             derniere = e
             if not _est_transitoire(e):
-                _BREAKER.echec()
+                breaker.echec()
                 raise
-            _BREAKER.echec()
-            if not _BREAKER.disponible() or i == tentatives - 1:
+            breaker.echec()
+            if not breaker.disponible() or i == tentatives - 1:
                 break
             time.sleep(base_delai * (2 ** i))
     raise derniere

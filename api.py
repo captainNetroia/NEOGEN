@@ -216,12 +216,16 @@ def generations_produit(produit_id: str):
             d = registre.diff_codes(precedent["id"], e["id"])
             delta = {"ajouts": d["ajouts"], "retraits": d["retraits"],
                      "lignes_delta": d["lignes_b"] - d["lignes_a"]}
+        gov = None
+        if precedent is not None:
+            gov = registre.diff_gouvernance(precedent["id"], e["id"])
         noeuds.append({
             "id": e["id"], "generation": e.get("generation", 1),
             "parent_id": e.get("parent_id"), "timestamp": e.get("timestamp"),
             "verdict": e.get("verdict"), "lignes": e.get("lignes"),
+            "murs": e.get("murs", []), "capacites": e.get("capacites", []),
             "promu": registre.est_promu(e["id"]), "actif": e["id"] == actif,
-            "delta": delta,
+            "delta": delta, "gouvernance": gov,
         })
         precedent = e
     return {"lineage": lineage, "intention": lignee[-1].get("intention"),
@@ -270,31 +274,69 @@ def upgrade_produit(produit_id: str, demande: DemandeUpgrade,
                     x_llm_model: str | None = Header(default=None),
                     x_llm_key: str | None = Header(default=None),
                     x_llm_base: str | None = Header(default=None)):
-    """Faire EVOLUER un produit : re-fabrique une nouvelle generation de sa lignee, sous
-    gouvernance complete (membrane + scan + conteneur + reparation). parent_id = produit_id."""
+    """Faire EVOLUER un produit en streaming SSE : re-fabrique une nouvelle generation
+    de sa lignee sous gouvernance complete. Diffuse chaque stade en temps reel."""
+    import queue
+    import threading
     from sanitizer import nettoyer
+    from gateway import contexte_depuis_headers, resume_ctx
+
     base = next((e for e in registre.lister() if e["id"] == produit_id), None)
     if base is None:
         raise HTTPException(status_code=404, detail="produit introuvable")
     intention = (demande.intention or base.get("intention") or "").strip()
     if len(intention) < 3:
         raise HTTPException(status_code=400, detail="intention trop courte")
+
     cap = Capacites(persistance=demande.persistance, reseau=demande.reseau,
                     domaines_autorises=demande.domaines_autorises)
-    try:
-        cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="fort")
-        r = fabriquer_reel(intention, reparer=demande.reparer,
-                           max_tentatives=demande.max_tentatives, enregistrer=True,
-                           cap=cap, client=cl, parent_id=produit_id)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=nettoyer(f"echec de l'evolution : {e}"))
-    nouveau = None
-    if r.succes:
-        entrees = registre.lister()
-        if entrees:
-            nouveau = entrees[-1]["id"]
-    return {"succes": r.succes, "verdict": nettoyer(r.verdict), "tentatives": r.tentatives,
-            "lignes": r.lignes, "produit_id": nouveau, "parent_id": produit_id}
+    _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _moteur = resume_ctx(_ctx)
+
+    file_evts: "queue.Queue" = queue.Queue()
+    _SENTINEL = object()
+
+    def progress(evt: dict):
+        safe = {}
+        for k, v in evt.items():
+            safe[k] = nettoyer(v) if isinstance(v, str) else v
+        file_evts.put(safe)
+
+    def travailler():
+        try:
+            from gateway import client as _gw
+            cl = _gw(_ctx, tier="fort")
+            file_evts.put({"stade": "moteur", "msg": nettoyer(_moteur)})
+            r = fabriquer_reel(intention, reparer=demande.reparer,
+                               max_tentatives=demande.max_tentatives, enregistrer=True,
+                               cap=cap, client=cl, parent_id=produit_id, progress=progress)
+            nouveau = None
+            if r.succes:
+                entrees = registre.lister()
+                if entrees:
+                    nouveau = entrees[-1]["id"]
+            file_evts.put({
+                "stade": "fini", "succes": r.succes, "verdict": nettoyer(r.verdict),
+                "tentatives": r.tentatives, "lignes": r.lignes,
+                "produit_id": nouveau, "parent_id": produit_id,
+                "lecons": [nettoyer(l) for l in (r.lecons or [])],
+            })
+        except Exception as e:
+            file_evts.put({"stade": "erreur", "message": nettoyer(str(e))})
+        finally:
+            file_evts.put(_SENTINEL)
+
+    threading.Thread(target=travailler, daemon=True).start()
+
+    def flux():
+        while True:
+            evt = file_evts.get()
+            if evt is _SENTINEL:
+                break
+            yield f"data: {_json.dumps(evt, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(flux(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 class DemandeExecution(BaseModel):

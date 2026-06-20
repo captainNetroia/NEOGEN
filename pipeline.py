@@ -166,7 +166,12 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
     if cap is not None and getattr(cap, "persistance", False):
         volume_nom = "viv_" + _reg._slug(intention)
 
-    forger = lambda intention: forger_adn(intention, client)
+    _captured: dict = {}
+    def forger(i):
+        adn = forger_adn(i, client)
+        _captured["adn"] = adn
+        return adn
+
     generer = lambda adn, feedback=None: generer_reel(adn, client, feedback, cap=cap)
 
     r = fabriquer(intention, forger, generer,
@@ -175,9 +180,12 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
 
     if enregistrer and r.succes and r.code:
         import registre
+        adn = _captured.get("adn")
+        murs = [m.id for m in getattr(adn, "murs", [])] if adn else []
+        cap_list = [c for c in ["persistance", "reseau"] if getattr(cap, c, False)] if cap else []
         entree = registre.enregistrer(intention, r.code,
                                       verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
-                                      parent_id=parent_id)
+                                      parent_id=parent_id, murs=murs, capacites=cap_list)
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
 
     return r
@@ -225,6 +233,7 @@ def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistre
 
     client = client or _client()
     adn = forger_adn(intention, client)
+    murs = [m.id for m in getattr(adn, "murs", [])]
     volume_nom = "viv_" + _reg._slug(intention) if (cap and getattr(cap, "persistance", False)) else None
 
     etat = {"classement": None, "consigne": None}
@@ -252,8 +261,10 @@ def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistre
     r.classement = etat["classement"]
 
     if enregistrer and r.succes and r.code:
+        cap_list = [c for c in ["persistance", "reseau"] if getattr(cap, c, False)] if cap else []
         entree = _reg.enregistrer(intention, r.code,
-                                  verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes)
+                                  verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
+                                  murs=murs, capacites=cap_list)
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
     return r
 

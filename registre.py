@@ -40,7 +40,8 @@ def _norm(e: dict) -> dict:
 
 
 def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int,
-                contrat: dict | None = None, parent_id: str | None = None) -> dict:
+                contrat: dict | None = None, parent_id: str | None = None,
+                murs: list[str] | None = None, capacites: list[str] | None = None) -> dict:
     """Persiste un produit reussi et retourne son entree d'index.
     Si contrat (dict du schema d'entree) est fourni, le produit est PROMOUVABLE.
     GENEALOGIE (Phase 4) : si parent_id est donne, le produit est une nouvelle generation
@@ -89,6 +90,8 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         "lineage": lineage,
         "generation": generation,
         "parent_id": parent_id,
+        "murs": murs or [],
+        "capacites": capacites or [],
     }
     os.makedirs(os.path.dirname(INDEX), exist_ok=True)
     with open(INDEX, "a", encoding="utf-8") as f:
@@ -194,6 +197,20 @@ def actif_de(lineage: str) -> str | None:
                 if d.get("lineage") == lineage:
                     actif = d.get("id")
     return actif
+
+
+def diff_gouvernance(id_a: str, id_b: str) -> dict:
+    """Diff de gouvernance entre deux generations : murs et capacites ajoutes/retires."""
+    idx = {e["id"]: e for e in lister()}
+    a, b = idx.get(id_a, {}), idx.get(id_b, {})
+    murs_a, murs_b = set(a.get("murs") or []), set(b.get("murs") or [])
+    caps_a, caps_b = set(a.get("capacites") or []), set(b.get("capacites") or [])
+    return {
+        "murs_ajoutes":        sorted(murs_b - murs_a),
+        "murs_retires":        sorted(murs_a - murs_b),
+        "capacites_ajoutees":  sorted(caps_b - caps_a),
+        "capacites_retirees":  sorted(caps_a - caps_b),
+    }
 
 
 def charger(produit_id: str) -> str | None:

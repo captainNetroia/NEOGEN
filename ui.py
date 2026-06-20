@@ -528,6 +528,9 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 .gen-diff{margin-top:10px;max-height:240px;overflow:auto;font-size:11px;line-height:1.45;
   background:rgba(0,0,0,.85);color:#e5e7eb;border-radius:8px;padding:10px;white-space:pre;display:none;}
 .gen-diff .dadd{color:#86efac;}.gen-diff .ddel{color:#fca5a5;}.gen-diff .dhdr{color:#7dd3fc;}
+.gen-gov{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0;font-size:11px;}
+.gen-gov .dadd{background:rgba(134,239,172,.12);color:#86efac;padding:2px 7px;border-radius:4px;}
+.gen-gov .ddel{background:rgba(252,165,165,.12);color:#fca5a5;padding:2px 7px;border-radius:4px;}
 
 .hidden{display:none !important;}
 
@@ -1659,12 +1662,24 @@ function renderLineage(d){
     if(n.delta){
       delta='<span class="gen-delta"><span class="add">+'+n.delta.ajouts+'</span> / <span class="del">-'+n.delta.retraits+'</span></span>';
     }
+    // Diff gouvernance : murs/capacites ajoutes ou retires
+    let govHtml='';
+    if(n.gouvernance){
+      const g=n.gouvernance;
+      const parts=[];
+      (g.murs_ajoutes||[]).forEach(m=>parts.push('<span class="dadd">+mur:'+esc(m)+'</span>'));
+      (g.murs_retires||[]).forEach(m=>parts.push('<span class="ddel">-mur:'+esc(m)+'</span>'));
+      (g.capacites_ajoutees||[]).forEach(c=>parts.push('<span class="dadd">+cap:'+esc(c)+'</span>'));
+      (g.capacites_retirees||[]).forEach(c=>parts.push('<span class="ddel">-cap:'+esc(c)+'</span>'));
+      if(parts.length)govHtml='<div class="gen-gov">'+parts.join(' ')+'</div>';
+    }
     html+='<div class="gen-node'+(n.actif?' actif':'')+'" id="gennode-'+esc(n.id)+'">'
       +'<div class="gen-node-head"><span class="gen-num">'+n.generation+'</span>'
       +'<b>Generation '+n.generation+'</b>'
       +(n.actif?' <span class="tag ok">active</span>':'')
       +(n.promu?' <span class="tag">appli</span>':'')
       +delta+'</div>'
+      +govHtml
       +'<div class="gen-meta">'+esc(n.timestamp||'')+' &middot; '+n.lignes+' lignes &middot; '+esc(n.verdict||'')+'</div>'
       +'<div class="gen-actions">'
       +'<button class="ghost" onclick="toggleDiff(\''+esc(n.id)+'\')">Voir diff</button>'
@@ -1706,15 +1721,40 @@ async function revertGen(id){
   }catch(e){alert(errMsg(e));}
 }
 
-async function upgradeGen(id,btn){
-  if(btn){btn.disabled=true;btn.textContent='evolution en cours (~30s)...';}
-  try{
-    const r=await(await fetch('/produits/'+encodeURIComponent(id)+'/upgrade',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({})})).json();
-    if(r.detail){alert(errMsg(r.detail));return;}
-    if(r.succes&&r.produit_id){await loadProduits();openLineage(r.produit_id);}
-    else{alert('Evolution echouee : '+(r.verdict||'echec'));}
-  }catch(e){alert(errMsg(e));}
-  finally{if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}}
+function upgradeGen(id,btn){
+  if(btn){btn.disabled=true;btn.textContent='evolution en cours...';}
+  const resp=fetch('/produits/'+encodeURIComponent(id)+'/upgrade',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({})});
+  resp.then(r=>{
+    const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+    function pump(){
+      return reader.read().then(({done,value})=>{
+        if(done){
+          if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}
+          return;
+        }
+        buf+=dec.decode(value,{stream:true});
+        let idx;
+        while((idx=buf.indexOf('\n\n'))>=0){
+          const chunk=buf.slice(0,idx);buf=buf.slice(idx+2);
+          const line=chunk.split('\n').find(l=>l.startsWith('data:'));
+          if(!line)continue;
+          let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(e){continue;}
+          if(evt.stade==='fini'){
+            if(evt.succes&&evt.produit_id){loadProduits().then(()=>openLineage(evt.produit_id));}
+            else{alert('Evolution echouee : '+(evt.verdict||'echec'));}
+          } else if(evt.stade==='erreur'){
+            alert('Erreur : '+(evt.message||'echec'));
+            if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}
+          }
+        }
+        return pump();
+      });
+    }
+    return pump();
+  }).catch(e=>{
+    alert(errMsg(e));
+    if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}
+  });
 }
 
 /* Auth helpers */

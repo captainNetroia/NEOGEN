@@ -141,6 +141,8 @@ class _Messages:
 
 
 class _BaseAdapter:
+    provider: str = "anthropic"
+
     def __init__(self, model):
         self.model = model
         self.messages = _Messages(self)
@@ -149,6 +151,7 @@ class _BaseAdapter:
 class _AnthropicAdapter(_BaseAdapter):
     """Enveloppe le client Anthropic natif et impose le modele actif (tier/selection).
     Absorbe les differences entre modeles : Haiku ne supporte pas le thinking adaptatif."""
+    provider = "anthropic"
 
     def __init__(self, real_client, model):
         super().__init__(model)
@@ -173,7 +176,7 @@ class _OpenAICompatAdapter(_BaseAdapter):
 
     def __init__(self, provider, model, api_key, base_url):
         super().__init__(model)
-        self.provider = provider
+        self.provider: str = provider
         self.api_key = api_key
         self.base_url = (base_url or _OPENAI_COMPAT[provider]).rstrip("/")
 
@@ -233,6 +236,7 @@ class _OpenAICompatAdapter(_BaseAdapter):
 
 class _GeminiAdapter(_BaseAdapter):
     """Google Gemini : API generateContent (REST)."""
+    provider = "gemini"
 
     def __init__(self, model, api_key, base_url):
         super().__init__(model)
