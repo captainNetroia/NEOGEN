@@ -197,6 +197,27 @@ textarea::placeholder{color:var(--mut);}
 .row input[type=number]{width:52px;background:rgba(255,255,255,.55);color:var(--txt);
   border:1px solid rgba(255,255,255,.55);border-radius:6px;padding:6px;font-size:14px;}
 .hint{color:var(--mut);font-size:12px;}
+
+/* Toggle pill glassmorphism */
+.toggle-wrap{display:flex;align-items:center;gap:9px;cursor:pointer;
+  user-select:none;color:var(--mut);font-size:13px;}
+.toggle-inp{position:absolute;opacity:0;width:0;height:0;pointer-events:none;}
+.toggle-pill{position:relative;width:42px;height:24px;border-radius:99px;flex-shrink:0;
+  background:rgba(100,116,139,.22);
+  border:1px solid rgba(255,255,255,.5);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.08),0 1px 0 rgba(255,255,255,.5);
+  transition:background .22s,box-shadow .22s;}
+.toggle-inp:checked~.toggle-pill{
+  background:linear-gradient(135deg,var(--c-integration),var(--acc));
+  box-shadow:0 0 12px rgba(8,145,178,.35),inset 0 1px 0 rgba(255,255,255,.3);}
+.toggle-pill::after{content:'';position:absolute;top:3px;left:3px;
+  width:16px;height:16px;border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 5px rgba(0,0,0,.18),0 0 0 0.5px rgba(255,255,255,.8);
+  transition:transform .22s cubic-bezier(.23,1,.32,1);}
+.toggle-inp:checked~.toggle-pill::after{transform:translateX(18px);}
+.toggle-label{display:flex;align-items:center;gap:5px;}
 #domaines{width:100%;margin-top:10px;background:rgba(255,255,255,.55);color:var(--txt);
   border:1px solid rgba(255,255,255,.45);border-radius:8px;padding:9px;font-size:14px;}
 
@@ -232,6 +253,59 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 
 /* Production */
 .produit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+
+/* Integrations */
+.integ-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:4px;}
+.integ-category{padding:16px 18px;border-radius:16px;}
+.integ-cat-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;
+  color:var(--mut);margin-bottom:10px;}
+.integ-item{display:flex;align-items:center;gap:9px;padding:8px 0;
+  border-bottom:1px solid rgba(15,23,42,.06);font-size:14px;color:var(--txt);}
+.integ-item:last-child{border-bottom:none;padding-bottom:0;}
+.integ-icon{font-size:14px;width:20px;text-align:center;flex-shrink:0;opacity:.8;}
+.integ-name{flex:1;}
+.integ-status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;
+  background:rgba(100,116,139,.3);transition:background .2s,box-shadow .2s;}
+.integ-status-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok);}
+.integ-status-dot.ko{background:var(--ko);}
+.integ-section-label{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.9px;color:var(--mut);margin-bottom:10px;}
+/* Provider tabs */
+.prov-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.prov-tab{padding:4px 12px;border-radius:99px;font-size:12px;font-weight:600;
+  cursor:pointer;border:1px solid rgba(15,23,42,.12);
+  background:rgba(255,255,255,.35);color:var(--mut);
+  transition:background .15s,color .15s,border-color .15s;user-select:none;}
+.prov-tab:hover:not(.active){background:rgba(255,255,255,.6);color:var(--txt);}
+.prov-tab.active{background:var(--acc);color:#fff;border-color:var(--acc);}
+/* Model row */
+.integ-model-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.integ-model-row select{flex:1;min-width:160px;
+  background:rgba(255,255,255,.55);color:var(--txt);
+  border:1px solid rgba(255,255,255,.55);border-radius:8px;
+  padding:8px 12px;font-size:14px;font-family:inherit;}
+.integ-model-row select:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+/* Key input with live dot inside */
+.integ-key-wrap{position:relative;flex:2;min-width:200px;display:flex;align-items:center;}
+.integ-key-wrap input{width:100%;padding:8px 32px 8px 12px;
+  background:rgba(255,255,255,.55);color:var(--txt);
+  border:1px solid rgba(255,255,255,.55);border-radius:8px;
+  font-size:14px;font-family:inherit;}
+.integ-key-wrap input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+.integ-model-dot{position:absolute;right:10px;width:9px;height:9px;border-radius:50%;
+  background:rgba(100,116,139,.3);transition:background .2s,box-shadow .2s;pointer-events:none;}
+.integ-model-dot.ok{background:var(--ok);box-shadow:0 0 7px var(--ok);}
+.integ-model-dot.ko{background:var(--ko);box-shadow:0 0 5px var(--ko);}
+#integ-status{margin-top:10px;font-size:13px;min-height:20px;}
+/* Custom integration form */
+.integ-add-btn{font-size:13px;color:var(--acc);cursor:pointer;
+  padding:8px 0 2px;font-weight:600;transition:opacity .15s;}
+.integ-add-btn:hover{opacity:.7;}
+#integ-add-form{margin-top:10px;display:flex;flex-direction:column;gap:7px;}
+#integ-add-form input{background:rgba(255,255,255,.55);color:var(--txt);
+  border:1px solid rgba(255,255,255,.55);border-radius:8px;
+  padding:7px 10px;font-size:13px;font-family:inherit;width:100%;}
+#integ-add-form input:focus{outline:none;border-color:var(--acc);}
 .produit-card{padding:16px;border-radius:14px;
   transition:transform .2s,box-shadow .2s;}
 .produit-card.glass:hover{transform:translateY(-2px);
@@ -416,10 +490,24 @@ body.in-section #breadcrumb{display:none !important;}
   <div class="panel glass">
     <textarea id="intention" placeholder="Ex : un convertisseur de temperature celsius / fahrenheit"></textarea>
     <div class="row">
-      <label><input type="checkbox" id="persistance"> persistance <span class="hint">(disque isole)</span></label>
-      <label><input type="checkbox" id="reseau"> reseau <span class="hint">(liste blanche)</span></label>
-      <label>tentatives <input type="number" id="max" value="2" min="1" max="5"></label>
-      <label><input type="checkbox" id="juger"> mode juge <span class="hint">(2 strategies)</span></label>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="persistance" class="toggle-inp">
+        <span class="toggle-pill"></span>
+        <span class="toggle-label">persistance <span class="hint">(disque isole)</span></span>
+      </label>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="reseau" class="toggle-inp">
+        <span class="toggle-pill"></span>
+        <span class="toggle-label">reseau <span class="hint">(liste blanche)</span></span>
+      </label>
+      <label style="color:var(--mut);font-size:13px;display:flex;align-items:center;gap:6px">
+        tentatives <input type="number" id="max" value="2" min="1" max="5">
+      </label>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="juger" class="toggle-inp">
+        <span class="toggle-pill"></span>
+        <span class="toggle-label">mode juge <span class="hint">(2 strategies)</span></span>
+      </label>
     </div>
     <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, virgule">
     <div class="row" style="margin-top:16px">
@@ -471,11 +559,88 @@ body.in-section #breadcrumb{display:none !important;}
 <div id="section-integrations" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-integration)"></span>Integrations</h2>
-    <p>Connecte tes propres comptes et outils a NEOGEN.</p>
+    <p>Connecte ton modele IA et tes comptes. NEOGEN les utilise dans les analyses et productions.</p>
   </div>
-  <div class="placeholder glass">
-    <div class="ph-icon">⊛</div><h3>Bientot disponible</h3>
-    <p>NotebookLM, OpenLegi, TikTok, Instagram, Magnific et plus. Tes credentials, ton controle.</p>
+
+  <!-- Modele IA multi-provider avec switch actif -->
+  <div class="panel glass" style="margin-bottom:20px">
+    <div class="integ-section-label">Modele IA</div>
+    <div id="integ-active-bar" style="margin-bottom:12px;font-size:13px;color:var(--mut)">
+      Actif : <span id="integ-active-label" style="color:var(--txt);font-weight:600">aucun</span>
+    </div>
+    <div class="prov-tabs" id="prov-tabs">
+      <span class="prov-tab active" data-prov="anthropic">Anthropic</span>
+      <span class="prov-tab" data-prov="openai">OpenAI / GPT</span>
+      <span class="prov-tab" data-prov="gemini">Gemini</span>
+      <span class="prov-tab" data-prov="deepseek">DeepSeek</span>
+      <span class="prov-tab" data-prov="mistral">Mistral</span>
+      <span class="prov-tab" data-prov="local">Local</span>
+    </div>
+    <div class="integ-model-row">
+      <select id="integ-model-select"></select>
+      <div class="integ-key-wrap">
+        <input type="password" id="integ-api-key">
+        <span class="integ-model-dot" id="integ-model-dot"></span>
+      </div>
+      <button id="integ-save-btn">Enregistrer</button>
+      <button id="integ-activate-btn" class="ghost" style="display:none">Activer</button>
+    </div>
+    <div id="integ-status"></div>
+  </div>
+
+  <!-- Grille des categories -->
+  <div class="integ-grid">
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Reseaux sociaux</div>
+      <div class="integ-item"><span class="integ-icon">◈</span><span class="integ-name">TikTok</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">◉</span><span class="integ-name">Instagram</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">◎</span><span class="integ-name">LinkedIn</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Video &amp; Creation</div>
+      <div class="integ-item"><span class="integ-icon">⊕</span><span class="integ-name">Magnific</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">▶</span><span class="integ-name">YouTube</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Recherche &amp; Docs</div>
+      <div class="integ-item"><span class="integ-icon">◫</span><span class="integ-name">NotebookLM</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">⊞</span><span class="integ-name">DeerFlow</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Juridique &amp; Admin</div>
+      <div class="integ-item"><span class="integ-icon">⊜</span><span class="integ-name">OpenLegi</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">⊟</span><span class="integ-name">INPI</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">E-commerce &amp; Paiement</div>
+      <div class="integ-item"><span class="integ-icon">⊠</span><span class="integ-name">Shopify</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">◆</span><span class="integ-name">Stripe</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Infra &amp; Dev</div>
+      <div class="integ-item"><span class="integ-icon">⊗</span><span class="integ-name">n8n</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+      <div class="integ-item"><span class="integ-icon">⊙</span><span class="integ-name">GitHub</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
+    </div>
+
+    <!-- Integrations personnalisees -->
+    <div class="glass integ-category">
+      <div class="integ-cat-title">Personnalisee</div>
+      <div id="integ-custom-list"></div>
+      <div class="integ-add-btn" onclick="toggleAddIntegForm()">+ Ajouter</div>
+      <div id="integ-add-form" class="hidden">
+        <input type="text" id="integ-custom-name" placeholder="Nom (ex: Airtable)">
+        <input type="text" id="integ-custom-endpoint" placeholder="Endpoint ou URL de l'API">
+        <input type="password" id="integ-custom-key" placeholder="Cle API (optionnel)">
+        <button onclick="saveCustomInteg()" style="width:100%;margin-top:2px">Ajouter</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -848,6 +1013,182 @@ async function loadProduits(){
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
 }
+
+/* Integrations — multi-provider + switch actif + custom */
+(function(){
+  const PROV={
+    anthropic:{label:'Anthropic',check:k=>k.startsWith('sk-ant-'),
+      models:['claude-fable-5','claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5'],
+      ph:'sk-ant-api03-...'},
+    openai:{label:'OpenAI / GPT',check:k=>k.startsWith('sk-')&&!k.startsWith('sk-ant-'),
+      models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o1','o3-mini'],
+      ph:'sk-proj-...'},
+    gemini:{label:'Gemini',check:k=>k.startsWith('AIza'),
+      models:['gemini-2.5-pro','gemini-2.0-flash','gemini-1.5-pro','gemini-1.5-flash'],
+      ph:'AIzaSy...'},
+    deepseek:{label:'DeepSeek',check:k=>k.length>10,
+      models:['deepseek-chat','deepseek-reasoner','deepseek-coder'],
+      ph:'API key DeepSeek...'},
+    mistral:{label:'Mistral',check:k=>k.length>10,
+      models:['mistral-large-latest','mistral-small-latest','codestral-latest','open-mistral-nemo'],
+      ph:'API key Mistral...'},
+    local:{label:'Local (Ollama)',check:_=>true,
+      models:['llama3.2','qwen2.5','mistral','phi4','gemma3','deepseek-r1:8b'],
+      ph:'http://localhost:11434 (optionnel)'}
+  };
+
+  const ge=id=>document.getElementById(id);
+  const tabs=document.querySelectorAll('.prov-tab');
+  const modelSel=ge('integ-model-select');
+  const keyIn=ge('integ-api-key');
+  const dot=ge('integ-model-dot');
+  const saveBtn=ge('integ-save-btn');
+  const actBtn=ge('integ-activate-btn');
+  const st=ge('integ-status');
+  const activeLabel=ge('integ-active-label');
+  if(!modelSel||!keyIn)return;
+
+  let curProv=localStorage.getItem('neogen_provider')||'anthropic';
+
+  function setDot(s){dot.className='integ-model-dot'+(s?' '+s:'');}
+
+  function updateActiveLabel(){
+    const p=localStorage.getItem('neogen_active_provider');
+    const m=localStorage.getItem('neogen_active_model');
+    if(p&&m&&PROV[p]){
+      activeLabel.textContent=PROV[p].label+' / '+m;
+      activeLabel.style.color='var(--ok)';
+    } else {
+      activeLabel.textContent='aucun';
+      activeLabel.style.color='var(--txt)';
+    }
+  }
+
+  function updateTabDots(){
+    tabs.forEach(t=>{
+      const p=t.dataset.prov;
+      const hasKey=!!localStorage.getItem('neogen_key_'+p);
+      const isActive=localStorage.getItem('neogen_active_provider')===p;
+      /* dot vert dans le tab si cle presente */
+      t.style.borderColor=isActive?'var(--ok)':hasKey?'rgba(22,163,74,.4)':'rgba(15,23,42,.12)';
+      t.style.color=isActive?'var(--ok)':t.classList.contains('active')?'#fff':'';
+    });
+  }
+
+  function updateModels(prov){
+    const p=PROV[prov];
+    modelSel.innerHTML=p.models.map(m=>`<option value="${m}">${m}</option>`).join('');
+    const saved=localStorage.getItem('neogen_model_'+prov);
+    if(saved)modelSel.value=saved;
+    const hasKey=!!localStorage.getItem('neogen_key_'+prov);
+    keyIn.placeholder=hasKey?'cle enregistree (••••'+localStorage.getItem('neogen_key_'+prov).slice(-4)+')':p.ph;
+    keyIn.value='';
+    setDot(hasKey?'ok':'');
+    /* bouton Activer : visible si cle dispo et pas deja actif */
+    const isActive=localStorage.getItem('neogen_active_provider')===prov;
+    actBtn.style.display=(hasKey&&!isActive)?'':'none';
+  }
+
+  function switchProv(prov){
+    curProv=prov;
+    tabs.forEach(t=>{
+      t.classList.toggle('active',t.dataset.prov===prov);
+      /* reset inline styles sauf pour l'actif (updateTabDots le regere) */
+      t.style.color='';
+    });
+    updateModels(prov);
+    updateTabDots();
+  }
+
+  tabs.forEach(t=>t.addEventListener('click',()=>switchProv(t.dataset.prov)));
+
+  /* Validation live */
+  keyIn.addEventListener('input',()=>{
+    const k=keyIn.value.trim();
+    if(!k){setDot('');return;}
+    setDot(PROV[curProv].check(k)?'ok':'ko');
+  });
+
+  /* Enregistrer */
+  saveBtn.onclick=()=>{
+    const m=modelSel.value,k=keyIn.value.trim();
+    const p=PROV[curProv];
+    if(k&&!p.check(k)){
+      st.innerHTML='<span class="tag ko">format invalide</span> Verifier la cle pour '+p.label;
+      setDot('ko');return;
+    }
+    localStorage.setItem('neogen_provider',curProv);
+    localStorage.setItem('neogen_model_'+curProv,m);
+    if(k){
+      localStorage.setItem('neogen_key_'+curProv,k);
+      localStorage.setItem('neogen_api_key',k); /* compat generateur */
+      keyIn.value='';
+      keyIn.placeholder='cle enregistree (••••'+k.slice(-4)+')';
+      setDot('ok');
+    }
+    actBtn.style.display=(localStorage.getItem('neogen_active_provider')!==curProv)?'':'none';
+    updateTabDots();
+    st.innerHTML='<span class="tag ok">enregistre</span> '+p.label+' / '+m+(k?' — cle mise a jour':'');
+    setTimeout(()=>st.innerHTML='',3000);
+  };
+
+  /* Activer */
+  actBtn.onclick=()=>{
+    const m=modelSel.value;
+    localStorage.setItem('neogen_active_provider',curProv);
+    localStorage.setItem('neogen_active_model',m);
+    localStorage.setItem('neogen_model',m); /* compat */
+    actBtn.style.display='none';
+    updateActiveLabel();
+    updateTabDots();
+    st.innerHTML='<span class="tag ok">actif</span> '+PROV[curProv].label+' / '+m;
+    setTimeout(()=>st.innerHTML='',3000);
+  };
+
+  /* Custom integrations */
+  function loadCustom(){
+    const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
+    const el=ge('integ-custom-list');if(!el)return;
+    el.innerHTML=list.map((c,i)=>
+      `<div class="integ-item">
+        <span class="integ-icon">⊕</span>
+        <span class="integ-name">${esc(c.name)}</span>
+        <span class="integ-status-dot ${c.key?'ok':''}"></span>
+        <span style="font-size:12px;color:var(--ko);cursor:pointer;font-weight:700" onclick="deleteInteg(${i})">×</span>
+      </div>`
+    ).join('');
+  }
+
+  window.toggleAddIntegForm=function(){
+    const f=ge('integ-add-form');if(f)f.classList.toggle('hidden');
+  };
+  window.saveCustomInteg=function(){
+    const n=ge('integ-custom-name').value.trim();
+    const ep=ge('integ-custom-endpoint').value.trim();
+    const k=ge('integ-custom-key').value.trim();
+    if(!n)return;
+    const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
+    list.push({name:n,endpoint:ep,key:k});
+    localStorage.setItem('neogen_integrations',JSON.stringify(list));
+    ge('integ-custom-name').value='';
+    ge('integ-custom-endpoint').value='';
+    ge('integ-custom-key').value='';
+    ge('integ-add-form').classList.add('hidden');
+    loadCustom();
+    if(window._breath)_breath.scan();
+  };
+  window.deleteInteg=function(i){
+    const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
+    list.splice(i,1);
+    localStorage.setItem('neogen_integrations',JSON.stringify(list));
+    loadCustom();
+  };
+
+  /* Init */
+  switchProv(curProv);
+  updateActiveLabel();
+  loadCustom();
+})();
 
 health();
 
