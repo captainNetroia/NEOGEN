@@ -147,19 +147,25 @@ class _BaseAdapter:
 
 
 class _AnthropicAdapter(_BaseAdapter):
-    """Enveloppe le client Anthropic natif et impose le modele actif (tier/selection)."""
+    """Enveloppe le client Anthropic natif et impose le modele actif (tier/selection).
+    Absorbe les differences entre modeles : Haiku ne supporte pas le thinking adaptatif."""
 
     def __init__(self, real_client, model):
         super().__init__(model)
         self._c = real_client
 
-    def _parse(self, **kw):
+    def _adapter_kw(self, kw):
         kw.pop("model", None)
-        return self._c.messages.parse(model=self.model, **kw)
+        # Haiku ne supporte pas adaptive thinking : on le retire pour ce modele.
+        if "haiku" in self.model and "thinking" in kw:
+            kw.pop("thinking", None)
+        return kw
+
+    def _parse(self, **kw):
+        return self._c.messages.parse(model=self.model, **self._adapter_kw(kw))
 
     def _create(self, **kw):
-        kw.pop("model", None)
-        return self._c.messages.create(model=self.model, **kw)
+        return self._c.messages.create(model=self.model, **self._adapter_kw(kw))
 
 
 class _OpenAICompatAdapter(_BaseAdapter):
@@ -301,6 +307,15 @@ def client(ctx: LLMContext | None = None, tier: str = "fort"):
         return _GeminiAdapter(model, ctx.api_key, ctx.base_url)
 
     raise RuntimeError(f"provider inconnu : '{provider}'")
+
+
+def ctx_pour_tier(ctx: LLMContext | None) -> LLMContext | None:
+    """Clone le contexte en effacant le modele explicite, pour que le TIER resolve le
+    modele (delegation par tier de l'orchestrateur). Garde provider + cle + base_url."""
+    if ctx is None:
+        return None
+    return LLMContext(provider=ctx.provider, model=None,
+                      api_key=ctx.api_key, base_url=ctx.base_url)
 
 
 def resume_ctx(ctx: LLMContext | None) -> str:

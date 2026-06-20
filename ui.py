@@ -350,6 +350,32 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 .cap-bulle.active{opacity:1;background:rgba(8,145,178,.14);
   border-color:var(--acc);color:var(--acc);}
 
+/* Delegation agentique (orchestrateur) : cartes sous-agents */
+.deleg-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:12px 0;}
+.deleg-card{border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.32);
+  border:1px solid rgba(15,23,42,.1);transition:all .25s;position:relative;overflow:hidden;}
+.deleg-card.en_cours{border-color:var(--acc);box-shadow:0 0 14px rgba(8,145,178,.18);}
+.deleg-card.fait{border-color:rgba(22,163,74,.5);background:rgba(22,163,74,.06);}
+.deleg-card.echec{border-color:rgba(220,38,38,.5);background:rgba(220,38,38,.05);}
+.deleg-card.en_cours::after{content:'';position:absolute;left:0;bottom:0;height:3px;width:100%;
+  background:linear-gradient(90deg,transparent,var(--acc),transparent);animation:slide 1.2s infinite;}
+@keyframes slide{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
+.deleg-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.deleg-name{font-weight:700;font-size:13px;color:var(--txt);font-family:ui-monospace,monospace;}
+.deleg-icon{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.deleg-card.en_cours .deleg-icon{background:var(--acc);animation:pulse 1.1s infinite;}
+.deleg-card.fait .deleg-icon{background:var(--ok);}
+.deleg-card.echec .deleg-icon{background:var(--ko);}
+.deleg-role{font-size:12px;color:var(--mut);line-height:1.4;margin-bottom:8px;}
+.deleg-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.deleg-tier{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  padding:2px 7px;border-radius:99px;}
+.deleg-tier.fort{background:rgba(220,38,38,.12);color:var(--ko);}
+.deleg-tier.moyen{background:rgba(217,119,6,.14);color:var(--warn);}
+.deleg-tier.leger{background:rgba(22,163,74,.12);color:var(--ok);}
+.deleg-model{font-size:11px;color:var(--mut);font-family:ui-monospace,monospace;}
+
 /* Strategies dual-window (mode juge) */
 .strategies-dual{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;}
 .strat-card{border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.25);
@@ -725,6 +751,14 @@ body.in-section #breadcrumb{display:none !important;}
       </div>
       <div class="cap-card">
         <div class="cap-card-head">
+          <label class="toggle-wrap"><input type="checkbox" id="deleguer" class="toggle-inp"><span class="toggle-pill"></span></label>
+          <span class="cap-card-name">Mode delegation</span>
+          <span class="cap-useful" id="useful-deleguer"></span>
+        </div>
+        <div class="cap-card-desc">L'orchestrateur decompose en organes et delegue chacun a un sous-agent au tier adapte (fort/moyen/leger). Gouverne, visible en direct.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="persistance" class="toggle-inp"><span class="toggle-pill"></span></label>
           <span class="cap-card-name">Persistance</span>
           <span class="cap-useful" id="useful-persistance"></span>
@@ -757,6 +791,7 @@ body.in-section #breadcrumb{display:none !important;}
   <div class="studio-step panel glass" data-step="5">
     <div class="step-title">Forge en direct</div>
     <div class="forge-flow" id="forge-flow"></div>
+    <div id="deleg-flow" class="deleg-flow hidden"></div>
     <div id="strategies-dual" class="strategies-dual hidden"></div>
     <div id="forge-result"></div>
     <pre id="code-creation" class="code hidden"></pre>
@@ -1190,7 +1225,7 @@ const MURS_LABELS={
   no_data_exfiltration:'Aucune exfiltration de donnees',
 };
 const studio={intention:'',proposition:null,murs:[],persistance:false,reseau:false,domaines:'',juger:false,
-  intentionAnalysee:'',intentionConseil:''};
+  deleguer:false,intentionAnalysee:'',intentionConseil:''};
 
 function studioGoto(n){
   document.querySelectorAll('#section-creation .studio-step').forEach(s=>s.classList.toggle('active',+s.dataset.step===n));
@@ -1345,12 +1380,14 @@ $('#to-step4').onclick=()=>{
   $('#persistance').checked=studio.persistance;
   $('#reseau').checked=studio.reseau;
   $('#juger').checked=studio.juger;
+  $('#deleguer').checked=studio.deleguer;
   $('#domaines').value=studio.domaines;
   $('#domaines').classList.toggle('hidden',!studio.reseau);
   const p=studio.proposition||{};
   setUseful('useful-persistance',p.persistance,p.justification_persistance);
   setUseful('useful-reseau',p.reseau,p.justification_reseau);
   setUseful('useful-juger',null,'');
+  setUseful('useful-deleguer',null,'');
   updatePower();
   studioGoto(4);
 };
@@ -1362,22 +1399,26 @@ function setUseful(id,flag,just){
   el.title=just||'';
 }
 function updatePower(){
-  const lvl=(studio.juger?1:0)+($('#persistance').checked?1:0)+($('#reseau').checked?1:0);
+  const lvl=Math.min(3,(studio.juger?1:0)+(studio.deleguer?1:0)+($('#persistance').checked?1:0)+($('#reseau').checked?1:0));
   const dots=[0,1,2].map(i=>'<span class="power-dot'+(i<lvl?' on':'')+'"></span>').join('');
   const lbl=['minimal','modere','eleve','maximal'][lvl];
   $('#power-gauge').innerHTML='puissance / cout : '+dots+' <b style="color:var(--txt)">'+lbl+'</b>';
 }
-['persistance','reseau','juger'].forEach(id=>{
+['persistance','reseau','juger','deleguer'].forEach(id=>{
   const el=$('#'+id);if(el)el.addEventListener('change',()=>{
     studio[id]=el.checked;
     if(id==='reseau')$('#domaines').classList.toggle('hidden',!el.checked);
+    // Mode juge et mode delegation sont exclusifs (l'orchestrateur ne juge pas).
+    if(id==='deleguer'&&el.checked&&$('#juger').checked){$('#juger').checked=false;studio.juger=false;}
+    if(id==='juger'&&el.checked&&$('#deleguer').checked){$('#deleguer').checked=false;studio.deleguer=false;}
     updatePower();
   });
 });
 
 /* --- Etape 5 : forge en direct (SSE) --- */
 const FORGE_LABELS={
-  moteur:'Moteur LLM',
+  moteur:'Moteur LLM',decomposition:'Decomposition en organes',assemblage:'Assemblage',
+  registre:'Enregistrement',
   forge_adn:'Forge de l\'ADN',adn_pret:'ADN forge',generation:'Generation du code',
   code_genere:'Code genere',jugement:'Selection de strategie',membrane:'Membrane (murs)',
   scan:'Scan statique',conteneur:'Conteneur durci',execution:'Execution',
@@ -1399,7 +1440,7 @@ function forgeAdd(key,label,sub,state){
 
 $('#btn-forger').onclick=()=>{
   studio.persistance=$('#persistance').checked;studio.reseau=$('#reseau').checked;
-  studio.juger=$('#juger').checked;studio.domaines=$('#domaines').value;
+  studio.juger=$('#juger').checked;studio.deleguer=$('#deleguer').checked;studio.domaines=$('#domaines').value;
   const max=parseInt($('#max').value)||2;
   const body={intention:studio.intention,max_tentatives:max,juger:studio.juger,
     persistance:studio.persistance,reseau:studio.reseau,
@@ -1407,10 +1448,12 @@ $('#btn-forger').onclick=()=>{
   $('#forge-flow').innerHTML='';$('#forge-result').innerHTML='';
   $('#code-creation').classList.add('hidden');$('#btn-voir-catalogue').classList.add('hidden');
   const _sd=$('#strategies-dual');if(_sd){_sd.classList.add('hidden');_sd.innerHTML='';}
+  const _df=$('#deleg-flow');if(_df){_df.classList.add('hidden');_df.innerHTML='';}
   $('#btn-forger').disabled=true;
   studioGoto(5);
-  forgeAdd('start','Lancement de la forge','intention envoyee','run');
-  fetch('/fabriquer/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)})
+  const endpoint=studio.deleguer?'/orchestrer/stream':'/fabriquer/stream';
+  forgeAdd('start',studio.deleguer?'Lancement de la delegation':'Lancement de la forge','intention envoyee','run');
+  fetch(endpoint,{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)})
     .then(resp=>{
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
       function pump(){
@@ -1451,10 +1494,40 @@ function renderCandidates(candidates){
   }).join('');
 }
 
+function _slugId(s){return (s||'').replace(/[^a-zA-Z0-9_]/g,'_');}
+function _delegCardHtml(o){
+  return '<div class="deleg-head"><span class="deleg-icon">·</span>'
+    +'<span class="deleg-name">'+esc(o.organe)+'</span></div>'
+    +'<div class="deleg-role">'+esc(o.role||'')+'</div>'
+    +'<div class="deleg-meta"><span class="deleg-tier '+esc(o.tier||'moyen')+'">'+esc(o.tier||'')+'</span>'
+    +'<span class="deleg-model">'+esc(o.modele||'')+'</span></div>';
+}
+function renderDelegPlan(organes){
+  const el=$('#deleg-flow');if(!el)return;
+  el.classList.remove('hidden');el.innerHTML='';
+  (organes||[]).forEach(o=>{
+    const card=document.createElement('div');
+    card.className='deleg-card attente';card.id='deleg-'+_slugId(o.organe);
+    card.innerHTML=_delegCardHtml(o);
+    el.appendChild(card);
+  });
+}
+function updateDelegCard(evt){
+  const el=$('#deleg-flow');if(!el)return;el.classList.remove('hidden');
+  let card=document.getElementById('deleg-'+_slugId(evt.organe));
+  if(!card){card=document.createElement('div');card.id='deleg-'+_slugId(evt.organe);card.innerHTML=_delegCardHtml(evt);el.appendChild(card);}
+  const st=evt.statut||'en_cours';
+  card.className='deleg-card '+st;
+  const icon=card.querySelector('.deleg-icon');
+  if(icon)icon.textContent=st==='fait'?'✓':(st==='echec'?'✗':'·');
+}
+
 function handleForgeEvt(evt){
   const s=evt.stade;
   if(s==='candidates_ready'){renderCandidates(evt.candidates);return;}
   if(s==='moteur'){forgeAdd('moteur','Moteur LLM',evt.msg||'','ok');return;}
+  if(s==='plan'){renderDelegPlan(evt.organes);forgeAdd('plan','Plan de delegation',(evt.total||0)+' organes a deleguer','ok');return;}
+  if(s==='sous_agent'){updateDelegCard(evt);return;}
   if(s==='fini'){
     document.querySelectorAll('#forge-flow .forge-evt.run').forEach(el=>{el.className='forge-evt ok';el.querySelector('.fe-icon').textContent='✓';});
     const tag=evt.succes?'<span class="tag ok">execute</span>':'<span class="tag ko">echec</span>';
@@ -1483,10 +1556,11 @@ function handleForgeEvt(evt){
 
 $('#btn-recommencer').onclick=()=>{
   studio.intention='';studio.proposition=null;studio.murs=[];
-  studio.persistance=studio.reseau=studio.juger=false;studio.domaines='';
+  studio.persistance=studio.reseau=studio.juger=studio.deleguer=false;studio.domaines='';
   studio.intentionAnalysee='';studio.intentionConseil='';
   $('#intention').value='';$('#discernement').classList.add('hidden');$('#conseil-box').classList.add('hidden');
   $('#stale-notice').classList.add('hidden');
+  const _df=$('#deleg-flow');if(_df){_df.classList.add('hidden');_df.innerHTML='';}
   $('#scan-status').innerHTML='';$('#to-step2').classList.add('hidden');
   studioGoto(1);
 };

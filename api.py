@@ -382,6 +382,75 @@ def fabriquer_stream(demande: DemandeFabrication,
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.post("/orchestrer/stream")
+def orchestrer_stream(demande: DemandeFabrication,
+                      x_llm_provider: str | None = Header(default=None),
+                      x_llm_model: str | None = Header(default=None),
+                      x_llm_key: str | None = Header(default=None),
+                      x_llm_base: str | None = Header(default=None)):
+    """Mode delegation : decompose l'intention en organes, delegue chaque organe a un
+    sous-agent au tier adapte, assemble sous gouvernance. Diffuse chaque etape en SSE."""
+    import queue
+    import threading
+    from sanitizer import nettoyer
+    from capacites import Capacites
+    from gateway import contexte_depuis_headers, resume_ctx
+
+    cap = Capacites(
+        persistance=demande.persistance,
+        reseau=demande.reseau,
+        domaines_autorises=demande.domaines_autorises,
+    )
+    _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _moteur = resume_ctx(_ctx)
+
+    file_evts: "queue.Queue" = queue.Queue()
+    _SENTINEL = object()
+
+    def progress(evt: dict):
+        safe = {}
+        for k, v in evt.items():
+            safe[k] = nettoyer(v) if isinstance(v, str) else v
+        file_evts.put(safe)
+
+    def travailler():
+        try:
+            from orchestrateur import orchestrer
+            file_evts.put({"stade": "moteur", "msg": nettoyer(_moteur)})
+            r = orchestrer(
+                demande.intention, ctx=_ctx, cap=cap, reparer=demande.reparer,
+                max_tentatives=demande.max_tentatives, enregistrer=True, progress=progress,
+            )
+            produit_id = None
+            if r.succes:
+                entrees = registre.lister()
+                if entrees:
+                    produit_id = entrees[-1]["id"]
+            file_evts.put({
+                "stade": "fini", "succes": r.succes, "verdict": nettoyer(r.verdict),
+                "tentatives": r.tentatives, "lignes": r.lignes, "produit_id": produit_id,
+                "capacites": cap.resume(),
+                "plan": getattr(r, "plan", []) or [],
+                "lecons": [nettoyer(l) for l in (r.lecons or [])],
+            })
+        except Exception as e:
+            file_evts.put({"stade": "erreur", "message": nettoyer(str(e))})
+        finally:
+            file_evts.put(_SENTINEL)
+
+    threading.Thread(target=travailler, daemon=True).start()
+
+    def flux():
+        while True:
+            evt = file_evts.get()
+            if evt is _SENTINEL:
+                break
+            yield f"data: {_json.dumps(evt, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(flux(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 # ── Auth & Feedback ───────────────────────────────────────────────────────────
 
 _BASE = _os.path.dirname(_os.path.abspath(__file__))
