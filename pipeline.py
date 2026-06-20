@@ -45,44 +45,69 @@ def _ledger(entree: dict):
 
 
 def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=3, tracer=True,
-              cap=None, volume_nom=None) -> Resultat:
+              cap=None, volume_nom=None, progress=None) -> Resultat:
     """
     forger_fn(intention) -> ADNProduit
     generer_fn(adn, feedback) -> ModuleGenere   (feedback = (code, erreur) ou None)
     cap (Capacites) + volume_nom : capacites accordees au produit (persistance...) qui
     configurent le bac a sable. None = produit pur (calcul en memoire, isolation max).
+    progress(evt: dict) : callback optionnel appele a chaque stade (pour streaming live).
+        evt = {"stade": str, ...}. None = silencieux (smoke test, CLI). Toute erreur du
+        callback est ignoree : il ne doit JAMAIS casser la production.
     """
+    def _emit(evt):
+        if progress is None:
+            return
+        try:
+            progress(evt)
+        except Exception:
+            pass
+
+    _emit({"stade": "forge_adn", "msg": "forge de l'ADN du produit"})
     adn = forger_fn(intention)
+    _emit({"stade": "adn_pret", "msg": "ADN forge",
+           "objectif": getattr(adn, "objectif", ""),
+           "murs": [getattr(m, "regle", str(m)) for m in getattr(adn, "murs", [])],
+           "organes": [getattr(o, "nom", str(o)) for o in getattr(adn, "organes", [])]})
     feedback, lecons = None, []
     succes, verdict, lignes, code_final = False, "non execute", 0, ""
 
     for t in range(1, max_tentatives + 1):
+        _emit({"stade": "generation", "tentative": t, "msg": f"generation du code (tentative {t})"})
         module = generer_fn(adn, feedback)
         lignes = len(module.code.splitlines())
+        _emit({"stade": "code_genere", "tentative": t, "lignes": lignes})
 
         v, raison = membrane(module, adn.murs)
         if v == "REJETE":
+            _emit({"stade": "membrane", "ok": False, "tentative": t, "raison": raison})
             lecons.append(f"membrane: {raison}")
             feedback = (module.code, f"Mur viole: {raison}")
             verdict = f"membrane REJETE: {raison}"
             if not reparer:
                 break
             continue
+        _emit({"stade": "membrane", "ok": True, "tentative": t, "msg": "tous les murs respectes"})
 
         dangers = scan_statique(module.code, cap=cap)
         if dangers:
+            _emit({"stade": "scan", "ok": False, "tentative": t, "dangers": str(dangers)})
             lecons.append(f"scan: {dangers}")
             feedback = (module.code, f"Appels dangereux: {dangers}")
             verdict = f"scan BLOQUE: {dangers}"
             if not reparer:
                 break
             continue
+        _emit({"stade": "scan", "ok": True, "tentative": t, "msg": "aucun appel dangereux"})
 
+        _emit({"stade": "conteneur", "tentative": t, "msg": "execution en conteneur durci"})
         rc, out, err, _ = executer_isole(module.code, cap=cap, volume_nom=volume_nom)
         if rc == 0:
             succes, verdict, code_final = True, f"execute OK (tentative {t})", module.code
+            _emit({"stade": "execution", "ok": True, "tentative": t, "msg": "le produit tourne"})
             break
         derniere = err.strip().splitlines()[-1] if err.strip() else "echec"
+        _emit({"stade": "execution", "ok": False, "tentative": t, "raison": derniere})
         lecons.append(f"execution: {derniere}")
         feedback = (module.code, err.strip()[-500:])
         verdict = f"execution echec: {derniere}"
@@ -121,12 +146,14 @@ def _client():
     return _CLIENT
 
 
-def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None) -> Resultat:
+def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
+                   progress=None) -> Resultat:
     """
     Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
     -> 3 garde-fous -> execution (bac a sable selon capacites) -> auto-reparation
     -> ledger + lignee. Un produit qui TOURNE est persiste au registre.
     cap (Capacites) : capacites accordees au produit (persistance, reseau). None = pur.
+    progress(evt) : callback optionnel de progression (streaming live).
     """
     from compositeur import forger_adn
     from usine_autoreparation import generer as generer_reel
@@ -142,7 +169,7 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
 
     r = fabriquer(intention, forger, generer,
                   reparer=reparer, max_tentatives=max_tentatives, tracer=True,
-                  cap=cap, volume_nom=volume_nom)
+                  cap=cap, volume_nom=volume_nom, progress=progress)
 
     if enregistrer and r.succes and r.code:
         import registre
@@ -180,11 +207,13 @@ def fabriquer_outil(intention, contrat, *, reparer=True, max_tentatives=3, cap=N
     return r
 
 
-def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None) -> Resultat:
+def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
+                        progress=None) -> Resultat:
     """
     Chemin JUGE : l'organisme genere PLUSIEURS strategies, les note selon les curseurs
     de l'ADN, garde la MEILLEURE, puis la passe par les garde-fous + execution + reparation.
     La reparation regenere la strategie gagnante avec le feedback d'erreur.
+    progress(evt) : callback optionnel de progression (streaming live).
     """
     from compositeur import forger_adn
     from production_jugee import produire_le_mieux_reel, generer_candidat
@@ -198,14 +227,24 @@ def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistre
 
     def generer(_adn, feedback=None):
         if feedback is None:
-            module, consigne, classement = produire_le_mieux_reel(_adn, client, cap=cap)
+            if progress is not None:
+                try:
+                    progress({"stade": "jugement", "msg": "generation de plusieurs strategies, selection de la meilleure"})
+                except Exception:
+                    pass
+            module, consigne, classement, tous = produire_le_mieux_reel(_adn, client, cap=cap)
             etat["classement"], etat["consigne"] = classement, consigne
+            if progress is not None:
+                try:
+                    progress({"stade": "candidates_ready", "candidates": tous})
+                except Exception:
+                    pass
             return module
         return generer_candidat(_adn, client, etat["consigne"], feedback=feedback, cap=cap)
 
     r = fabriquer(intention, lambda i: adn, generer,
                   reparer=reparer, max_tentatives=max_tentatives, tracer=True,
-                  cap=cap, volume_nom=volume_nom)
+                  cap=cap, volume_nom=volume_nom, progress=progress)
     r.classement = etat["classement"]
 
     if enregistrer and r.succes and r.code:

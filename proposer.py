@@ -23,6 +23,12 @@ from jugement import JugementOpportunite, CAPACITES
 from compositeur import REGLES_MURS
 
 
+class MurPropose(BaseModel):
+    cle: str = Field(description="une cle de mur parmi le vocabulaire fourni")
+    label: str = Field(description="libelle court et lisible du mur")
+    criticite: str = Field(description="indispensable | important : a quel point ce mur est requis pour CE projet")
+
+
 class PropositionADN(BaseModel):
     discernement: JugementOpportunite = Field(description="le jugement d'opportunite de l'intention")
     persistance: bool = Field(description="le produit a-t-il besoin de persistance (disque) ?")
@@ -32,6 +38,8 @@ class PropositionADN(BaseModel):
     justification_reseau: str = Field(default="", description="pourquoi (ou pourquoi pas)")
     murs_proposes: list[str] = Field(default_factory=list,
                                      description="cles de murs de gouvernance parmi le vocabulaire fourni")
+    murs_classes: list[MurPropose] = Field(default_factory=list,
+                                           description="memes murs que murs_proposes, mais classes par criticite (indispensable/important)")
     resume: str = Field(description="une phrase resumant l'ADN propose")
 
 
@@ -50,6 +58,10 @@ def proposer(intention: str, client) -> PropositionADN:
         "doit joindre un service externe, et alors propose une LISTE BLANCHE de domaines precis "
         "(ex: api.stripe.com). Sinon, laisse-les a faux : un produit pur est plus sur.\n\n"
         f"Murs de gouvernance disponibles (propose ceux qui sont pertinents) : {vocab_murs}.\n\n"
+        "Pour les murs : remplis 'murs_proposes' (les cles) ET 'murs_classes' (les MEMES murs, "
+        "chacun avec un 'label' lisible et une 'criticite' = 'indispensable' (le produit serait "
+        "dangereux ou inutile sans) ou 'important' (fortement recommande mais le produit reste "
+        "viable sans). Sois discriminant : tout n'est pas indispensable.\n\n"
         "Rappelle-toi : ce n'est qu'une PROPOSITION, l'humain validera. Sois honnete et sobre : "
         "ne propose pas une capacite 'au cas ou'."
     )

@@ -64,7 +64,8 @@ def generer_candidat(adn, client, consigne: str, feedback=None, cap=None) -> Mod
 
 def produire_le_mieux_reel(adn, client, cap=None):
     """Genere les VARIANTES, les note selon les curseurs de l'ADN, retourne la meilleure.
-    Renvoie (module_gagnant, consigne_gagnante, classement) sans l'executer."""
+    Renvoie (module_gagnant, consigne_gagnante, classement, tous) sans l'executer.
+    tous = liste de dicts {nom, score, code, gagnant} pour l'affichage dual-window UI."""
     candidats = []
     for nom, consigne in VARIANTES:
         module = generer_candidat(adn, client, consigne, cap=cap)
@@ -73,7 +74,9 @@ def produire_le_mieux_reel(adn, client, cap=None):
     candidats.sort(key=lambda x: x[3], reverse=True)
     gagnant = candidats[0]
     classement = [(nom, score) for nom, _, _, score in candidats]
-    return gagnant[2], gagnant[1], classement
+    tous = [{"nom": nom, "score": score, "code": module.code, "gagnant": i == 0}
+            for i, (nom, _, module, score) in enumerate(candidats)]
+    return gagnant[2], gagnant[1], classement, tous
 
 
 def composante(nom_curseur: str, module: ModuleGenere, adn) -> float:
