@@ -505,6 +505,18 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 
 /* Arbre de genealogie (Phase 4) */
 .lineage-view{margin-top:16px;}
+/* Lignee inline (expand sous la carte cliquee) */
+.lineage-inline{
+  grid-column:1/-1;padding:22px 24px;border-radius:14px;
+  animation:lineageIn .3s ease;overflow:hidden;
+  margin-top:4px;margin-bottom:8px;
+}
+@keyframes lineageIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+.produit-card.selected{
+  border-color:rgba(8,145,178,.6)!important;
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.9),0 4px 24px rgba(8,145,178,.18)!important;
+  transform:translateY(-3px) scale(1.01)!important;
+}
 .lineage-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .lineage-head h3{font-size:16px;font-weight:600;color:var(--txt);}
 .lineage-tree{display:flex;flex-direction:column;gap:0;}
@@ -531,6 +543,61 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 .gen-gov{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0;font-size:11px;}
 .gen-gov .dadd{background:rgba(134,239,172,.12);color:#86efac;padding:2px 7px;border-radius:4px;}
 .gen-gov .ddel{background:rgba(252,165,165,.12);color:#fca5a5;padding:2px 7px;border-radius:4px;}
+
+/* Integ activation — accordion */
+/* Item bientot : style plat */
+.integ-item{display:flex;align-items:center;gap:9px;padding:8px 0;
+  border-bottom:1px solid rgba(15,23,42,.05);font-size:14px;color:var(--txt);}
+.integ-item:last-child{border-bottom:none;}
+/* Item activatable : accordion */
+.integ-activatable{border-radius:10px;overflow:hidden;
+  border:1px solid rgba(15,23,42,.08);margin-bottom:6px;
+  transition:border-color .22s,box-shadow .22s;}
+.integ-activatable:last-child{margin-bottom:0;}
+.integ-activatable.active{border-color:rgba(22,163,74,.45);
+  box-shadow:0 0 14px rgba(22,163,74,.1);}
+.integ-activatable.open{border-color:rgba(8,145,178,.4);
+  box-shadow:0 2px 16px rgba(8,145,178,.12);}
+.integ-act-head{display:flex;align-items:center;gap:9px;padding:10px 12px;
+  cursor:pointer;user-select:none;transition:background .15s;border-radius:10px;}
+.integ-act-head:hover{background:rgba(255,255,255,.55);}
+.integ-activatable.open .integ-act-head{border-radius:10px 10px 0 0;
+  background:rgba(255,255,255,.4);}
+.integ-act-name{flex:1;font-size:14px;color:var(--txt);font-weight:500;}
+.integ-act-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.ia-chev{font-size:11px;color:var(--mut);transition:transform .3s cubic-bezier(.23,1,.32,1);
+  display:inline-block;}
+/* Corps accordion : expansion par max-height */
+.integ-act-body{max-height:0;overflow:hidden;
+  transition:max-height .35s cubic-bezier(.4,0,.2,1);}
+.integ-act-body.open{max-height:280px;}
+.iam-inner{padding:10px 12px 14px;border-top:1px solid rgba(15,23,42,.06);}
+.iam-desc{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.5;}
+.iam-inner input{width:100%;padding:7px 10px;border-radius:8px;
+  border:1px solid rgba(15,23,42,.12);font-size:12px;
+  background:rgba(255,255,255,.65);margin-bottom:8px;font-family:inherit;}
+.iam-inner input:focus{outline:none;border-color:var(--acc);}
+.iam-inner button{width:100%;font-size:12px;padding:7px;}
+.iam-inner button+button{margin-top:5px;}
+/* Don modal preset buttons */
+.don-preset{background:rgba(219,39,119,.07);border:1px solid rgba(219,39,119,.2);
+  border-radius:9px;padding:9px 6px;font-size:13px;font-weight:600;
+  color:var(--c-don);cursor:pointer;transition:background .15s,border-color .15s;}
+.don-preset:hover{background:rgba(219,39,119,.15);}
+.don-preset.sel{background:rgba(219,39,119,.18);border-color:rgba(219,39,119,.6);
+  box-shadow:0 0 10px rgba(219,39,119,.15);}
+.btn-iam-deact{background:rgba(220,38,38,.07);color:var(--ko);
+  border:1px solid rgba(220,38,38,.25);border-radius:8px;
+  cursor:pointer;font-size:12px;padding:7px;width:100%;
+  transition:background .15s;font-weight:600;}
+.btn-iam-deact:hover{background:rgba(220,38,38,.14);}
+/* Outils actifs (creation step 1) */
+.outils-actifs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 12px;border-radius:9px;margin-top:10px;
+  background:rgba(22,163,74,.07);border:1px solid rgba(22,163,74,.2);
+  font-size:12px;color:var(--ok);}
+.outil-chip{padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;
+  background:rgba(22,163,74,.14);color:var(--ok);border:1px solid rgba(22,163,74,.25);}
 
 .hidden{display:none !important;}
 
@@ -634,11 +701,11 @@ body.in-section #breadcrumb{display:none !important;}
   </div>
   <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
     <span class="side-dot"></span>Integrations
-    <span class="side-badge soon">bientot</span>
+    <span class="side-badge live">live</span>
   </div>
   <div class="side-item" style="--lc:var(--c-don)" onclick="showSection('don')" id="side-don">
     <span class="side-dot"></span>Soutenir
-    <span class="side-badge soon">bientot</span>
+    <span class="side-badge live">live</span>
   </div>
 </nav>
 
@@ -668,29 +735,29 @@ body.in-section #breadcrumb{display:none !important;}
 
     <div class="layer" onclick="showSection('compte')">
       <span class="layer-marker" style="--lc:var(--c-compte)"></span>
-      <div class="layer-label"><h3>Compte</h3><p>Profil, historique, preferences</p></div>
-      <span class="badge soon">bientot</span>
+      <div class="layer-label"><h3>Compte</h3><p>Profil, modele actif, historique, retours</p></div>
+      <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
 
     <div class="layer" onclick="showSection('analyse')">
       <span class="layer-marker" style="--lc:var(--c-analyse)"></span>
-      <div class="layer-label"><h3>Analyse</h3><p>Diagnostics avances, metriques d'evolution</p></div>
-      <span class="badge soon">bientot</span>
+      <div class="layer-label"><h3>Analyse</h3><p>Metriques de production et capacites utilisees</p></div>
+      <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
 
     <div class="layer" onclick="showSection('integrations')">
       <span class="layer-marker" style="--lc:var(--c-integration)"></span>
-      <div class="layer-label"><h3>Integrations</h3><p>Connecte tes propres outils et comptes</p></div>
-      <span class="badge soon">bientot</span>
+      <div class="layer-label"><h3>Integrations</h3><p>Modele IA, outils tiers, API personnalisees</p></div>
+      <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
 
     <div class="layer" onclick="showSection('don')">
       <span class="layer-marker" style="--lc:var(--c-don)"></span>
-      <div class="layer-label"><h3>Soutenir</h3><p>Contribuer au projet NEOGEN</p></div>
-      <span class="badge soon">bientot</span>
+      <div class="layer-label"><h3>Soutenir</h3><p>Financer le calcul et le developpement</p></div>
+      <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
 
@@ -722,6 +789,11 @@ body.in-section #breadcrumb{display:none !important;}
       <button id="btn-scan">Scanner l'intention</button>
       <button id="btn-conseils" class="ghost">Conseils (conformite)</button>
     </div>
+    <div class="row" style="margin-top:8px;gap:8px">
+      <button id="btn-openlegi" class="ghost" style="font-size:12px;padding:6px 12px">⊜ OpenLegi (Legifrance)</button>
+      <button id="btn-notebooklm" class="ghost" style="font-size:12px;padding:6px 12px" onclick="ouvrirNotebookLM()">◫ NotebookLM</button>
+    </div>
+    <div id="outils-actifs-banner" class="outils-actifs hidden"></div>
     <div id="stale-notice" class="hidden" style="margin-top:8px;padding:5px 12px;border-radius:8px;
       background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);
       font-size:12px;color:var(--warn);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -730,6 +802,7 @@ body.in-section #breadcrumb{display:none !important;}
     </div>
     <div id="discernement" class="hidden"></div>
     <div id="conseil-box" class="hidden"></div>
+    <div id="openlegi-box" class="hidden"></div>
     <div id="scan-status"></div>
     <div class="step-nav">
       <span></span>
@@ -840,7 +913,6 @@ body.in-section #breadcrumb{display:none !important;}
     <p>Produits generes, valides, prets a l'emploi.</p>
   </div>
   <div id="produit-grid" class="produit-grid"></div>
-  <div id="lineage-view" class="lineage-view hidden"></div>
   <pre id="code-view" class="hidden"></pre>
 </div>
 
@@ -903,60 +975,8 @@ body.in-section #breadcrumb{display:none !important;}
     <div id="integ-status"></div>
   </div>
 
-  <!-- Grille des categories -->
-  <div class="integ-grid">
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Reseaux sociaux</div>
-      <div class="integ-item"><span class="integ-icon">◈</span><span class="integ-name">TikTok</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">◉</span><span class="integ-name">Instagram</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">◎</span><span class="integ-name">LinkedIn</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Video &amp; Creation</div>
-      <div class="integ-item"><span class="integ-icon">⊕</span><span class="integ-name">Magnific</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">▶</span><span class="integ-name">YouTube</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Recherche &amp; Docs</div>
-      <div class="integ-item"><span class="integ-icon">◫</span><span class="integ-name">NotebookLM</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">⊞</span><span class="integ-name">DeerFlow</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Juridique &amp; Admin</div>
-      <div class="integ-item"><span class="integ-icon">⊜</span><span class="integ-name">OpenLegi</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">⊟</span><span class="integ-name">INPI</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">E-commerce &amp; Paiement</div>
-      <div class="integ-item"><span class="integ-icon">⊠</span><span class="integ-name">Shopify</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">◆</span><span class="integ-name">Stripe</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Infra &amp; Dev</div>
-      <div class="integ-item"><span class="integ-icon">⊗</span><span class="integ-name">n8n</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-      <div class="integ-item"><span class="integ-icon">⊙</span><span class="integ-name">GitHub</span><span class="integ-status-dot"></span><span class="badge soon">bientot</span></div>
-    </div>
-
-    <!-- Integrations personnalisees -->
-    <div class="glass integ-category">
-      <div class="integ-cat-title">Personnalisee</div>
-      <div id="integ-custom-list"></div>
-      <div class="integ-add-btn" onclick="toggleAddIntegForm()">+ Ajouter</div>
-      <div id="integ-add-form" class="hidden">
-        <input type="text" id="integ-custom-name" placeholder="Nom (ex: Airtable)">
-        <input type="text" id="integ-custom-endpoint" placeholder="Endpoint ou URL de l'API">
-        <input type="password" id="integ-custom-key" placeholder="Cle API (optionnel)">
-        <button onclick="saveCustomInteg()" style="width:100%;margin-top:2px">Ajouter</button>
-      </div>
-    </div>
-
-  </div>
+  <!-- Grille des categories (rendue par JS) -->
+  <div id="integ-grid-dynamic" class="integ-grid"></div>
 </div>
 
 <!-- DON -->
@@ -973,33 +993,66 @@ body.in-section #breadcrumb{display:none !important;}
         Un organisme logiciel autonome, aligne et auto-ameliorant.<br>
         Ton soutien fait pousser le noyau.
       </p>
-      <div style="display:flex;flex-direction:column;gap:12px;align-items:stretch">
-        <a href="https://github.com/captainNetroia/VIVARIUM" target="_blank"
-           style="display:flex;align-items:center;justify-content:center;gap:10px;
-           padding:13px 24px;border-radius:12px;
-           background:rgba(255,255,255,.3);backdrop-filter:blur(10px);
-           color:var(--txt);text-decoration:none;font-weight:600;font-size:14px;
-           border:1px solid rgba(255,255,255,.55);transition:background .15s"
-           onmouseover="this.style.background='rgba(255,255,255,.5)'"
-           onmouseout="this.style.background='rgba(255,255,255,.3)'">
-          ⊙ &nbsp;Voir le projet sur GitHub
-        </a>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;
-           padding:13px 24px;border-radius:12px;cursor:default;
-           background:rgba(219,39,119,.07);
-           border:1px solid rgba(219,39,119,.18);
-           color:var(--c-don);font-size:14px;font-weight:600">
-          ◆ &nbsp;Paiement Stripe — bientot disponible
-        </div>
-      </div>
+      <button id="btn-don-stripe" onclick="ouvrirModalDon()"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;
+         padding:13px 24px;border-radius:12px;cursor:pointer;width:100%;
+         background:rgba(219,39,119,.12);
+         border:1px solid rgba(219,39,119,.35);
+         color:var(--c-don);font-size:14px;font-weight:600;
+         transition:background .15s"
+         onmouseover="this.style.background='rgba(219,39,119,.2)'"
+         onmouseout="this.style.background='rgba(219,39,119,.12)'">
+        ♡ &nbsp;Soutenir
+      </button>
     </div>
     <div class="panel glass" style="padding:20px 24px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Ou va ton soutien</div>
       <div class="hist-item"><span style="font-size:16px">⚡</span><span class="hist-intention">Calcul GPU pour la generation et l'evolution</span></div>
       <div class="hist-item"><span style="font-size:16px">⊕</span><span class="hist-intention">Developpement des phases D a G (integrations, GTM, applis)</span></div>
-      <div class="hist-item"><span style="font-size:16px">⊟</span><span class="hist-intention">Protection IP (INPI, eSoleau, RGPD)</span></div>
       <div class="hist-item"><span style="font-size:16px">◈</span><span class="hist-intention">Hebergement serveur dedie et infrastructure</span></div>
     </div>
+  </div>
+</div>
+
+<!-- Modal don libre -->
+<div id="modal-don" style="display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:380px;width:92%;
+    box-shadow:0 24px 64px rgba(0,0,0,.22);position:relative">
+    <button onclick="fermerModalDon()" style="position:absolute;top:14px;right:16px;
+      background:none;border:none;font-size:20px;cursor:pointer;color:var(--mut);
+      line-height:1;padding:2px 6px">✕</button>
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:40px;margin-bottom:8px">♡</div>
+      <h3 style="font-size:17px;font-weight:700;color:var(--txt)">Choisir un montant</h3>
+      <p style="font-size:13px;color:var(--mut);margin-top:5px;line-height:1.5">Don libre. Ce que tu veux, quand tu veux.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      <button class="don-preset" onclick="selectMontant(1,this)">1 €</button>
+      <button class="don-preset" onclick="selectMontant(10,this)">10 €</button>
+      <button class="don-preset" onclick="selectMontant(20,this)">20 €</button>
+      <button class="don-preset" onclick="selectMontant(50,this)">50 €</button>
+      <button class="don-preset" onclick="selectMontant(100,this)">100 €</button>
+      <button class="don-preset" onclick="selectMontant('custom',this)">Autre +</button>
+    </div>
+    <div id="don-custom-wrap" style="display:none;margin-bottom:12px">
+      <input id="don-custom-input" type="number" min="1" max="9999" placeholder="Montant en EUR"
+        style="width:100%;padding:9px 12px;border-radius:9px;font-size:15px;text-align:center;
+        border:1px solid rgba(219,39,119,.35);outline:none;color:var(--txt)"
+        oninput="donCustomVal=parseInt(this.value)||0;updateDonDisplay()">
+    </div>
+    <div id="don-display" style="font-size:13px;color:var(--c-don);text-align:center;
+      margin-bottom:16px;min-height:20px;font-weight:600"></div>
+    <button id="btn-don-confirmer" onclick="confirmerDon()"
+      style="width:100%;padding:12px;border-radius:11px;font-size:14px;font-weight:600;
+      background:rgba(219,39,119,.12);border:1px solid rgba(219,39,119,.4);
+      color:var(--c-don);cursor:pointer;transition:background .15s"
+      onmouseover="this.style.background='rgba(219,39,119,.22)'"
+      onmouseout="this.style.background='rgba(219,39,119,.12)'">
+      Continuer vers le paiement
+    </button>
+    <div id="don-modal-st" style="font-size:12px;color:var(--mut);text-align:center;margin-top:10px;min-height:16px"></div>
   </div>
 </div>
 
@@ -1298,6 +1351,11 @@ $('#btn-scan').onclick=async()=>{
     $('#to-step2').classList.remove('hidden');
     studio.intentionAnalysee=intention;
     $('#stale-notice').classList.add('hidden');
+    updateOutilsActifs();
+    // Si OpenLegi est actif : lance automatiquement la recherche juridique
+    if(_iActive('openlegi')&&$('#btn-openlegi')){
+      setTimeout(()=>$('#btn-openlegi').click(),600);
+    }
     renderBulles();
   }catch(e){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
   finally{$('#btn-scan').disabled=false;}
@@ -1608,9 +1666,18 @@ async function loadProduits(){
   }
   list.forEach(p=>{
     const card=document.createElement('div');card.className='produit-card glass';
+    card.dataset.id=p.id;
     const genBadge=(p.generation&&p.generation>1)?' <span class="gen-badge">gen '+p.generation+'</span>':'';
-    card.innerHTML='<div class="ct">'+esc(p.intention)+(p.promouvable?' <span class="tag ok">appli</span>':'')+genBadge+'</div>'+
-                   '<div class="cs">'+p.lignes+' lignes | '+esc(p.verdict)+'</div>';
+    // Badge 3 etats : deploye (promu) > appli (promouvable) > code (basique)
+    const statusBadge=p.promu
+      ?'<span class="tag ok" style="margin-left:6px">deploye</span>'
+      :p.promouvable
+        ?'<span class="tag" style="margin-left:6px;background:rgba(8,145,178,.12);color:var(--acc)">appli</span>'
+        :'<span class="tag" style="margin-left:6px;background:rgba(100,116,139,.12);color:var(--mut)">code</span>';
+    // Titre en gras + description tronquee
+    const titre=esc(p.intention);
+    card.innerHTML='<div class="ct" style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:4px">'+titre+statusBadge+genBadge+'</div>'+
+                   '<div class="cs">'+p.lignes+' lignes &middot; '+esc(p.verdict)+'</div>';
     const actions=document.createElement('div');actions.className='cactions';
     const btnCode=document.createElement('button');btnCode.className='ghost';btnCode.textContent='Code';
     btnCode.onclick=async()=>{
@@ -1620,7 +1687,7 @@ async function loadProduits(){
     };
     actions.appendChild(btnCode);
     const btnLin=document.createElement('button');btnLin.className='ghost';btnLin.textContent='Lignee';
-    btnLin.onclick=()=>openLineage(p.id);
+    btnLin.onclick=()=>openLineage(p.id,card);
     actions.appendChild(btnLin);
     if(p.promouvable){
       const btnApp=document.createElement('button');btnApp.textContent="Ouvrir l'appli";
@@ -1633,29 +1700,57 @@ async function loadProduits(){
       };
       actions.appendChild(btnApp);
     }
+    // Bouton telechargement ZIP pour tout produit execute (code fonctionnel)
+    const btnDl=document.createElement('button');btnDl.className='ghost';
+    btnDl.title='Telecharger le pack (main.py + README.md)';
+    btnDl.textContent='Telecharger';
+    btnDl.onclick=(e)=>{
+      e.stopPropagation();
+      const a=document.createElement('a');
+      a.href='/produits/'+encodeURIComponent(p.id)+'/telecharger';
+      a.download='neogen-'+p.id.slice(0,8)+'.zip';
+      a.click();
+    };
+    actions.appendChild(btnDl);
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
 }
 
 /* --- Genealogie (Phase 4) : arbre des generations, diff, revert, upgrade --- */
-async function openLineage(produitId){
-  const el=$('#lineage-view');if(!el)return;
-  el.classList.remove('hidden');
-  el.innerHTML='<div class="step-help">Chargement de la lignee...</div>';
-  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+async function openLineage(produitId, cardEl){
+  // Toggle : cliquer la meme carte referme la lignee
+  const existing=document.querySelector('.lineage-inline');
+  const sameCard=cardEl&&cardEl.classList.contains('selected');
+  document.querySelectorAll('.produit-card.selected').forEach(c=>c.classList.remove('selected'));
+  if(existing){existing.remove();}
+  if(sameCard)return; // etait deja ouvert -> on a juste ferme
+  if(cardEl)cardEl.classList.add('selected');
+  const panel=document.createElement('div');
+  panel.className='lineage-inline glass';
+  panel.innerHTML='<div class="step-help">Chargement de la lignee...</div>';
+  // Inserer apres la carte cliquee (ou a la fin de la grille si pas de carte)
+  const anchor=cardEl||document.querySelector('#produit-grid');
+  if(anchor)anchor.insertAdjacentElement('afterend',panel);
+  if(panel)panel.scrollIntoView({behavior:'smooth',block:'nearest'});
   try{
     const d=await(await fetch('/produits/'+encodeURIComponent(produitId)+'/generations')).json();
-    if(d.detail){el.innerHTML='<span class="tag ko">erreur</span> '+errMsg(d.detail);return;}
-    renderLineage(d);
-  }catch(e){el.innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
+    if(d.detail){panel.innerHTML='<span class="tag ko">erreur</span> '+errMsg(d.detail);return;}
+    renderLineage(d,panel,cardEl);
+  }catch(e){panel.innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
 }
 
-function renderLineage(d){
-  const el=$('#lineage-view');
+function _closeLineage(cardEl){
+  const panel=document.querySelector('.lineage-inline');if(panel)panel.remove();
+  if(cardEl)cardEl.classList.remove('selected');
+  else document.querySelectorAll('.produit-card.selected').forEach(c=>c.classList.remove('selected'));
+}
+
+function renderLineage(d, el, cardEl){
   let html='<div class="lineage-head"><h3>Lignee : '+esc(d.intention||'')+'</h3>'
     +'<span class="tag">'+d.total+' generation(s)</span>'
-    +'<button class="ghost" style="margin-left:auto;font-size:12px;padding:5px 11px" onclick="document.getElementById(\'lineage-view\').classList.add(\'hidden\')">Fermer</button></div>';
+    +'<button class="ghost" style="margin-left:auto;font-size:12px;padding:5px 11px" onclick="_closeLineage(_lineageCard)">Fermer</button></div>';
+  window._lineageCard=cardEl||null;
   html+='<div class="lineage-tree">';
   (d.generations||[]).forEach(n=>{
     let delta='';
@@ -1717,7 +1812,13 @@ async function toggleDiff(id){
 async function revertGen(id){
   try{
     const r=await(await fetch('/produits/'+encodeURIComponent(id)+'/revert',{method:'POST'})).json();
-    if(r.ok)openLineage(id);
+    if(r.ok){
+      const origCard=window._lineageCard;
+      const origId=origCard&&origCard.dataset&&origCard.dataset.id;
+      await loadProduits();
+      const freshCard=origId?document.querySelector('.produit-card[data-id="'+origId+'"]'):null;
+      openLineage(origId||id,freshCard||null);
+    }
   }catch(e){alert(errMsg(e));}
 }
 
@@ -1740,7 +1841,7 @@ function upgradeGen(id,btn){
           if(!line)continue;
           let evt;try{evt=JSON.parse(line.slice(5).trim());}catch(e){continue;}
           if(evt.stade==='fini'){
-            if(evt.succes&&evt.produit_id){loadProduits().then(()=>openLineage(evt.produit_id));}
+            if(evt.succes&&evt.produit_id){loadProduits().then(()=>{const c=document.querySelector('.produit-card[data-id="'+evt.produit_id+'"]');openLineage(evt.produit_id,c||null);});}
             else{alert('Evolution echouee : '+(evt.verdict||'echec'));}
           } else if(evt.stade==='erreur'){
             alert('Erreur : '+(evt.message||'echec'));
@@ -1756,6 +1857,98 @@ function upgradeGen(id,btn){
     if(btn){btn.disabled=false;btn.textContent='Faire evoluer ›';}
   });
 }
+
+/* ===== DON ===== */
+let donMontant=0;let donCustomVal=0;
+function ouvrirModalDon(){
+  donMontant=0;donCustomVal=0;
+  document.querySelectorAll('.don-preset').forEach(b=>b.classList.remove('sel'));
+  const cw=document.getElementById('don-custom-wrap');if(cw)cw.style.display='none';
+  const ci=document.getElementById('don-custom-input');if(ci)ci.value='';
+  const dd=document.getElementById('don-display');if(dd)dd.textContent='';
+  const st=document.getElementById('don-modal-st');if(st)st.textContent='';
+  const m=document.getElementById('modal-don');if(m)m.style.display='flex';
+}
+function fermerModalDon(){
+  const m=document.getElementById('modal-don');if(m)m.style.display='none';
+}
+document.getElementById('modal-don').addEventListener('click',function(e){
+  if(e.target===this)fermerModalDon();
+});
+function selectMontant(v,el){
+  document.querySelectorAll('.don-preset').forEach(b=>b.classList.remove('sel'));
+  if(el)el.classList.add('sel');
+  const cw=document.getElementById('don-custom-wrap');
+  const dd=document.getElementById('don-display');
+  if(v==='custom'){
+    donMontant=0;
+    if(cw)cw.style.display='block';
+    document.getElementById('don-custom-input')&&document.getElementById('don-custom-input').focus();
+    if(dd)dd.textContent='';
+  } else {
+    donMontant=v;donCustomVal=0;
+    if(cw)cw.style.display='none';
+    if(dd)dd.textContent=v+' EUR selectionne';
+  }
+}
+function updateDonDisplay(){
+  const dd=document.getElementById('don-display');
+  if(dd)dd.textContent=donCustomVal>0?donCustomVal+' EUR':'';
+}
+async function confirmerDon(){
+  const montant=donMontant||donCustomVal;
+  const st=document.getElementById('don-modal-st');
+  if(!montant||montant<1){if(st)st.textContent='Selectionner un montant.';return;}
+  const btn=document.getElementById('btn-don-confirmer');
+  if(btn)btn.disabled=true;
+  if(st)st.textContent='Preparation...';
+  try{
+    const r=await fetch('/don/checkout',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({montant})});
+    const d=await r.json();
+    if(d.url){window.location.href=d.url;}
+    else{if(st)st.textContent='Erreur : '+(d.detail||'erreur inconnue');}
+  }catch(e){if(st)st.textContent='Erreur reseau.';}
+  if(btn)btn.disabled=false;
+}
+
+/* ===== NOTEBOOKLM ===== */
+function ouvrirNotebookLM(){
+  const intention=($('#intention')&&$('#intention').value||'').trim();
+  const url='https://notebooklm.google.com'+(intention?'?hl=fr':'');
+  window.open(url,'_blank');
+  if(intention){
+    const box=$('#openlegi-box');
+    box.innerHTML='<div class="compo-premiere"><b>NotebookLM</b> : colle cette intention dans NotebookLM pour enrichir ta recherche :<br><code style="user-select:all;font-size:12px">'+esc(intention)+'</code></div>';
+    box.classList.remove('hidden');
+  }
+}
+
+/* ===== OPENLEGI ===== */
+$('#btn-openlegi').onclick=async()=>{
+  const intention=($('#intention')&&$('#intention').value||'').trim();
+  if(intention.length<3){$('#scan-status').innerHTML='<span class="tag ko">vide</span> ecris une intention.';return;}
+  const btn=$('#btn-openlegi'),box=$('#openlegi-box');
+  btn.disabled=true;box.classList.add('hidden');
+  $('#scan-status').innerHTML='Recherche sur Legifrance via OpenLegi...';
+  try{
+    const r=await fetch('/openlegi/conformite',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:intention})});
+    const d=await r.json();
+    if(d.detail){$('#scan-status').innerHTML='<span class="tag ko">OpenLegi</span> '+errMsg(d.detail);return;}
+    const res=d.resultats;
+    let html='<div class="compo-premiere"><b>OpenLegi (Legifrance)</b> &middot; <span style="color:var(--mut);font-size:12px">resultats pour : '+esc(d.query||intention)+'</span><br>';
+    if(typeof res==='string'){html+=esc(res);}
+    else if(Array.isArray(res)){
+      html+=(res.length?res.map(r2=>'<div style="margin-top:6px;padding:6px 0;border-top:1px solid rgba(15,23,42,.08)">'+esc(typeof r2==='object'?JSON.stringify(r2):r2)+'</div>').join(''):'Aucun resultat trouve.');}
+    else{html+='<pre style="font-size:11px;white-space:pre-wrap;margin:6px 0">'+esc(JSON.stringify(res,null,2))+'</pre>';}
+    html+='</div>';
+    box.innerHTML=html;box.classList.remove('hidden');$('#scan-status').innerHTML='';
+  }catch(e){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
+  finally{btn.disabled=false;}
+};
 
 /* Auth helpers */
 function _authToken(){return localStorage.getItem('neogen_auth_token');}
@@ -2146,19 +2339,8 @@ async function loadAnalyse(){
     setTimeout(()=>st.innerHTML='',3000);
   };
 
-  /* Custom integrations */
-  function loadCustom(){
-    const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
-    const el=ge('integ-custom-list');if(!el)return;
-    el.innerHTML=list.map((c,i)=>
-      `<div class="integ-item">
-        <span class="integ-icon">⊕</span>
-        <span class="integ-name">${esc(c.name)}</span>
-        <span class="integ-status-dot ${c.key?'ok':''}"></span>
-        <span style="font-size:12px;color:var(--ko);cursor:pointer;font-weight:700" onclick="deleteInteg(${i})">×</span>
-      </div>`
-    ).join('');
-  }
+  /* Custom integrations — delegue au systeme global _loadCustom */
+  function loadCustom(){if(window._loadCustom)_loadCustom();}
 
   window.toggleAddIntegForm=function(){
     const f=ge('integ-add-form');if(f)f.classList.toggle('hidden');
@@ -2174,24 +2356,197 @@ async function loadAnalyse(){
     ge('integ-custom-name').value='';
     ge('integ-custom-endpoint').value='';
     ge('integ-custom-key').value='';
-    ge('integ-add-form').classList.add('hidden');
-    loadCustom();
+    const f=ge('integ-add-form');if(f)f.classList.add('hidden');
+    if(window._loadCustom)_loadCustom();
     if(window._breath)_breath.scan();
   };
   window.deleteInteg=function(i){
     const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
     list.splice(i,1);
     localStorage.setItem('neogen_integrations',JSON.stringify(list));
-    loadCustom();
+    if(window._loadCustom)_loadCustom();
   };
 
   /* Init */
   switchProv(curProv);
   updateActiveLabel();
-  loadCustom();
 })();
 
 health();
+
+/* ===== INTEGRATIONS — activation par integration ===== */
+const INTEG_DEFS={
+  openlegi:{name:'OpenLegi',icon:'⊜',cat:'Juridique & Admin',type:'key',
+    keyPh:'Token openlegi.fr...',desc:'Legifrance : codes, jurisprudence, JORF — enrichit le scan et le conseil'},
+  notebooklm:{name:'NotebookLM',icon:'◫',cat:'Recherche & Docs',type:'oauth',
+    oauthUrl:'https://notebooklm.google.com',
+    desc:'Synthese documentaire Google — sources disponibles dans Composition'},
+  deerflow:{name:'DeerFlow',icon:'⊞',cat:'Recherche & Docs',type:'url',
+    urlPh:'https://deerflow.netroia.tech',
+    desc:'Recherche web multi-step — injecte des sources dans la forge'},
+  stripe:{name:'Stripe',icon:'◆',cat:'E-commerce & Paiement',type:'server',
+    desc:'Paiement — cle detectee automatiquement via credentials serveur'},
+  tiktok:{name:'TikTok',icon:'◈',cat:'Reseaux sociaux',bientot:true},
+  instagram:{name:'Instagram',icon:'◉',cat:'Reseaux sociaux',bientot:true},
+  linkedin:{name:'LinkedIn',icon:'◎',cat:'Reseaux sociaux',bientot:true},
+  magnific:{name:'Magnific',icon:'⊕',cat:'Video & Creation',bientot:true},
+  youtube:{name:'YouTube',icon:'▶',cat:'Video & Creation',bientot:true},
+  inpi:{name:'INPI',icon:'⊟',cat:'Juridique & Admin',bientot:true},
+  shopify:{name:'Shopify',icon:'⊠',cat:'E-commerce & Paiement',bientot:true},
+  n8n:{name:'n8n',icon:'⊗',cat:'Infra & Dev',bientot:true},
+  github:{name:'GitHub',icon:'⊙',cat:'Infra & Dev',bientot:true},
+};
+const INTEG_CAT_ORDER=['Recherche & Docs','Juridique & Admin','E-commerce & Paiement','Reseaux sociaux','Video & Creation','Infra & Dev'];
+
+function _iKey(n){return'neogen_integ_'+n;}
+function _iActive(n){try{return JSON.parse(localStorage.getItem(_iKey(n))||'{}').active===true;}catch(e){return false;}}
+function _iGet(n){try{return JSON.parse(localStorage.getItem(_iKey(n))||'null');}catch(e){return null;}}
+function _iSet(n,d){localStorage.setItem(_iKey(n),JSON.stringify(d));}
+function _iClear(n){localStorage.removeItem(_iKey(n));}
+function integActives(){return Object.keys(INTEG_DEFS).filter(k=>_iActive(k));}
+
+function _renderActivatable(k,def){
+  const active=_iActive(k);
+  const dot='<span class="integ-status-dot'+(active?' ok':'')+'"></span>';
+  const badge=active?'<span class="badge live">actif</span>':'<span class="badge soon">inactif</span>';
+  const auto=def.type==='server'?'<span style="font-size:10px;color:var(--mut);margin-left:3px">auto</span>':'';
+  return '<div class="integ-activatable'+(active?' active':'')+'" id="ia-'+k+'">'
+    +'<div class="integ-act-head" onclick="toggleIntegPanel(\''+k+'\')">'
+    +'<span class="integ-icon">'+esc(def.icon)+'</span>'
+    +'<span class="integ-act-name">'+esc(def.name)+'</span>'
+    +'<span class="integ-act-right">'+dot+badge+auto
+    +'<span class="ia-chev" id="chev-'+k+'">▾</span></span>'
+    +'</div>'
+    +'<div class="integ-act-body" id="iab-'+k+'">'
+    +'<div class="iam-inner" id="iam-'+k+'"></div>'
+    +'</div></div>';
+}
+
+function renderIntegGrid(serverStatus){
+  const grid=document.getElementById('integ-grid-dynamic');if(!grid)return;
+  if(serverStatus){
+    if(serverStatus.openlegi&&!_iGet('openlegi'))_iSet('openlegi',{active:true,key:'(serveur)',source:'server'});
+    if(serverStatus.stripe&&!_iGet('stripe'))_iSet('stripe',{active:true,key:'(serveur)',source:'server'});
+  }
+  const cats={};
+  Object.entries(INTEG_DEFS).forEach(([k,def])=>{
+    if(!cats[def.cat])cats[def.cat]=[];cats[def.cat].push({k,def});
+  });
+  grid.innerHTML='';
+  const order=[...INTEG_CAT_ORDER,...Object.keys(cats).filter(c=>!INTEG_CAT_ORDER.includes(c)),'Personnalisee'];
+  order.forEach(cat=>{
+    const card=document.createElement('div');card.className='glass integ-category';
+    if(cat==='Personnalisee'){
+      card.innerHTML='<div class="integ-cat-title">Personnalisee</div>'
+        +'<div id="integ-custom-list"></div>'
+        +'<div class="integ-add-btn" onclick="toggleAddIntegForm()">+ Ajouter</div>'
+        +'<div id="integ-add-form" class="hidden">'
+        +'<input type="text" id="integ-custom-name" placeholder="Nom (ex: Airtable)">'
+        +'<input type="text" id="integ-custom-endpoint" placeholder="Endpoint ou URL de l\'API">'
+        +'<input type="password" id="integ-custom-key" placeholder="Cle API (optionnel)">'
+        +'<button onclick="saveCustomInteg()" style="width:100%;margin-top:2px">Ajouter</button></div>';
+      grid.appendChild(card);_loadCustom();return;
+    }
+    const items=cats[cat]||[];if(!items.length)return;
+    let html='<div class="integ-cat-title">'+esc(cat)+'</div>';
+    items.forEach(({k,def})=>{
+      if(def.bientot){
+        html+='<div class="integ-item">'
+          +'<span class="integ-icon">'+esc(def.icon)+'</span>'
+          +'<span class="integ-name">'+esc(def.name)+'</span>'
+          +'<span class="integ-status-dot"></span>'
+          +'<span class="badge soon">bientot</span></div>';
+      } else {
+        html+=_renderActivatable(k,def);
+      }
+    });
+    card.innerHTML=html;grid.appendChild(card);
+  });
+  updateOutilsActifs();
+}
+
+window.toggleIntegPanel=function(name){
+  const body=document.getElementById('iab-'+name);
+  const chev=document.getElementById('chev-'+name);
+  const wrap=document.getElementById('ia-'+name);
+  if(!body)return;
+  const wasOpen=body.classList.contains('open');
+  // Fermer tous les panneaux ouverts
+  document.querySelectorAll('.integ-act-body.open').forEach(el=>{
+    el.classList.remove('open');
+    const id=el.id.replace('iab-','');
+    const c=document.getElementById('chev-'+id);if(c)c.style.transform='';
+    const w=document.getElementById('ia-'+id);if(w)w.classList.remove('open');
+  });
+  if(wasOpen)return;
+  body.classList.add('open');
+  if(wrap)wrap.classList.add('open');
+  if(chev)chev.style.transform='rotate(180deg)';
+  // Remplir le contenu
+  const def=INTEG_DEFS[name];if(!def)return;
+  const form=document.getElementById('iam-'+name);if(!form)return;
+  const active=_iActive(name);
+  const fromServer=(_iGet(name)||{}).source==='server';
+  if(active){
+    let c='<div class="iam-desc">'+esc(def.desc||'')+'</div>';
+    if(fromServer)c+='<p style="font-size:11px;color:var(--mut);margin-bottom:10px">Integration detectee automatiquement via credentials serveur.</p>';
+    if(def.type!=='server')c+='<button class="btn-iam-deact" onclick="desactiverInteg(\''+name+'\')">Desactiver</button>';
+    form.innerHTML=c;
+  } else if(def.type==='key'){
+    form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
+      +'<input type="password" id="iam-inp-'+name+'" placeholder="'+esc(def.keyPh||'Cle API...')+'" autocomplete="off">'
+      +'<button onclick="confirmerInteg(\''+name+'\')">Connecter</button>';
+  } else if(def.type==='url'){
+    form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
+      +'<input type="text" id="iam-inp-'+name+'" placeholder="'+esc(def.urlPh||'URL...')+'">'
+      +'<button onclick="confirmerInteg(\''+name+'\')">Connecter</button>';
+  } else if(def.type==='oauth'){
+    form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
+      +'<p style="font-size:12px;color:var(--mut);margin-bottom:8px">Ouvre '+esc(def.name)+' dans un nouvel onglet, connecte-toi, puis confirme.</p>'
+      +'<button onclick="window.open(\''+esc(def.oauthUrl||'')+'\',\'_blank\')" class="ghost" style="margin-bottom:5px">Ouvrir '+esc(def.name)+' ↗</button>'
+      +'<button onclick="confirmerInteg(\''+name+'\')">Connexion confirmee</button>';
+  } else if(def.type==='server'){
+    form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
+      +'<p style="font-size:11px;color:var(--mut)">Active automatiquement via les credentials serveur.</p>';
+  }
+};
+
+window.confirmerInteg=function(name){
+  const inp=document.getElementById('iam-inp-'+name);
+  const val=inp?inp.value.trim():'';
+  _iSet(name,{active:true,key:val,source:'user'});
+  renderIntegGrid();updateOutilsActifs();
+};
+
+window.desactiverInteg=function(name){
+  _iClear(name);renderIntegGrid();updateOutilsActifs();
+};
+
+function updateOutilsActifs(){
+  const banner=document.getElementById('outils-actifs-banner');if(!banner)return;
+  const actives=integActives();
+  if(!actives.length){banner.classList.add('hidden');return;}
+  banner.classList.remove('hidden');
+  banner.innerHTML='<b style="margin-right:6px">Outils actifs :</b>'
+    +actives.map(k=>'<span class="outil-chip">'+esc((INTEG_DEFS[k]&&INTEG_DEFS[k].icon||'')+' '+(INTEG_DEFS[k]&&INTEG_DEFS[k].name||k))+'</span>').join('');
+}
+
+function _loadCustom(){
+  const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
+  const el=document.getElementById('integ-custom-list');if(!el)return;
+  el.innerHTML=list.map((c,i)=>
+    '<div class="integ-item"><span class="integ-icon">⊕</span><span class="integ-name">'+esc(c.name)+'</span>'
+    +'<span class="integ-status-dot'+(c.key?' ok':'')+'"></span>'
+    +'<span style="font-size:12px;color:var(--ko);cursor:pointer;font-weight:700" onclick="deleteInteg('+i+')">×</span></div>'
+  ).join('');
+}
+
+// Init : detecte credentials serveur + render
+(async function(){
+  let srv={openlegi:false,stripe:false};
+  try{srv=await(await fetch('/integrations/status')).json();}catch(e){}
+  renderIntegGrid(srv);
+})();
 
 /* Hash routing : on load + bouton back navigateur */
 const SECTIONS=['creation','production','compte','analyse','integrations','don'];

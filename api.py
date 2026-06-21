@@ -186,7 +186,42 @@ def fabriquer_endpoint(demande: DemandeFabrication,
 @app.get("/produits")
 def lister_produits():
     """Catalogue des produits qui ont passe les garde-fous et tourne."""
-    return {"produits": registre.lister()}
+    items = registre.lister()
+    for item in items:
+        item["promu"] = registre.est_promu(item["id"])
+    return {"produits": items}
+
+
+@app.get("/produits/{produit_id}/telecharger")
+def telecharger_produit(produit_id: str):
+    """Telecharge un pack ZIP du produit (main.py + README.md) pour migration ou archivage."""
+    import io
+    import zipfile
+    code = registre.charger(produit_id)
+    if code is None:
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    entrees = [e for e in registre.lister() if e["id"] == produit_id]
+    meta = entrees[0] if entrees else {}
+    readme = (
+        f"# NEOGEN — {meta.get('intention', produit_id)}\n\n"
+        f"Produit ID : {produit_id}\n"
+        f"Generation  : {meta.get('generation', 1)}\n"
+        f"Lignes      : {meta.get('lignes', '?')}\n"
+        f"Verdict     : {meta.get('verdict', '')}\n"
+        f"Timestamp   : {meta.get('timestamp', '')}\n\n"
+        f"## Lancement\n\n```bash\npython main.py\n```\n"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("main.py", code)
+        zf.writestr("README.md", readme)
+    buf.seek(0)
+    safe_id = produit_id[:12].replace("/", "_")
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="neogen-{safe_id}.zip"'},
+    )
 
 
 @app.get("/produits/{produit_id}")
@@ -758,3 +793,103 @@ def admin_feedbacks(authorization: str = Header(None)):
         raise HTTPException(403, "Acces refuse")
     items = _rjsonl(_FEEDBACKS)
     return {"feedbacks": list(reversed(items)), "total": len(items)}
+
+
+# ── Don Stripe ────────────────────────────────────────────────────────────────
+
+def _load_cred(filename: str, key: str) -> str:
+    """Lit une valeur depuis credentials/{filename} si absent de l'env.
+    Cherche dans /app/credentials (Docker) puis ../credentials (dev local)."""
+    val = _os.environ.get(key, "")
+    if val:
+        return val
+    from pathlib import Path
+    candidates = [
+        Path("/app/credentials") / filename,          # Docker (volume monté)
+        Path(__file__).parent / "credentials" / filename,  # même dossier
+        Path(__file__).parent.parent / "credentials" / filename,  # dev local
+    ]
+    for p in candidates:
+        if p.exists():
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if line.startswith(key + "="):
+                    return line.split("=", 1)[1].strip()
+    return ""
+
+
+class DonBody(BaseModel):
+    montant: int  # euros entiers, minimum 1
+
+
+@app.post("/don/checkout")
+def don_checkout(body: DonBody):
+    """Cree une session Stripe Checkout pour un don libre (montant en euros)."""
+    if body.montant < 1:
+        raise HTTPException(status_code=400, detail="Montant minimum : 1 EUR")
+    import stripe as _stripe
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(status_code=503, detail="Stripe non configure")
+    _stripe.api_key = secret_key
+    try:
+        base_url = _os.environ.get("NEOGEN_BASE_URL", "http://localhost:8000").rstrip("/")
+        session = _stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": body.montant * 100,
+                    "product_data": {
+                        "name": "Soutenir NEOGEN",
+                        "description": "Don libre pour financer le calcul et le developpement",
+                    },
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{base_url}/#don?merci=1",
+            cancel_url=f"{base_url}/#don",
+        )
+        return {"url": session.url}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+
+
+# ── OpenLegi / Legifrance ─────────────────────────────────────────────────────
+
+@app.get("/integrations/status")
+def integrations_status():
+    """Detecte quelles integrations sont disponibles cote serveur (credentials montes)."""
+    return {
+        "openlegi": bool(_load_cred("openlegi.env", "OPENLEGI_TOKEN")),
+        "stripe": bool(_load_cred("stripe.env", "STRIPE_SECRET_KEY")),
+    }
+
+
+@app.post("/openlegi/conformite")
+async def openlegi_conformite(data: dict):
+    """Recherche de textes legaux via OpenLegi (Legifrance MCP)."""
+    import httpx
+    query = (data.get("query") or "").strip()
+    if not query:
+        raise HTTPException(400, "query requis")
+    token = _load_cred("openlegi.env", "OPENLEGI_TOKEN")
+    if not token:
+        raise HTTPException(503, "OpenLegi non configure (OPENLEGI_TOKEN manquant)")
+    mcp_url = f"https://mcp.openlegi.fr/legifrance/mcp?token={token}"
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(
+                mcp_url,
+                json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "rechercher_code", "arguments": {"query": query, "nombreResultats": 5}},
+                },
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+            )
+            result = r.json()
+    except Exception as e:
+        raise HTTPException(502, f"OpenLegi inaccessible : {e}")
+    content = result.get("result", result)
+    return {"resultats": content, "query": query}

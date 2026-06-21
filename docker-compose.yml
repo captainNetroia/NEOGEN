@@ -21,9 +21,12 @@ services:
       - "8000:8000"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NEOGEN_BASE_URL=${NEOGEN_BASE_URL:-http://localhost:8000}
     volumes:
       # socket Docker : permet de lancer les conteneurs durcis du code genere
       - /var/run/docker.sock:/var/run/docker.sock
       # persistance des produits fabriques (registre + code) sur l'hote
       - ./data:/app/data
+      # credentials en lecture seule (Stripe, OpenLegi...) — jamais copiees dans l'image
+      - ../credentials:/app/credentials:ro
     restart: unless-stopped
