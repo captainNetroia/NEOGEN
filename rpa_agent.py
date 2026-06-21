@@ -16,6 +16,8 @@ import sys
 import time
 import threading
 import logging
+import ctypes
+import platform
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("NEOGEN-Agent")
@@ -25,8 +27,6 @@ try:
     import requests
     import pyautogui
     from pynput import mouse, keyboard
-    import tkinter as tk
-    from tkinter import messagebox
 except ImportError as e:
     print("\n" + "=" * 68)
     print(f"ERREUR : Dépendance manquante : {e.name}")
@@ -51,16 +51,36 @@ recording_active = False
 mouse_listener = None
 keyboard_listener = None
 
-# Initialisation de Tkinter
-root = tk.Tk()
-root.withdraw()  # Cacher la fenêtre principale, on utilise uniquement les popups
+# Consentement par SÉQUENCE (pas par action) : quand l'utilisateur autorise une
+# action, on ouvre une fenêtre d'auto-approbation. Les actions suivantes qui
+# arrivent dans cette fenêtre s'exécutent sans redemander -> on voit l'agent
+# enchaîner les actions au lieu de cliquer "Oui" 53 fois.
+_auto_approve_until = 0.0
+AUTO_APPROVE_WINDOW = 120.0  # secondes
+
+# Consentement : MessageBox natif Windows (ctypes) ou invite console (autres OS).
+# On n'utilise PAS tkinter : il n'est pas thread-safe et la popup est appelee depuis
+# poll_loop (thread secondaire), ce qui la fait echouer/bloquer sur Windows.
 
 
 def demander_consentement(action: dict) -> str:
     """
-    Affiche une boîte de dialogue à l'utilisateur sur l'hôte pour valider l'action.
-    Retourne 'approved' (Yes), 'rejected' (No) ou 'cancelled' (Cancel).
+    Demande la validation de l'utilisateur AVANT toute action physique.
+    Thread-safe (appele depuis poll_loop) et toujours au premier plan.
+    Windows : MessageBox natif (ctypes). Autres OS : invite console.
+
+    Consentement par SÉQUENCE : si une autorisation est déjà active (fenêtre
+    AUTO_APPROVE_WINDOW), on approuve directement sans redemander -> l'agent
+    enchaîne les actions et on le voit faire. "Oui" ouvre/prolonge la fenêtre.
+
+    Retourne 'approved', 'rejected' ou 'cancelled' (arret d'urgence).
     """
+    global _auto_approve_until
+
+    # Déjà autorisé pour cette séquence -> on exécute sans redemander.
+    if time.time() < _auto_approve_until:
+        return "approved"
+
     desc = f"Action : {action.get('action')}\n"
     if action.get("x") is not None and action.get("y") is not None:
         desc += f"Position : ({action.get('x')}, {action.get('y')})\n"
@@ -72,31 +92,46 @@ def demander_consentement(action: dict) -> str:
         desc += f"Touches : {' + '.join(action.get('keys'))}\n"
 
     message = (
-        "NEOGEN demande l'autorisation d'interagir avec votre machine :\n\n"
-        f"{desc}\n"
-        "Voulez-vous autoriser cette action ?\n\n"
-        "- Oui : Exécuter\n"
-        "- Non : Ignorer cette action\n"
-        "- Annuler : Déclencher l'ARRÊT D'URGENCE"
+        "NEOGEN demande l'autorisation de contrôler votre souris/clavier.\n\n"
+        f"Première action :\n{desc}\n"
+        f"Oui = Autoriser la séquence ({int(AUTO_APPROVE_WINDOW)}s, sans redemander)\n"
+        "Non = Ignorer cette action\n"
+        "Annuler = ARRÊT D'URGENCE (vide la file)\n\n"
+        "Arrêt d'urgence à tout moment : poussez la souris dans le coin HAUT-GAUCHE de l'écran."
     )
-    
-    # Exécuter dans le thread principal ou forcer l'affichage au premier plan
-    root.update()
-    root.deiconify()
-    root.withdraw()
-    
-    ans = messagebox.askyesnocancel(
-        title="NEOGEN - Consentement requis",
-        message=message,
-        default=messagebox.NO
-    )
-    
-    if ans is True:
-        return "approved"
-    elif ans is False:
+
+    if platform.system() == "Windows":
+        # MessageBox natif : thread-safe + premier plan (MB_SYSTEMMODAL | MB_SETFOREGROUND)
+        MB_YESNOCANCEL = 0x3
+        MB_ICONWARNING = 0x30
+        MB_SYSTEMMODAL = 0x1000
+        MB_SETFOREGROUND = 0x10000
+        flags = MB_YESNOCANCEL | MB_ICONWARNING | MB_SYSTEMMODAL | MB_SETFOREGROUND
+        res = ctypes.windll.user32.MessageBoxW(
+            0, message, "NEOGEN - Consentement requis", flags
+        )
+        if res == 6:      # IDYES
+            _auto_approve_until = time.time() + AUTO_APPROVE_WINDOW
+            logger.info(f"  Séquence autorisée pour {int(AUTO_APPROVE_WINDOW)}s. Exécution visible...")
+            return "approved"
+        elif res == 7:    # IDNO
+            return "rejected"
+        return "cancelled"  # IDCANCEL (2) ou fermeture
+
+    # Fallback console (Linux / Mac) : repond dans le terminal de l'agent
+    print("\n" + "=" * 60)
+    print(message)
+    print("=" * 60)
+    try:
+        rep = input("Autoriser ? [o = oui / n = non / a = arret d'urgence] : ").strip().lower()
+    except EOFError:
         return "rejected"
-    else:
+    if rep in ("o", "oui", "y", "yes"):
+        _auto_approve_until = time.time() + AUTO_APPROVE_WINDOW
+        return "approved"
+    if rep in ("a", "arret", "stop"):
         return "cancelled"
+    return "rejected"
 
 
 def executer_physique(action: dict) -> tuple[bool, str | None]:
@@ -110,15 +145,21 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
     amount = action.get("amount", 3)
     interval = action.get("interval", 0.05)
 
+    # Déplacement visible : la souris glisse (duration) au lieu de se téléporter,
+    # pour que l'utilisateur voie concrètement l'agent agir.
+    GLIDE = 0.35
     try:
         if act_type == "move":
-            pyautogui.moveTo(int(x), int(y))
+            pyautogui.moveTo(int(x), int(y), duration=GLIDE)
         elif act_type == "click":
-            pyautogui.click(int(x), int(y))
+            pyautogui.moveTo(int(x), int(y), duration=GLIDE)
+            pyautogui.click()
         elif act_type == "double_click":
-            pyautogui.doubleClick(int(x), int(y))
+            pyautogui.moveTo(int(x), int(y), duration=GLIDE)
+            pyautogui.doubleClick()
         elif act_type == "right_click":
-            pyautogui.rightClick(int(x), int(y))
+            pyautogui.moveTo(int(x), int(y), duration=GLIDE)
+            pyautogui.rightClick()
         elif act_type == "scroll":
             pyautogui.scroll(int(amount), x=int(x) if x else None, y=int(y) if y else None)
         elif act_type == "type":
@@ -260,6 +301,8 @@ def poll_loop():
                         })
                     else:
                         logger.warning("  Arrêt d'urgence demandé !")
+                        global _auto_approve_until
+                        _auto_approve_until = 0.0  # coupe l'auto-approbation en cours
                         # Vider la file côté serveur
                         requests.post(f"{SERVER_URL}/rpa/clear")
                         requests.post(f"{SERVER_URL}/rpa/action/result", json={
