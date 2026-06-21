@@ -710,6 +710,26 @@ body.in-section #breadcrumb{display:none !important;}
   .section{padding:16px 16px 40px;}
   .landing-title h2{font-size:28px;}
 }
+/* ===== AGENTS CONVERSATIONNELS ===== */
+.agent-chat{display:flex;flex-direction:column;margin-bottom:18px}
+.agent-chat-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:15px}
+.agent-chat-head .agent-chat-dot{width:9px;height:9px;border-radius:50%;background:#a855f7;box-shadow:0 0 9px #a855f7}
+.agent-chat-head .agent-chat-sub{color:var(--mut);font-size:12px;font-weight:400}
+.agent-chat-log{overflow-y:auto;min-height:90px;max-height:46vh;padding:6px 2px;display:flex;flex-direction:column;gap:9px}
+.agent-chat-log:empty::before{content:"Ecris un message pour commencer.";color:var(--mut);font-size:13px;padding:8px 2px}
+.ac-msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.55;word-wrap:break-word;overflow-wrap:anywhere}
+.ac-msg.user{align-self:flex-end;background:linear-gradient(135deg,#0ea5b7,#0c8ea0);color:#fff;border-bottom-right-radius:4px}
+.ac-msg.agent{align-self:flex-start;background:rgba(15,23,42,.05);color:#0f172a;border:1px solid rgba(15,23,42,.08);border-bottom-left-radius:4px}
+.ac-trace{align-self:flex-start;max-width:94%;font-size:12px;color:var(--mut);padding:1px 4px;border-left:2px solid rgba(168,85,247,.4);margin-left:2px;line-height:1.4}
+.ac-trace.action{color:#0c8ea0;border-left-color:#0c8ea0}
+.ac-trace.deleg{color:#a855f7;font-weight:600;border-left-color:#a855f7}
+.agent-chat-input{display:flex;gap:8px;margin-top:10px;align-items:flex-end}
+.agent-chat-input textarea{flex:1;resize:none;border-radius:12px;border:1px solid rgba(15,23,42,.14);padding:10px 12px;font:inherit;font-size:14px;max-height:130px;background:rgba(255,255,255,.55)}
+.agent-chat-send{padding:10px 18px;border-radius:12px;border:none;background:linear-gradient(135deg,#0ea5b7,#0c8ea0);color:#fff;font-weight:600;cursor:pointer}
+.agent-chat-send:disabled{opacity:.5;cursor:default}
+.ac-md h3{font-size:15px;margin:8px 0 4px}.ac-md ul{margin:4px 0 4px 18px}.ac-md li{margin:2px 0}
+.ac-md code{background:rgba(15,23,42,.08);padding:1px 5px;border-radius:5px;font-size:12px}
+.ac-md table{border-collapse:collapse;margin:6px 0;font-size:12px}.ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:3px 7px}
 </style>
 </head>
 <body>
@@ -732,6 +752,10 @@ body.in-section #breadcrumb{display:none !important;}
   <div class="side-home" onclick="showLanding()">
     <span class="side-back">←</span>
     <span class="side-title">NEO<b>GEN</b></span>
+  </div>
+  <div class="side-item" style="--lc:#a855f7" onclick="showSection('cerveau')" id="side-cerveau">
+    <span class="side-dot"></span>Cerveaux
+    <span class="side-badge live">live</span>
   </div>
   <div class="side-item" style="--lc:var(--c-creation)" onclick="showSection('creation')" id="side-creation">
     <span class="side-dot"></span>Creation
@@ -768,6 +792,13 @@ body.in-section #breadcrumb{display:none !important;}
 
   <div class="bento">
     <div class="bento-3d">
+
+    <div class="layer" onclick="showSection('cerveau')">
+      <span class="layer-marker" style="--lc:#a855f7"></span>
+      <div class="layer-label"><h3>Cerveaux</h3><p>Le super-agent qui coordonne les autres et agit pour toi</p></div>
+      <span class="badge live">live</span>
+      <span class="layer-arrow">›</span>
+    </div>
 
     <div class="layer" onclick="showSection('creation')">
       <span class="layer-marker" style="--lc:var(--c-creation)"></span>
@@ -821,6 +852,7 @@ body.in-section #breadcrumb{display:none !important;}
     <h2><span class="sec-dot" style="background:var(--c-creation)"></span>Creation</h2>
     <p>Construis ton produit etape par etape : intention, ADN, capacites, forge en direct.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="createur" data-titre="🔨 Le Forgeron" data-sub="Decris ton projet (app, SaaS, gadget), je le cree de A a Z."></div>
 
   <!-- Rail des etapes -->
   <div class="studio-rail" id="studio-rail">
@@ -964,12 +996,22 @@ body.in-section #breadcrumb{display:none !important;}
   </div>
 </div>
 
+<!-- CERVEAUX : super-agent orchestrateur -->
+<div id="section-cerveau" class="section">
+  <div class="sec-header">
+    <h2><span class="sec-dot" style="background:#a855f7"></span>Cerveaux</h2>
+    <p>Le Cerveau coordonne les agents (Forgeron, Genealogiste, Secretaire), parle pour toi et agit.</p>
+  </div>
+  <div class="agent-chat-mount" data-agent="cerveau" data-titre="🧠 Le Cerveau" data-sub="Je comprends, je delegue aux agents et je synthetise. Demande-moi n'importe quoi."></div>
+</div>
+
 <!-- PRODUCTION -->
 <div id="section-production" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-production)"></span>Production</h2>
     <p>Produits generes, valides, prets a l'emploi.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="genealogiste" data-titre="🧬 Le Genealogiste" data-sub="Je gere, classe et explique la genetique de tes creations."></div>
   <div id="produit-grid" class="produit-grid"></div>
   <pre id="code-view" class="hidden"></pre>
 </div>
@@ -980,6 +1022,7 @@ body.in-section #breadcrumb{display:none !important;}
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
     <p>Ton profil, modele actif et historique de production.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="secretaire" data-titre="📋 Le Secretaire" data-sub="Ton conseiller, administrateur et assistant au quotidien."></div>
   <div id="compte-root"></div>
 </div>
 
@@ -2658,7 +2701,7 @@ function _loadCustom(){
 })();
 
 /* Hash routing : on load + bouton back navigateur */
-const SECTIONS=['creation','production','compte','analyse','integrations','don'];
+const SECTIONS=['cerveau','creation','production','compte','analyse','integrations','don'];
 function routeHash(){
   const h=location.hash.slice(1);
   if(h&&SECTIONS.includes(h))showSection(h);
@@ -2823,6 +2866,68 @@ $('#btn-deploy-confirm').onclick=async()=>{
   }
 };
 
+/* ===== AGENTS CONVERSATIONNELS (chat -> outils -> reponse, multi-provider) ===== */
+function _mdLite(t){
+  let s=esc(t);
+  s=s.replace(/^#{1,4}\s+(.*)$/gm,'<h3>$1</h3>');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
+  s=s.replace(/^\s*[-*]\s+(.*)$/gm,'<li>$1</li>');
+  s=s.replace(/(?:<li>[\s\S]*?<\/li>)+/g,m=>'<ul>'+m+'</ul>');
+  s=s.replace(/\n/g,'<br>');
+  s=s.replace(/<\/ul><br>/g,'</ul>').replace(/<br>(<h3>)/g,'$1').replace(/(<\/h3>)<br>/g,'$1');
+  return s;
+}
+function buildChat(mount){
+  const role=mount.dataset.agent;
+  const titre=mount.dataset.titre||role;
+  const sub=mount.dataset.sub||'';
+  mount.classList.add('agent-chat','panel','glass');
+  mount.innerHTML=
+    '<div class="agent-chat-head"><span class="agent-chat-dot"></span><b>'+esc(titre)+'</b>'
+    +'<span class="agent-chat-sub">'+esc(sub)+'</span></div>'
+    +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
+    +'<div class="agent-chat-input"><textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'..."></textarea>'
+    +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button></div>';
+  const log=mount.querySelector('#aclog-'+role);
+  const inp=mount.querySelector('#acin-'+role);
+  const btn=mount.querySelector('#acsend-'+role);
+  const hist=[];
+  function add(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+  async function envoyer(){
+    const msg=(inp.value||'').trim();if(!msg)return;
+    inp.value='';inp.style.height='auto';btn.disabled=true;
+    add('ac-msg user',esc(msg));
+    let derniereReponse='';
+    try{
+      const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({message:msg,historique:hist})});
+      if(!resp.ok||!resp.body){add('ac-trace action','erreur reseau ('+(resp.status||'?')+')');btn.disabled=false;return;}
+      const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
+      while(true){
+        const {done,value}=await reader.read();if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        let idx;
+        while((idx=buf.indexOf('\n\n'))>=0){
+          const chunk=buf.slice(0,idx);buf=buf.slice(idx+2);
+          if(!chunk.startsWith('data: '))continue;
+          let evt;try{evt=JSON.parse(chunk.slice(6));}catch(e){continue;}
+          if(evt.type==='pensee'){add('ac-trace','&#128173; '+esc(evt.texte||''));}
+          else if(evt.type==='action'){add('ac-trace action','&#128295; '+esc(evt.outil||'')+' '+esc(JSON.stringify(evt.parametres||{})));}
+          else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
+          else if(evt.type==='delegation'){add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+' : '+esc(evt.mission||''));}
+          else if(evt.type==='reponse'){derniereReponse=evt.texte||'';add('ac-msg agent','<div class="ac-md">'+_mdLite(derniereReponse)+'</div>');}
+          else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
+        }
+      }
+      if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});}
+    }catch(e){add('ac-trace action','&#9888; '+errMsg(e));}
+    finally{btn.disabled=false;inp.focus();}
+  }
+  btn.onclick=envoyer;
+  inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,130)+'px';});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();envoyer();}});
+}
+document.querySelectorAll('.agent-chat-mount').forEach(buildChat);
 </script>
 </body>
 </html>
