@@ -634,7 +634,17 @@ _DATA = _os.path.join(_BASE, "data")
 _USERS = _os.path.join(_DATA, "users.jsonl")
 _SESSIONS = _os.path.join(_DATA, "sessions.jsonl")
 _FEEDBACKS = _os.path.join(_DATA, "feedbacks.jsonl")
-_ADMIN_EMAIL = _os.environ.get("NEOGEN_ADMIN_EMAIL", "captain@netroia.com")
+# Admin : defini par l'exploitant de l'instance via NEOGEN_ADMIN_EMAIL.
+# Vide par defaut => aucun admin pre-cable (chaque deploiement choisit le sien).
+_ADMIN_EMAIL = _os.environ.get("NEOGEN_ADMIN_EMAIL", "").strip().lower()
+
+
+def _est_admin(user) -> bool:
+    """True seulement si un admin est configure ET correspond a l'utilisateur.
+    Si NEOGEN_ADMIN_EMAIL n'est pas defini, PERSONNE n'est admin (fail-closed)."""
+    if not _ADMIN_EMAIL or not user:
+        return False
+    return (user.get("email") or "").strip().lower() == _ADMIN_EMAIL
 
 
 def _rjsonl(path: str) -> list:
@@ -754,7 +764,7 @@ def auth_me(authorization: str = Header(None)):
     return {
         "id": user["id"], "email": user["email"],
         "name": user["name"], "created_at": user.get("created_at"),
-        "is_admin": user["email"] == _ADMIN_EMAIL,
+        "is_admin": _est_admin(user),
     }
 
 
@@ -789,7 +799,7 @@ def post_feedback(data: dict, authorization: str = Header(None)):
 @app.get("/admin/feedbacks")
 def admin_feedbacks(authorization: str = Header(None)):
     user = _auth(authorization)
-    if not user or user.get("email") != _ADMIN_EMAIL:
+    if not _est_admin(user):
         raise HTTPException(403, "Acces refuse")
     items = _rjsonl(_FEEDBACKS)
     return {"feedbacks": list(reversed(items)), "total": len(items)}

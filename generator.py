@@ -7,7 +7,9 @@ renvoie une cellule structuree (nom, description, effets declares, scores
 curseurs, et le code Python reel). La cellule passe ensuite par la Membrane de
 NEOGEN.py, qui la valide contre les murs du noyau grave.
 
-Cle API : chargee depuis C:\\Netroia\\credentials\\anthropic-api.env (jamais en dur).
+Cle API : ANTHROPIC_API_KEY (env) en priorite, sinon un fichier credentials portable
+(jamais en dur). Pour les autres IA (GPT, Gemini, DeepSeek, Mistral, Ollama), le gateway
+injecte le client choisi par l'utilisateur ; ce module n'est que le defaut Anthropic.
 Modele : claude-opus-4-8, thinking adaptatif, sortie structuree (Pydantic).
 """
 
@@ -21,7 +23,14 @@ from pydantic import BaseModel, Field
 
 from vivarium import Cell, Genome
 
-CRED_FILE = Path(r"C:\Netroia\credentials\anthropic-api.env")
+# Emplacements portables du fichier de credentials, par ordre de priorite.
+# Aucun chemin personnel en dur : fonctionne en Docker, en local, ou en dev.
+# Surchargeable par la variable d'environnement NEOGEN_CRED_FILE.
+_CRED_CANDIDATES = [
+    Path("/app/credentials/anthropic-api.env"),          # Docker (volume monte)
+    Path(__file__).parent / "credentials" / "anthropic-api.env",
+    Path(__file__).parent.parent / "credentials" / "anthropic-api.env",
+]
 MODEL = "claude-opus-4-8"
 
 
@@ -95,21 +104,30 @@ def parse_resilient(client, *, tentatives: int = 3, base_delai: float = 2.0, **k
 # ---------------------------------------------------------------------------
 # Chargement de la cle API depuis les credentials (jamais dans le code)
 # ---------------------------------------------------------------------------
+def _cred_files() -> list[Path]:
+    """Emplacements a tester pour le fichier de credentials (env var en premier)."""
+    override = os.environ.get("NEOGEN_CRED_FILE")
+    if override:
+        return [Path(override)]
+    return _CRED_CANDIDATES
+
+
 def _load_api_key() -> str:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if key:
         return key
-    if CRED_FILE.exists():
-        for line in CRED_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            m = re.match(r'^(?:export\s+)?([A-Z0-9_]+)\s*=\s*"?([^"]+)"?$', line)
-            if m and ("ANTHROPIC" in m.group(1) or m.group(2).startswith("sk-ant-")):
-                return m.group(2)
+    for cred in _cred_files():
+        if cred.exists():
+            for line in cred.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                m = re.match(r'^(?:export\s+)?([A-Z0-9_]+)\s*=\s*"?([^"]+)"?$', line)
+                if m and ("ANTHROPIC" in m.group(1) or m.group(2).startswith("sk-ant-")):
+                    return m.group(2)
     raise RuntimeError(
-        "Cle Anthropic introuvable. Definir ANTHROPIC_API_KEY ou la placer "
-        f"dans {CRED_FILE}"
+        "Cle Anthropic introuvable. Definir ANTHROPIC_API_KEY, ou choisir une autre "
+        "IA dans l'interface, ou placer un fichier credentials/anthropic-api.env."
     )
 
 

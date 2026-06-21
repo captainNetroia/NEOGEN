@@ -1,0 +1,32 @@
+# Produits generes par l'organisme : JAMAIS dans l'image distribuee.
+# Chaque utilisateur part d'un registre vierge (monte au runtime via volume).
+data/
+
+# Secrets : jamais dans l'image. Montes en lecture seule au runtime.
+credentials/
+*.env
+.env
+
+# Code R&D archive : non utilise au runtime.
+_archive/
+
+# Git / historique
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Docs internes et tests (optionnels au runtime)
+docs/
+tests/
+
+# OS / editeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
