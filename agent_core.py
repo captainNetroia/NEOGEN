@@ -271,16 +271,78 @@ def _systeme(role: str, profil: dict) -> str:
                  'arguments JSON {"agent": "createur|genealogiste|secretaire", "mission": "..."}.')
     return nettoyer(
         f"{role}\n\n"
-        "FONCTIONNEMENT : a chaque tour tu produis un objet JSON {pensee, outil, arguments, reponse}.\n"
-        "- Pour AGIR : 'outil' = un nom EXACT ci-dessous, 'arguments' = une CHAINE de texte JSON contenant "
-        "les parametres de l'outil, 'reponse' = null.\n"
-        '  Exemple : outil = deleguer, arguments = {"agent": "createur", "mission": "creer un gadget meteo"}\n'
-        "- Pour REPONDRE : 'outil' = null, 'reponse' = ta reponse finale a l'utilisateur.\n"
-        "- 'arguments' contient TOUJOURS les parametres de l'outil (jamais ailleurs). Chaine vide si l'outil n'en a pas.\n"
-        "- 'pensee' est toujours rempli (court), visible par l'utilisateur.\n"
-        "- N'invente jamais un outil hors de cette liste. Si aucun outil n'est utile, reponds directement.\n\n"
+        "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
+        "autour, sans balises de code. L'objet a exactement ces 4 cles : pensee, outil, arguments, reponse.\n"
+        '- Pour REPONDRE a l\'utilisateur : {"pensee": "courte", "outil": null, "arguments": "", "reponse": "ta reponse"}\n'
+        '- Pour APPELER un outil : {"pensee": "courte", "outil": "nom_exact", "arguments": "{\\"cle\\": \\"valeur\\"}", "reponse": null}\n'
+        '  Exemple concret : {"pensee": "Je liste les creations.", "outil": "lister_creations", "arguments": "", "reponse": null}\n'
+        "- 'arguments' est TOUJOURS une chaine de texte JSON (vide si l'outil n'a pas de parametre). "
+        "Ne mets jamais les parametres ailleurs.\n"
+        "- N'invente jamais un outil hors de la liste. Si aucun outil n'est utile, reponds directement.\n\n"
         "OUTILS DISPONIBLES :\n" + desc
     )
+
+
+def _texte_de(res) -> str:
+    """Extrait le texte d'un resultat .create (blocs Anthropic ou _CreateResult gateway)."""
+    c = getattr(res, "content", None)
+    if isinstance(c, list):
+        out = []
+        for b in c:
+            out.append(b.get("text", "") if isinstance(b, dict) else (getattr(b, "text", "") or ""))
+        return "".join(out)
+    return str(c or "")
+
+
+def _extraire_json(txt: str):
+    """Recupere le premier objet JSON d'un texte (tolerant : fences, prefixes)."""
+    s = (txt or "").strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        if s[:4].lower() == "json":
+            s = s[4:]
+        s = s.strip()
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+    import re
+    m = re.search(r"\{.*\}", s, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            return None
+    return None
+
+
+def _parse_step(txt: str) -> AgentStep:
+    """Parse TOLERANT d'un AgentStep (robuste face aux petits modeles Ollama).
+    - extrait le JSON meme imparfait ; gere le cas ou le modele renvoie le SCHEMA
+      ({"properties": {...}}) ; defaults pour champs manquants ;
+    - si rien d'exploitable : traite le texte comme une reponse directe (jamais de plantage)."""
+    obj = _extraire_json(txt)
+    if not isinstance(obj, dict):
+        return AgentStep(pensee="", reponse=(txt or "").strip() or "...")
+    # Le modele a recopie le schema au lieu d'une instance.
+    if "pensee" not in obj and isinstance(obj.get("properties"), dict):
+        inner = obj["properties"]
+        obj = {k: (v.get("default") if isinstance(v, dict) and "default" in v else v)
+               for k, v in inner.items()}
+    pensee = obj.get("pensee")
+    outil = obj.get("outil")
+    arguments = obj.get("arguments")
+    reponse = obj.get("reponse")
+    if isinstance(arguments, dict):
+        arguments = json.dumps(arguments, ensure_ascii=False)
+    arguments = arguments if isinstance(arguments, str) else ""
+    pensee = pensee if isinstance(pensee, str) else ""
+    outil = outil.strip() if isinstance(outil, str) and outil.strip() else None
+    reponse = reponse if isinstance(reponse, str) and reponse.strip() else None
+    # Rien d'exploitable -> reponse directe = texte brut (l'agent repond toujours).
+    if not outil and not reponse and not pensee:
+        return AgentStep(pensee="", reponse=(txt or "").strip() or "...")
+    return AgentStep(pensee=pensee, outil=outil, arguments=arguments, reponse=reponse)
 
 
 def dialoguer(role: str, message: str, historique: list[dict] | None = None,
@@ -310,12 +372,15 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
     cl = _client or gateway.client(ctx, tier=profil.get("tier", "fort"))
 
     for _ in range(MAX_ETAPES):
-        res = cl.messages.parse(
-            output_format=AgentStep, system=systeme,
-            messages=messages, max_tokens=4000,
-        )
-        step: AgentStep = res.parsed_output
-        _emit({"type": "pensee", "agent": role, "texte": nettoyer(step.pensee or "")})
+        try:
+            res = cl.messages.create(system=systeme, messages=messages, max_tokens=4000)
+            step = _parse_step(_texte_de(res))
+        except Exception as e:
+            msg = nettoyer(f"Le modele n'a pas pu repondre : {e}")
+            _emit({"type": "erreur", "message": msg})
+            return msg
+        if step.pensee:
+            _emit({"type": "pensee", "agent": role, "texte": nettoyer(step.pensee)})
 
         # Fin : reponse finale.
         if not step.outil:
@@ -388,11 +453,15 @@ if __name__ == "__main__":
     print(f"  {len(PROFILS)} profils, {len(OUTILS)} outils : coherence OK")
 
     # 2) Boucle ReAct avec client factice : createur appelle un outil puis repond.
+    #    Le fake .create renvoie le JSON de chaque step (comme un vrai modele).
+    def _as_text(step):
+        return json.dumps({"pensee": step.pensee, "outil": step.outil,
+                           "arguments": step.arguments, "reponse": step.reponse}, ensure_ascii=False)
     class _FakeMsgs:
         def __init__(self, steps): self._steps = steps; self.i = 0
-        def parse(self, **kw):
+        def create(self, **kw):
             s = self._steps[self.i]; self.i += 1
-            class R: parsed_output = s
+            class R: content = [{"text": _as_text(s)}]
             return R()
     class _FakeClient:
         def __init__(self, steps): self.messages = _FakeMsgs(steps)
