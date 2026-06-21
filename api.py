@@ -649,6 +649,73 @@ def orchestrer_stream(demande: DemandeFabrication,
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# ── Agents conversationnels (Cerveau + Forgeron + Genealogiste + Secretaire) ──
+
+class MessageChat(BaseModel):
+    role: str  # 'user' | 'assistant'
+    content: str
+
+
+class DemandeChat(BaseModel):
+    message: str
+    historique: list[MessageChat] = Field(default_factory=list)
+
+
+@app.get("/agents")
+def lister_agents():
+    """Expose les profils d'agents (titre + role) pour l'UI."""
+    from agent_core import PROFILS
+    return {"agents": {k: {"titre": v["titre"], "outils": v["outils"],
+                           "delegue": v.get("delegue", False)} for k, v in PROFILS.items()}}
+
+
+@app.post("/agent/{role}/chat/stream")
+def agent_chat_stream(role: str, demande: DemandeChat,
+                      x_llm_provider: str | None = Header(default=None),
+                      x_llm_model: str | None = Header(default=None),
+                      x_llm_key: str | None = Header(default=None),
+                      x_llm_base: str | None = Header(default=None)):
+    """Dialogue avec un agent : il reflechit, appelle des outils, repond. Flux SSE."""
+    import queue
+    import threading
+    from sanitizer import nettoyer
+    from gateway import contexte_depuis_headers
+    from agent_core import dialoguer, PROFILS
+
+    if role not in PROFILS:
+        raise HTTPException(status_code=404, detail=f"agent inconnu : {role}")
+
+    _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    hist = [{"role": m.role, "content": m.content} for m in demande.historique]
+
+    file_evts: "queue.Queue" = queue.Queue()
+    _SENTINEL = object()
+
+    def emit(evt: dict):
+        safe = {k: (nettoyer(v) if isinstance(v, str) else v) for k, v in evt.items()}
+        file_evts.put(safe)
+
+    def travailler():
+        try:
+            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit)
+        except Exception as e:
+            file_evts.put({"type": "erreur", "message": nettoyer(str(e))})
+        finally:
+            file_evts.put(_SENTINEL)
+
+    threading.Thread(target=travailler, daemon=True).start()
+
+    def flux():
+        while True:
+            evt = file_evts.get()
+            if evt is _SENTINEL:
+                break
+            yield f"data: {_json.dumps(evt, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(flux(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 # ── Auth & Feedback ───────────────────────────────────────────────────────────
 
 _BASE = _os.path.dirname(_os.path.abspath(__file__))
