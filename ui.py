@@ -2364,25 +2364,28 @@ async function loadAnalyse(){
 
 /* Integrations — multi-provider + switch actif + custom */
 (function(){
+  /* check = pre-filtre permissif uniquement (longueur). La VRAIE validation se fait
+     par un appel reel via /llm/verifier -> ne jamais bloquer une cle valide a cause
+     d'un format (ex: nouveau format Gemini "AQ.", anciens "AIza", "sk-ant-", etc.). */
   const PROV={
-    anthropic:{label:'Anthropic',check:k=>k.startsWith('sk-ant-'),
+    anthropic:{label:'Anthropic',check:k=>k.trim().length>=8,
       models:['claude-fable-5','claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5'],
       ph:'sk-ant-api03-...'},
-    openai:{label:'OpenAI / GPT',check:k=>k.startsWith('sk-')&&!k.startsWith('sk-ant-'),
+    openai:{label:'OpenAI / GPT',check:k=>k.trim().length>=8,
       models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o1','o3-mini'],
       ph:'sk-proj-...'},
-    gemini:{label:'Gemini',check:k=>k.startsWith('AIza'),
+    gemini:{label:'Gemini',check:k=>k.trim().length>=8,
       models:['gemini-2.5-pro','gemini-2.0-flash','gemini-1.5-pro','gemini-1.5-flash'],
-      ph:'AIzaSy...'},
-    deepseek:{label:'DeepSeek',check:k=>k.length>10,
+      ph:'AIzaSy... ou AQ....'},
+    deepseek:{label:'DeepSeek',check:k=>k.trim().length>=8,
       models:['deepseek-chat','deepseek-reasoner','deepseek-coder'],
       ph:'API key DeepSeek...'},
-    mistral:{label:'Mistral',check:k=>k.length>10,
+    mistral:{label:'Mistral',check:k=>k.trim().length>=8,
       models:['mistral-large-latest','mistral-small-latest','codestral-latest','open-mistral-nemo'],
       ph:'API key Mistral...'},
     local:{label:'Local (Ollama)',check:_=>true,
       models:['llama3.2','qwen2.5','mistral','phi4','gemma3','deepseek-r1:8b'],
-      ph:'http://localhost:11434 (optionnel)'}
+      ph:'http://host.docker.internal:11434/v1'}
   };
 
   const ge=id=>document.getElementById(id);
