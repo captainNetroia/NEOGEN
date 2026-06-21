@@ -102,6 +102,9 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
 
         _emit({"stade": "conteneur", "tentative": t, "msg": "execution en conteneur durci"})
         rc, out, err, _ = executer_isole(module.code, cap=cap, volume_nom=volume_nom)
+        if cap is not None and getattr(cap, "bureau", False):
+            from rpa import intercepter_sorties_rpa
+            intercepter_sorties_rpa(out)
         if rc == 0:
             succes, verdict, code_final = True, f"execute OK (tentative {t})", module.code
             _emit({"stade": "execution", "ok": True, "tentative": t, "msg": "le produit tourne"})
@@ -182,10 +185,11 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
         import registre
         adn = _captured.get("adn")
         murs = [m.id for m in getattr(adn, "murs", [])] if adn else []
-        cap_list = [c for c in ["persistance", "reseau"] if getattr(cap, c, False)] if cap else []
+        cap_list = [c for c in ["persistance", "reseau", "bureau"] if getattr(cap, c, False)] if cap else []
         entree = registre.enregistrer(intention, r.code,
                                       verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
-                                      parent_id=parent_id, murs=murs, capacites=cap_list)
+                                      parent_id=parent_id, murs=murs, capacites=cap_list,
+                                      domaines_autorises=getattr(cap, "domaines_autorises", []))
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
 
     return r
@@ -261,10 +265,11 @@ def fabriquer_juge_reel(intention, *, reparer=True, max_tentatives=3, enregistre
     r.classement = etat["classement"]
 
     if enregistrer and r.succes and r.code:
-        cap_list = [c for c in ["persistance", "reseau"] if getattr(cap, c, False)] if cap else []
+        cap_list = [c for c in ["persistance", "reseau", "bureau"] if getattr(cap, c, False)] if cap else []
         entree = _reg.enregistrer(intention, r.code,
                                   verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
-                                  murs=murs, capacites=cap_list)
+                                  murs=murs, capacites=cap_list,
+                                  domaines_autorises=getattr(cap, "domaines_autorises", []))
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
     return r
 

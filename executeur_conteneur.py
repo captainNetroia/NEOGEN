@@ -108,13 +108,6 @@ def executer_en_conteneur(code: str, timeout: int = 25,
     """
     cap = cap or Capacites()
 
-    # RESEAU : invariant DevSecOps -> aucune sortie brute. La sortie passe par un proxy
-    # d'egress qui n'autorise que la liste blanche de domaines (cf. executeur_reseau).
-    if cap.reseau:
-        from executeur_reseau import executer_avec_reseau
-        return executer_avec_reseau(code, cap.domaines_autorises, timeout=timeout,
-                                    cap=cap, volume_nom=volume_nom)
-
     cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]
 
     # PERSISTANCE : volume nomme isole monte sur le point d'ancrage accorde.
@@ -127,8 +120,18 @@ def executer_en_conteneur(code: str, timeout: int = 25,
     cmd += ["-e", "PYTHONIOENCODING=utf-8", IMAGE, "python", "-"]
 
     try:
-        r = subprocess.run(cmd, input=code, capture_output=True, text=True, timeout=timeout)
-        return r.returncode, r.stdout, r.stderr, ("<volume:" + volume_nom + ">" if cap.persistance else "<stdin>")
+        if cap.reseau:
+            from executeur_reseau import executer_avec_reseau
+            rc, out, err, path = executer_avec_reseau(code, cap.domaines_autorises, timeout=timeout,
+                                                       cap=cap, volume_nom=volume_nom)
+        else:
+            r = subprocess.run(cmd, input=code, capture_output=True, text=True, timeout=timeout)
+            rc, out, err, path = r.returncode, r.stdout, r.stderr, ("<volume:" + volume_nom + ">" if cap.persistance else "<stdin>")
+        
+        if cap.bureau:
+            from rpa import intercepter_sorties_rpa
+            intercepter_sorties_rpa(out)
+        return rc, out, err, path
     except subprocess.TimeoutExpired:
         return -1, "", f"TIMEOUT conteneur apres {timeout}s", "<stdin>"
 
@@ -150,6 +153,9 @@ def executer_avec_entree(code: str, donnees: dict, timeout: int = 25,
         rc, out, err, _ = executer_avec_reseau(wrapped, cap.domaines_autorises, timeout=timeout,
                                                cap=cap, volume_nom=volume_nom,
                                                env_extra={"VIVARIUM_INPUT": entree_json})
+        if cap.bureau:
+            from rpa import intercepter_sorties_rpa
+            intercepter_sorties_rpa(out)
         return _extraire_resultat(rc, out, err)
 
     cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]
@@ -161,6 +167,9 @@ def executer_avec_entree(code: str, donnees: dict, timeout: int = 25,
     cmd += ["-e", "PYTHONIOENCODING=utf-8", "-e", f"VIVARIUM_INPUT={entree_json}", IMAGE, "python", "-"]
     try:
         r = subprocess.run(cmd, input=wrapped, capture_output=True, text=True, timeout=timeout)
+        if cap.bureau:
+            from rpa import intercepter_sorties_rpa
+            intercepter_sorties_rpa(r.stdout)
         return _extraire_resultat(r.returncode, r.stdout, r.stderr)
     except subprocess.TimeoutExpired:
         return {"ok": False, "erreur": f"TIMEOUT apres {timeout}s"}

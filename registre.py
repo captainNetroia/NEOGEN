@@ -41,7 +41,8 @@ def _norm(e: dict) -> dict:
 
 def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int,
                 contrat: dict | None = None, parent_id: str | None = None,
-                murs: list[str] | None = None, capacites: list[str] | None = None) -> dict:
+                murs: list[str] | None = None, capacites: list[str] | None = None,
+                domaines_autorises: list[str] | None = None) -> dict:
     """Persiste un produit reussi et retourne son entree d'index.
     Si contrat (dict du schema d'entree) est fourni, le produit est PROMOUVABLE.
     GENEALOGIE (Phase 4) : si parent_id est donne, le produit est une nouvelle generation
@@ -92,6 +93,7 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         "parent_id": parent_id,
         "murs": murs or [],
         "capacites": capacites or [],
+        "domaines_autorises": domaines_autorises or [],
     }
     os.makedirs(os.path.dirname(INDEX), exist_ok=True)
     with open(INDEX, "a", encoding="utf-8") as f:

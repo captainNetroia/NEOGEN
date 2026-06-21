@@ -55,10 +55,12 @@ FLAGS_INVARIANTS = [
 # ---------------------------------------------------------------------------
 PERSISTANCE = "persistance"
 RESEAU = "reseau"
+BUREAU = "bureau"  # RPA / computer-use
 
 CATALOGUE_CAPACITES = {
     PERSISTANCE: "Lire/ecrire dans un espace disque ISOLE et jetable (monte sur /data). Jamais le disque de l'hote.",
     RESEAU: "Sortie reseau limitee a une LISTE BLANCHE de domaines. Aucun autre acces.",
+    BUREAU: "Piloter le clavier et la souris de l'hote via l'agent local (RPA / computer-use).",
 }
 
 
@@ -67,6 +69,7 @@ class Capacites:
     """Ce que l'humain a accorde a CE produit. Vide = produit pur (calcul en memoire)."""
     persistance: bool = False
     reseau: bool = False
+    bureau: bool = False
     domaines_autorises: list[str] = field(default_factory=list)  # liste blanche si reseau accorde
     chemin_persistance: str = "/data"                            # point de montage cote conteneur
 
@@ -76,6 +79,8 @@ class Capacites:
             out.append(PERSISTANCE)
         if self.reseau:
             out.append(RESEAU)
+        if self.bureau:
+            out.append(BUREAU)
         return out
 
     def resume(self) -> str:
@@ -87,6 +92,8 @@ class Capacites:
         if self.reseau:
             dom = ", ".join(self.domaines_autorises) or "AUCUN domaine (a preciser)"
             parts.append(f"reseau -> liste blanche : {dom}")
+        if self.bureau:
+            parts.append("bureau (RPA / computer-use)")
         return " | ".join(parts)
 
 
@@ -107,4 +114,13 @@ def contraintes_generation(cap: Capacites) -> str:
         lignes.append(f"Tu PEUX faire des requetes reseau SORTANTES, UNIQUEMENT vers : {dom}.")
     else:
         lignes.append("AUCUN acces reseau (aucune capacite reseau accordee).")
+    if cap.bureau:
+        lignes.append("Tu PEUX piloter le bureau (clavier, souris) de l'hote en imprimant des actions au format "
+                      "exact 'RPA_ACTION:{\"action\": \"click\", \"x\": X, \"y\": Y}' (ou d'autres actions comme "
+                      "move, double_click, right_click, scroll, type, press, hotkey) sur stdout. Exemple: "
+                      "print('RPA_ACTION:{\"action\": \"click\", \"x\": 500, \"y\": 300}') ou "
+                      "print('RPA_ACTION:{\"action\": \"type\", \"text\": \"hello\"}'). Tout se fait via stdout.")
+    else:
+        lignes.append("Aucun pilotage clavier ou souris (aucune capacite bureau accordee).")
     return "\n".join(f"- {l}" for l in lignes)
+

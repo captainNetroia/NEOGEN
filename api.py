@@ -31,9 +31,11 @@ from datetime import datetime as _dt, timedelta as _td
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import registre
+import rpa
 from capacites import Capacites
 from executeur_conteneur import docker_disponible
 from pipeline import fabriquer_reel
@@ -44,6 +46,15 @@ app = FastAPI(
     description="Une intention parlee devient une application gouvernee, generee et executee en conteneur durci.",
     version="5.0",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 
 class DemandeFabrication(BaseModel):
@@ -402,8 +413,19 @@ def executer_produit(produit_id: str, demande: DemandeExecution):
         erreurs = valider_entree(ContratProduit(**contrat), demande.donnees)
         if erreurs:
             raise HTTPException(status_code=422, detail={"erreurs": erreurs})
+            
+    meta = next((e for e in registre.lister() if e["id"] == produit_id), {})
+    caps_list = meta.get("capacites", [])
+    cap = Capacites(
+        persistance="persistance" in caps_list,
+        reseau="reseau" in caps_list,
+        bureau="bureau" in caps_list,
+        domaines_autorises=meta.get("domaines_autorises", []),
+    )
+    volume_nom = ("viv_" + registre._slug(meta.get("intention", ""))) if cap.persistance else None
+    
     from executeur_conteneur import executer_avec_entree
-    return executer_avec_entree(code, demande.donnees)
+    return executer_avec_entree(code, demande.donnees, cap=cap, volume_nom=volume_nom)
 
 
 @app.get("/produits/{produit_id}/app", response_class=HTMLResponse)
@@ -903,3 +925,186 @@ async def openlegi_conformite(data: dict):
         raise HTTPException(502, f"OpenLegi inaccessible : {e}")
     content = result.get("result", result)
     return {"resultats": content, "query": query}
+
+
+# ── Endpoints RPA & Apprentissage par imitation ───────────────────────────────
+
+@app.post("/rpa/agent/ping")
+def rpa_ping():
+    rpa.ping_agent()
+    return {"recording": rpa.is_recording()}
+
+
+@app.get("/rpa/status")
+def rpa_status():
+    return {
+        "connected": rpa.is_agent_connected(),
+        "recording": rpa.is_recording(),
+        "queue_len": len(rpa.RpaQueue.list_queue())
+    }
+
+
+@app.get("/rpa/pending")
+def rpa_pending():
+    act = rpa.RpaQueue.get_pending()
+    if not act:
+        raise HTTPException(status_code=404, detail="No pending actions")
+    return act
+
+
+class RpaResultBody(BaseModel):
+    id: str
+    status: str
+    error: str | None = None
+
+
+@app.post("/rpa/action/result")
+def rpa_action_result(body: RpaResultBody):
+    ok = rpa.RpaQueue.set_result(body.id, body.status, body.error)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Action not found")
+    return {"ok": True}
+
+
+@app.post("/rpa/clear")
+def rpa_clear():
+    count = rpa.RpaQueue.clear()
+    return {"cleared": count}
+
+
+class RpaExecuteBody(BaseModel):
+    actions: list[dict]
+
+
+@app.post("/rpa/execute")
+def rpa_execute(body: RpaExecuteBody):
+    ids = rpa.RpaQueue.push_multiple(body.actions)
+    return {"ids": ids}
+
+
+@app.post("/rpa/record/start")
+def rpa_record_start():
+    rpa.start_recording()
+    return {"ok": True}
+
+
+@app.post("/rpa/record/action")
+def rpa_record_action(action: dict):
+    rpa.add_recorded_action(action)
+    return {"ok": True}
+
+
+class RpaRecordStopBody(BaseModel):
+    name: str
+
+
+@app.post("/rpa/record/stop")
+def rpa_record_stop(body: RpaRecordStopBody):
+    rec = rpa.stop_recording(body.name)
+    if not rec:
+        raise HTTPException(status_code=400, detail="Recording not active")
+    return rec
+
+
+@app.get("/rpa/recordings")
+def rpa_list_recordings():
+    return {"recordings": rpa.list_recordings()}
+
+
+@app.get("/rpa/recordings/{rec_id}")
+def rpa_get_recording(rec_id: str):
+    rec = rpa.get_recording(rec_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return rec
+
+
+class RpaUpdateRecordBody(BaseModel):
+    actions: list[dict]
+
+
+@app.post("/rpa/recordings/{rec_id}/update")
+def rpa_update_recording(rec_id: str, body: RpaUpdateRecordBody):
+    ok = rpa.update_recording(rec_id, body.actions)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return {"ok": True}
+
+
+@app.delete("/rpa/recordings/{rec_id}")
+def rpa_delete_recording(rec_id: str):
+    ok = rpa.delete_recording(rec_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return {"ok": True}
+
+
+@app.post("/rpa/recordings/{rec_id}/replay")
+def rpa_replay_recording(rec_id: str):
+    ids = rpa.replay_recording(rec_id)
+    if ids is None:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    return {"ids": ids}
+
+
+# ── Endpoint Déploiement Hostinger ───────────────────────────────────────────
+
+class DeployBody(BaseModel):
+    domain: str
+
+
+@app.post("/produits/{produit_id}/deploy")
+def deploy_produit(produit_id: str, body: DeployBody):
+    """Prépare le pack de déploiement et crée une demande pour l'agent local / MCP."""
+    if not registre.est_promu(produit_id):
+        raise HTTPException(status_code=403, detail="produit non promu (validation humaine requise)")
+    contrat = registre.charger_contrat(produit_id)
+    if not contrat:
+        raise HTTPException(status_code=400, detail="le produit n'a pas de contrat d'interface")
+    
+    from promotion import page_app
+    html = page_app(produit_id, contrat)
+    
+    import tempfile
+    import zipfile
+    import shutil
+    
+    temp_dir = tempfile.mkdtemp(prefix="neogen_deploy_")
+    try:
+        index_path = _os.path.join(temp_dir, "index.html")
+        with open(index_path, "w", encoding="utf-8") as f:
+            f.write(html)
+            
+        archive_name = f"deploy_{produit_id}.zip"
+        # On sauvegarde le zip dans data/tmp pour l'exposer
+        tmp_folder = _os.path.join(_BASE, "data", "tmp")
+        _os.makedirs(tmp_folder, exist_ok=True)
+        archive_path = _os.path.join(tmp_folder, archive_name)
+        
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(index_path, "index.html")
+            
+        # Écrit la demande de déploiement dans data/deploy_requests.jsonl
+        req_id = str(_uid.uuid4())
+        req = {
+            "id": req_id,
+            "produit_id": produit_id,
+            "domain": body.domain.strip(),
+            "archive_path": _os.path.abspath(archive_path),
+            "timestamp": _dt.now().isoformat(timespec="seconds"),
+            "status": "pending"
+        }
+        _ajsonl(_os.path.join(_BASE, "data", "deploy_requests.jsonl"), req)
+        
+        return {
+            "success": True,
+            "req_id": req_id,
+            "archive_path": _os.path.abspath(archive_path),
+            "message": "Pack de déploiement généré avec index.html.",
+            "instructions": "Demandez à l'assistant d'exécuter le déploiement sur Hostinger pour ce domaine."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur de préparation du déploiement : {e}")
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+

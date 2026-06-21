@@ -601,6 +601,56 @@ pre.code,#code-view{background:#0d1117;border:1px solid rgba(255,255,255,.1);bor
 
 .hidden{display:none !important;}
 
+/* ===== RPA Agent Status Panel ===== */
+.rpa-panel{margin-top:16px;}
+.rpa-status-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:12px;
+  background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.55);margin-bottom:12px;}
+.rpa-status-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;
+  transition:background .3s,box-shadow .3s;}
+.rpa-status-dot.connected{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.8s infinite;}
+.rpa-status-dot.disconnected{background:var(--ko);box-shadow:0 0 5px rgba(220,38,38,.3);}
+.rpa-status-label{font-size:14px;font-weight:600;color:var(--txt);}
+.rpa-status-sub{font-size:12px;color:var(--mut);}
+.rpa-queue-badge{margin-left:auto;font-size:11px;font-weight:700;padding:3px 10px;
+  border-radius:99px;background:rgba(8,145,178,.12);color:var(--acc);}
+
+/* Imitation Recording controls */
+.imit-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.imit-controls button{font-size:13px;padding:8px 16px;}
+.imit-rec-dot{display:inline-block;width:10px;height:10px;border-radius:50%;
+  background:var(--ko);animation:pulse 0.8s infinite;vertical-align:middle;margin-right:5px;}
+
+/* Recordings list */
+.imit-list{max-height:360px;overflow-y:auto;}
+.imit-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;
+  margin-bottom:6px;background:rgba(255,255,255,.3);
+  border:1px solid rgba(15,23,42,.06);transition:all .2s;}
+.imit-item:hover{background:rgba(255,255,255,.55);border-color:rgba(8,145,178,.25);}
+.imit-item-name{flex:1;font-weight:600;font-size:14px;color:var(--txt);}
+.imit-item-meta{font-size:12px;color:var(--mut);}
+.imit-item-actions{display:flex;gap:5px;flex-shrink:0;}
+.imit-item-actions button{font-size:11px;padding:5px 10px;}
+
+/* Deploy modal */
+.deploy-modal-backdrop{position:fixed;inset:0;z-index:9999;
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;}
+.deploy-modal{background:#fff;border-radius:18px;padding:28px 24px;max-width:440px;width:92%;
+  box-shadow:0 24px 64px rgba(0,0,0,.22);position:relative;animation:stepIn .3s ease;}
+.deploy-modal .dm-close{position:absolute;top:14px;right:16px;background:none;border:none;
+  font-size:20px;cursor:pointer;color:var(--mut);line-height:1;padding:2px 6px;}
+.deploy-modal h3{font-size:17px;font-weight:700;color:var(--txt);margin-bottom:6px;}
+.deploy-modal .dm-desc{font-size:13px;color:var(--mut);margin-bottom:16px;line-height:1.5;}
+.deploy-modal input[type=text]{width:100%;padding:10px 12px;border-radius:9px;font-size:14px;
+  border:1px solid rgba(15,23,42,.15);background:rgba(255,255,255,.8);color:var(--txt);
+  font-family:inherit;margin-bottom:12px;}
+.deploy-modal input[type=text]:focus{outline:none;border-color:var(--acc);
+  box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+.deploy-modal .dm-log{max-height:160px;overflow-y:auto;font-size:12px;color:var(--mut);
+  padding:8px 10px;border-radius:8px;background:rgba(15,23,42,.04);margin-top:10px;
+  border:1px solid rgba(15,23,42,.06);line-height:1.6;display:none;}
+.deploy-modal .dm-status{font-size:13px;margin-top:10px;min-height:18px;text-align:center;}
+
 /* SIDEBAR — visible uniquement en mode section */
 .sidebar{
   position:fixed;left:0;top:57px;
@@ -878,6 +928,14 @@ body.in-section #breadcrumb{display:none !important;}
         <div class="cap-card-desc">Sortie reseau limitee a une liste blanche de domaines. Aucun autre acces.</div>
         <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par virgule">
       </div>
+      <div class="cap-card">
+        <div class="cap-card-head">
+          <label class="toggle-wrap"><input type="checkbox" id="bureau" class="toggle-inp"><span class="toggle-pill"></span></label>
+          <span class="cap-card-name">Bureau (RPA)</span>
+          <span class="cap-useful" id="useful-bureau"></span>
+        </div>
+        <div class="cap-card-desc">Piloter le clavier et la souris de l'hote via l'agent local (RPA / computer-use).</div>
+      </div>
     </div>
     <div class="row" style="margin-top:6px">
       <label style="color:var(--mut);font-size:13px;display:flex;align-items:center;gap:6px">
@@ -977,6 +1035,45 @@ body.in-section #breadcrumb{display:none !important;}
 
   <!-- Grille des categories (rendue par JS) -->
   <div id="integ-grid-dynamic" class="integ-grid"></div>
+
+  <!-- Agent local RPA — statut + apprentissage par imitation -->
+  <div class="panel glass rpa-panel" style="margin-top:20px">
+    <div class="integ-section-label">Agent local RPA</div>
+    <div class="rpa-status-bar" id="rpa-status-bar">
+      <span class="rpa-status-dot disconnected" id="rpa-dot"></span>
+      <span>
+        <span class="rpa-status-label" id="rpa-label">Agent deconnecte</span><br>
+        <span class="rpa-status-sub" id="rpa-sub">Lancer <code>python rpa_agent.py</code> sur la machine hote</span>
+      </span>
+      <span class="rpa-queue-badge" id="rpa-queue-badge" style="display:none">file: 0</span>
+    </div>
+
+    <div class="integ-section-label" style="margin-top:14px">Apprentissage par imitation</div>
+    <div class="imit-controls">
+      <button id="btn-imit-start" class="ghost">Enregistrer</button>
+      <button id="btn-imit-stop" class="ghost" style="display:none"><span class="imit-rec-dot"></span>Stopper</button>
+      <button id="btn-rpa-clear" class="ghost" title="Arrêt d'urgence : vider la file RPA" style="margin-left:auto;color:var(--ko);border-color:rgba(220,38,38,.35)">Arrêt d'urgence</button>
+    </div>
+    <div class="imit-list" id="imit-list">
+      <div style="color:var(--mut);font-size:13px;padding:10px 0">Aucun enregistrement. Clique sur « Enregistrer » pour démarrer.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Deploiement Hostinger -->
+<div id="modal-deploy" style="display:none">
+  <div class="deploy-modal-backdrop" onclick="if(event.target===this)fermerModalDeploy()">
+    <div class="deploy-modal">
+      <button class="dm-close" onclick="fermerModalDeploy()">✕</button>
+      <h3>Deployer sur Hostinger</h3>
+      <div class="dm-desc">Genere un pack statique (index.html) et prepare le deploiement vers ton domaine.</div>
+      <div style="font-size:12px;color:var(--mut);margin-bottom:6px" id="deploy-produit-info"></div>
+      <input type="text" id="deploy-domain" placeholder="ex: mon-outil.netroia.tech">
+      <button id="btn-deploy-confirm" style="width:100%">Deployer</button>
+      <div class="dm-log" id="deploy-log"></div>
+      <div class="dm-status" id="deploy-status"></div>
+    </div>
+  </div>
 </div>
 
 <!-- DON -->
@@ -1309,7 +1406,7 @@ const MURS_LABELS={
   requires_auth:'Authentification requise',
   no_data_exfiltration:'Aucune exfiltration de donnees',
 };
-const studio={intention:'',proposition:null,murs:[],persistance:false,reseau:false,domaines:'',juger:false,
+const studio={intention:'',proposition:null,murs:[],persistance:false,reseau:false,bureau:false,domaines:'',juger:false,
   deleguer:false,intentionAnalysee:'',intentionConseil:''};
 
 function studioGoto(n){
@@ -1334,7 +1431,7 @@ $('#btn-scan').onclick=async()=>{
     const p=await(await fetch('/proposer',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({intention})})).json();
     if(p.detail){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(p.detail);return;}
     studio.proposition=p;
-    studio.persistance=!!p.persistance;studio.reseau=!!p.reseau;
+    studio.persistance=!!p.persistance;studio.reseau=!!p.reseau;studio.bureau=!!p.bureau;
     studio.domaines=(p.domaines_proposes||[]).join(', ');
     // murs retenus initiaux = murs classes (ou murs_proposes en fallback)
     studio.murs=(p.murs_classes&&p.murs_classes.length
@@ -1434,8 +1531,8 @@ function renderBulles(){
   // capacites proposees en bulles (interactives : clic pour activer/desactiver)
   const caps=$('#bulles-caps');caps.innerHTML='';
   caps.innerHTML='<div class="compo-section-lbl" style="width:100%">Capacites accordees</div>';
-  const capLabels={persistance:'Persistance (disque)',reseau:'Reseau (liste blanche)'};
-  ['persistance','reseau'].forEach(name=>{
+  const capLabels={persistance:'Persistance (disque)',reseau:'Reseau (liste blanche)',bureau:'Bureau (RPA)'};
+  ['persistance','reseau','bureau'].forEach(name=>{
     const b=document.createElement('span');
     b.className='cap-bulle'+(studio[name]?' active':'');
     b.textContent=capLabels[name];
@@ -1712,6 +1809,18 @@ async function loadProduits(){
       a.click();
     };
     actions.appendChild(btnDl);
+    // Bouton deploiement Hostinger pour les produits promus
+    if(p.promu){
+      const btnDeploy=document.createElement('button');
+      btnDeploy.textContent='Deployer';
+      btnDeploy.title='Deployer sur Hostinger';
+      btnDeploy.style.cssText='background:rgba(234,88,12,.12);color:var(--c-integration);border:1px solid rgba(234,88,12,.35)';
+      btnDeploy.onclick=(e)=>{
+        e.stopPropagation();
+        ouvrirModalDeploy(p.id,p.intention);
+      };
+      actions.appendChild(btnDeploy);
+    }
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
@@ -2556,6 +2665,164 @@ function routeHash(){
 }
 window.addEventListener('popstate',routeHash);
 routeHash();
+
+/* ===== RPA STATUS POLLING ===== */
+let _rpaInterval=null;
+async function pollRpaStatus(){
+  try{
+    const r=await(await fetch('/rpa/status')).json();
+    const dot=$('#rpa-dot'), lbl=$('#rpa-label'), sub=$('#rpa-sub'), qb=$('#rpa-queue-badge');
+    if(r.connected){
+      dot.className='rpa-status-dot connected';
+      lbl.textContent='Agent connecte';
+      sub.textContent=r.recording?'Enregistrement en cours...':'Pret a recevoir des actions';
+    }else{
+      dot.className='rpa-status-dot disconnected';
+      lbl.textContent='Agent deconnecte';
+      sub.innerHTML='Lancer <code>python rpa_agent.py</code> sur la machine hote';
+    }
+    if(r.queue_len>0){qb.style.display='';qb.textContent='file: '+r.queue_len;}
+    else{qb.style.display='none';}
+    // Sync recording button state
+    const btnStart=$('#btn-imit-start'),btnStop=$('#btn-imit-stop');
+    if(r.recording){btnStart.style.display='none';btnStop.style.display='';}
+    else{btnStart.style.display='';btnStop.style.display='none';}
+  }catch(e){}
+}
+_rpaInterval=setInterval(pollRpaStatus,3000);
+pollRpaStatus();
+
+/* ===== IMITATION RECORDING UI ===== */
+$('#btn-imit-start').onclick=async()=>{
+  try{
+    await fetch('/rpa/record/start',{method:'POST'});
+    $('#btn-imit-start').style.display='none';
+    $('#btn-imit-stop').style.display='';
+  }catch(e){alert('Erreur : '+errMsg(e));}
+};
+
+$('#btn-imit-stop').onclick=async()=>{
+  const name=prompt('Nom de l\'enregistrement :','sequence_'+Date.now());
+  if(!name)return;
+  try{
+    const r=await(await fetch('/rpa/record/stop',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name})})).json();
+    if(r.detail){alert(errMsg(r.detail));return;}
+    $('#btn-imit-start').style.display='';
+    $('#btn-imit-stop').style.display='none';
+    loadImitationList();
+  }catch(e){alert('Erreur : '+errMsg(e));}
+};
+
+$('#btn-rpa-clear').onclick=async()=>{
+  if(!confirm('Arrêt d\'urgence : vider toute la file RPA ?'))return;
+  try{
+    const r=await(await fetch('/rpa/clear',{method:'POST'})).json();
+    alert('File videe : '+r.cleared+' action(s) annulee(s).');
+    pollRpaStatus();
+  }catch(e){alert('Erreur : '+errMsg(e));}
+};
+
+async function loadImitationList(){
+  const el=$('#imit-list');if(!el)return;
+  try{
+    const r=await(await fetch('/rpa/recordings')).json();
+    const recs=r.recordings||[];
+    if(!recs.length){
+      el.innerHTML='<div style="color:var(--mut);font-size:13px;padding:10px 0">Aucun enregistrement. Clique sur « Enregistrer » pour demarrer.</div>';
+      return;
+    }
+    el.innerHTML=recs.map(rec=>
+      '<div class="imit-item">'
+      +'<span class="imit-item-name">'+esc(rec.name)+'</span>'
+      +'<span class="imit-item-meta">'+rec.steps+' etapes &middot; '+esc(rec.created_at||'')+'</span>'
+      +'<span class="imit-item-actions">'
+      +'<button class="ghost" onclick="replayImitation(\''+esc(rec.id)+'\')">Rejouer</button>'
+      +'<button class="ghost" style="color:var(--ko);border-color:rgba(220,38,38,.3)" onclick="deleteImitation(\''+esc(rec.id)+'\')">×</button>'
+      +'</span></div>'
+    ).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--ko);font-size:13px">Erreur de chargement.</div>';}
+}
+
+window.replayImitation=async function(id){
+  if(!confirm('Rejouer cette sequence ? L\'agent local executera chaque action avec votre consentement.'))return;
+  try{
+    const r=await(await fetch('/rpa/recordings/'+encodeURIComponent(id)+'/replay',{method:'POST'})).json();
+    if(r.ids)alert(r.ids.length+' action(s) ajoutee(s) a la file RPA.');
+    pollRpaStatus();
+  }catch(e){alert('Erreur : '+errMsg(e));}
+};
+
+window.deleteImitation=async function(id){
+  if(!confirm('Supprimer cet enregistrement ?'))return;
+  try{
+    await fetch('/rpa/recordings/'+encodeURIComponent(id),{method:'DELETE'});
+    loadImitationList();
+  }catch(e){alert('Erreur : '+errMsg(e));}
+};
+
+// Load imitation list on integrations section
+const _origShowSection=showSection;
+showSection=function(name){
+  _origShowSection(name);
+  if(name==='integrations'){loadImitationList();pollRpaStatus();}
+};
+
+/* ===== DEPLOY MODAL (Hostinger) ===== */
+let _deployProduitId=null;
+function ouvrirModalDeploy(produitId,intention){
+  _deployProduitId=produitId;
+  const info=$('#deploy-produit-info');
+  if(info)info.textContent='Produit : '+esc(intention||produitId);
+  const inp=$('#deploy-domain');if(inp)inp.value='';
+  const log=$('#deploy-log');if(log){log.style.display='none';log.textContent='';}
+  const st=$('#deploy-status');if(st)st.textContent='';
+  const btn=$('#btn-deploy-confirm');if(btn)btn.disabled=false;
+  const m=$('#modal-deploy');if(m)m.style.display='block';
+}
+function fermerModalDeploy(){
+  const m=$('#modal-deploy');if(m)m.style.display='none';
+  _deployProduitId=null;
+}
+
+$('#btn-deploy-confirm').onclick=async()=>{
+  const domain=($('#deploy-domain').value||'').trim();
+  const st=$('#deploy-status'),log=$('#deploy-log'),btn=$('#btn-deploy-confirm');
+  if(!domain){if(st)st.innerHTML='<span class="tag ko">domaine requis</span>';return;}
+  if(!_deployProduitId){if(st)st.innerHTML='<span class="tag ko">aucun produit selectionne</span>';return;}
+  btn.disabled=true;
+  if(st)st.innerHTML='Preparation du pack...';
+  if(log){log.style.display='block';log.textContent='[deploiement] Demarrage...\n';}
+  try{
+    const r=await fetch('/produits/'+encodeURIComponent(_deployProduitId)+'/deploy',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({domain})
+    });
+    const d=await r.json();
+    if(!r.ok){
+      if(st)st.innerHTML='<span class="tag ko">erreur</span> '+errMsg(d.detail||d);
+      if(log)log.textContent+='[erreur] '+errMsg(d.detail||d)+'\n';
+      btn.disabled=false;return;
+    }
+    if(log)log.textContent+='[ok] '+esc(d.message||'Pack genere.')+'\n';
+    if(d.archive_path){
+      if(log)log.textContent+='[archive] '+esc(d.archive_path)+'\n';
+    }
+    if(d.instructions){
+      if(log)log.textContent+='[info] '+esc(d.instructions)+'\n';
+    }
+    if(st)st.innerHTML='<span class="tag ok">pack pret</span> Archive generee. Deploiement a finaliser via Hostinger.';
+    btn.disabled=false;
+    btn.textContent='Fermer';
+    btn.onclick=()=>{fermerModalDeploy();btn.textContent='Deployer';btn.onclick=arguments.callee;};
+  }catch(e){
+    if(st)st.innerHTML='<span class="tag ko">erreur reseau</span>';
+    if(log)log.textContent+='[erreur] '+errMsg(e)+'\n';
+    btn.disabled=false;
+  }
+};
+
 </script>
 </body>
 </html>

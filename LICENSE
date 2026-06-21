@@ -1,0 +1,39 @@
+NEOGEN is licensed under the Business Source License 1.1 (BSL 1.1).
+
+Parameters
+----------
+Licensor:             Jordan VINCENT (NetroIA)
+Licensed Work:        NEOGEN. The Licensed Work is (c) 2026 Jordan VINCENT (NetroIA).
+Additional Use Grant: You may use, copy, modify, and self-host the Licensed Work,
+                      free of charge, for your own internal or personal purposes,
+                      including running a single instance for yourself or your
+                      organization. You may NOT provide the Licensed Work to third
+                      parties as a hosted or managed commercial service whose value
+                      derives from the Licensed Work's functionality (a "Competing
+                      Service").
+Change Date:          2030-06-21
+Change License:       Apache License, Version 2.0
+
+Summary
+-------
+Until the Change Date, use of NEOGEN is governed by the Business Source License
+1.1 with the Parameters above: free for self-hosting and internal/personal use,
+but not for reselling it as a competing hosted service. On the Change Date, the
+Licensed Work automatically becomes available under the Change License
+(Apache License, Version 2.0).
+
+Canonical license text
+----------------------
+The full, canonical text of the Business Source License 1.1 is published by
+MariaDB Corporation Ab at:
+
+    https://mariadb.com/bsl11/
+
+That text, combined with the Parameters above, constitutes the license for this
+Licensed Work. To include the full text directly in this file, download it from
+the URL above (do not transcribe it by hand).
+
+Commercial / hosted licensing
+-----------------------------
+For a commercial license, or to operate NEOGEN as a hosted service beyond the
+Additional Use Grant, contact: captain@netroia.com

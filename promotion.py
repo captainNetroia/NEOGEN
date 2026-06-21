@@ -86,6 +86,7 @@ _TEMPLATE = r"""<!doctype html>
 const SCHEMA = __SCHEMA__;
 const EXEMPLE = __EXEMPLE__;
 const PRODUIT_ID = "__PRODUIT_ID__";
+const BASE_URL = "__BASE_URL__";
 const $ = s => document.querySelector(s);
 
 function champInput(c, valeur) {
@@ -199,7 +200,8 @@ $('#go').onclick = async () => {
   $('#go').disabled = true;
   $('#resultat').innerHTML = '<div class="panel">Calcul en cours dans le bac a sable...</div>';
   try {
-    const rep = await fetch('/produits/' + encodeURIComponent(PRODUIT_ID) + '/executer', {
+    const url = BASE_URL ? BASE_URL + '/produits/' + encodeURIComponent(PRODUIT_ID) + '/executer' : '/produits/' + encodeURIComponent(PRODUIT_ID) + '/executer';
+    const rep = await fetch(url, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({donnees: collecte()})
     });
@@ -217,11 +219,14 @@ build();
 
 def page_app(produit_id: str, contrat: dict) -> str:
     """Genere la page web responsive d'un produit promu, pilotee par son schema."""
+    import os
+    base_url = os.environ.get("NEOGEN_BASE_URL", "").rstrip("/")
     description = (contrat.get("description") or "Outil genere par NEOGEN").replace("<", "").replace(">", "")
     titre = description[:40]
     return (_TEMPLATE
             .replace("__SCHEMA__", json.dumps({"champs": contrat.get("champs", [])}, ensure_ascii=False))
             .replace("__EXEMPLE__", json.dumps(contrat.get("exemple", {}), ensure_ascii=False))
             .replace("__PRODUIT_ID__", produit_id)
+            .replace("__BASE_URL__", base_url)
             .replace("__DESCRIPTION__", description)
             .replace("__TITRE__", titre))
