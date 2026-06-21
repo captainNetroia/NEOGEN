@@ -20,6 +20,7 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-21.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Callable
 from pydantic import BaseModel, Field
 
@@ -34,8 +35,21 @@ from sanitizer import nettoyer
 class AgentStep(BaseModel):
     pensee: str = Field(description="Ton raisonnement court et clair, visible par l'utilisateur (1 a 3 phrases).")
     outil: str | None = Field(default=None, description="Nom EXACT d'un outil a appeler, ou null si tu reponds directement.")
-    parametres: dict = Field(default_factory=dict, description="Arguments de l'outil sous forme d'objet JSON. {} si aucun.")
+    arguments: str = Field(default="", description='Parametres de l\'outil sous forme d\'une CHAINE JSON, ex: {"agent": "createur", "mission": "..."}. Chaine vide si aucun parametre.')
     reponse: str | None = Field(default=None, description="Ta reponse finale a l'utilisateur, ou null si tu appelles encore un outil.")
+
+
+def _parse_args(s) -> dict:
+    """Parse la chaine JSON d'arguments en dict. Tolerant : ne leve jamais."""
+    if isinstance(s, dict):
+        return s
+    if not s or not isinstance(s, str):
+        return {}
+    try:
+        v = json.loads(s)
+        return v if isinstance(v, dict) else {}
+    except Exception:
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -69,13 +83,28 @@ def outil_conseiller(intention: str = "", **kw) -> str:
 
 
 def outil_creer_application(intention: str = "", persistance: bool = False,
-                            reseau: bool = False, **kw) -> str:
-    """Cree une application de A a Z : decompose, delegue, assemble, gouverne (sandbox)."""
+                            reseau=False, domaines=None, **kw) -> str:
+    """Cree une application de A a Z : decompose, delegue, assemble, gouverne (sandbox).
+    'reseau' peut etre un booleen, une liste de domaines, ou {"domaines":[...]}.
+    'domaines' = liste blanche des domaines autorises (OBLIGATOIRE si l'app a besoin d'internet)."""
     from orchestrateur import orchestrer
     from capacites import Capacites
     import registre
     emit = kw.get("_emit")
-    cap = Capacites(persistance=bool(persistance), reseau=bool(reseau))
+    # Le modele peut passer reseau/domaines sous plusieurs formes : on normalise.
+    doms = []
+    if isinstance(reseau, dict):
+        doms = reseau.get("domaines") or reseau.get("domaines_autorises") or []
+        reseau_on = True
+    elif isinstance(reseau, (list, tuple)):
+        doms = list(reseau)
+        reseau_on = True
+    else:
+        reseau_on = bool(reseau)
+    if domaines:
+        doms = domaines if isinstance(domaines, (list, tuple)) else [domaines]
+    cap = Capacites(persistance=bool(persistance), reseau=reseau_on,
+                    domaines_autorises=[str(d).strip() for d in doms if str(d).strip()])
 
     def progress(evt: dict):
         if emit:
@@ -144,16 +173,29 @@ def outil_rejouer_routine(routine_id: str = "", **kw) -> str:
     return f"Routine '{routine_id}' envoyee a l'agent local ({len(ids)} actions, consentement requis)."
 
 
+def outil_ouvrir_url(url: str = "", **kw) -> str:
+    """Ouvre une page web dans le navigateur de l'utilisateur (via l'agent local, consentement requis)."""
+    import rpa
+    url = (url or "").strip()
+    if not url:
+        return "Aucune URL fournie."
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    rpa.RpaQueue.push({"action": "open_url", "url": url})
+    return f"Demande d'ouverture de {url} envoyee a l'agent local (consentement requis cote utilisateur)."
+
+
 # nom outil -> (fonction, description courte pour le prompt)
 OUTILS: dict[str, tuple[Callable, str]] = {
     "discerner":         (outil_discerner,         "Analyse une intention (valeur/faisabilite/clarte). params: {intention}"),
     "conseiller":        (outil_conseiller,        "Cadrage + conformite RGPD d'un besoin. params: {intention}"),
-    "creer_application": (outil_creer_application, "Cree une app/SaaS/gadget de A a Z (delegation + sandbox). params: {intention, persistance?, reseau?}"),
+    "creer_application": (outil_creer_application, 'Cree une app/SaaS/gadget de A a Z (delegation + sandbox). params: {intention, persistance?, reseau?, domaines?}. Si l\'app a besoin d\'internet, mets reseau:true ET domaines:["api.exemple.com"] (liste blanche OBLIGATOIRE, sinon tout acces reseau est refuse).'),
     "lister_creations":  (outil_lister_creations,  "Liste les creations existantes. params: {}"),
     "genealogie":        (outil_genealogie,        "Lignee/generations d'une creation. params: {produit_id}"),
     "controler_ecran":   (outil_controler_ecran,   "Pilote souris/clavier via l'agent local (consentement requis). params: {actions:[{action,x,y,text,...}]}"),
     "lister_routines":   (outil_lister_routines,   "Liste les routines apprises par imitation. params: {}"),
     "rejouer_routine":   (outil_rejouer_routine,   "Rejoue une routine apprise. params: {routine_id}"),
+    "ouvrir_url":        (outil_ouvrir_url,        "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),
 }
 
 
@@ -167,7 +209,7 @@ PROFILS: dict[str, dict] = {
         "tier": "fort",
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
-                   "lister_routines", "rejouer_routine"],
+                   "lister_routines", "rejouer_routine", "ouvrir_url"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
@@ -180,7 +222,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Forgeron",
         "tier": "fort",
         "delegue": False,
-        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran"],
+        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran", "ouvrir_url"],
         "role": (
             "Tu es LE FORGERON de NEOGEN. Tu transformes une intention en application, logiciel, SaaS "
             "ou gadget PRET A L'EMPLOI. Tu utilises 'discerner' pour cadrer si besoin, puis "
@@ -204,7 +246,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
@@ -226,12 +268,15 @@ def _systeme(role: str, profil: dict) -> str:
     desc = "\n".join(f"  - {n} : {OUTILS[n][1]}" for n in outils if n in OUTILS)
     if profil.get("delegue"):
         desc += ("\n  - deleguer : confie une mission a un agent specialise. "
-                 "params: {agent, mission}. agents disponibles: " + ", ".join(_DELEGABLES))
+                 'arguments JSON {"agent": "createur|genealogiste|secretaire", "mission": "..."}.')
     return nettoyer(
         f"{role}\n\n"
-        "FONCTIONNEMENT : a chaque tour tu produis un objet JSON {pensee, outil, parametres, reponse}.\n"
-        "- Si tu as besoin d'agir, mets 'outil' (un nom EXACT ci-dessous) et 'parametres', et laisse 'reponse' a null.\n"
-        "- Quand tu as fini, laisse 'outil' a null et donne ta 'reponse' finale a l'utilisateur.\n"
+        "FONCTIONNEMENT : a chaque tour tu produis un objet JSON {pensee, outil, arguments, reponse}.\n"
+        "- Pour AGIR : 'outil' = un nom EXACT ci-dessous, 'arguments' = une CHAINE de texte JSON contenant "
+        "les parametres de l'outil, 'reponse' = null.\n"
+        '  Exemple : outil = deleguer, arguments = {"agent": "createur", "mission": "creer un gadget meteo"}\n'
+        "- Pour REPONDRE : 'outil' = null, 'reponse' = ta reponse finale a l'utilisateur.\n"
+        "- 'arguments' contient TOUJOURS les parametres de l'outil (jamais ailleurs). Chaine vide si l'outil n'en a pas.\n"
         "- 'pensee' est toujours rempli (court), visible par l'utilisateur.\n"
         "- N'invente jamais un outil hors de cette liste. Si aucun outil n'est utile, reponds directement.\n\n"
         "OUTILS DISPONIBLES :\n" + desc
@@ -279,7 +324,11 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             return reponse
 
         outil = step.outil.strip()
-        params = step.parametres or {}
+        params = _parse_args(step.arguments)
+
+        def _replay(o):
+            messages.append({"role": "assistant",
+                             "content": json.dumps({"outil": o, "arguments": step.arguments}, ensure_ascii=False)})
 
         # Delegation (Cerveau uniquement).
         if outil == "deleguer" and profil.get("delegue"):
@@ -287,13 +336,15 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             mission = str(params.get("mission", "")).strip()
             if cible not in _DELEGABLES:
                 obs = f"Agent '{cible}' inconnu. Choisis parmi: {', '.join(_DELEGABLES)}."
+            elif not mission:
+                obs = "Mission vide : precise la mission dans arguments JSON {\"agent\":..., \"mission\":...}."
             elif _profondeur >= 2:
                 obs = "Profondeur de delegation maximale atteinte."
             else:
                 _emit({"type": "delegation", "de": role, "vers": cible, "mission": nettoyer(mission)})
                 obs = dialoguer(cible, mission, ctx=ctx, emit=emit,
                                 _client=_client, _profondeur=_profondeur + 1)
-            messages.append({"role": "assistant", "content": f'{{"outil":"deleguer","parametres":{params}}}'})
+            _replay("deleguer")
             messages.append({"role": "user", "content": f"[Resultat delegation a {cible}] {obs}"})
             continue
 
@@ -312,7 +363,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             obs = nettoyer(f"Erreur outil {outil} : {e}")
         obs = nettoyer(str(obs))[:2000]
         _emit({"type": "observation", "agent": role, "outil": outil, "texte": obs})
-        messages.append({"role": "assistant", "content": f'{{"outil":"{outil}","parametres":{params}}}'})
+        _replay(outil)
         messages.append({"role": "user", "content": f"[Resultat {outil}] {obs}"})
 
     # Securite : trop d'etapes.
@@ -350,7 +401,7 @@ if __name__ == "__main__":
     OUTILS["lister_creations"] = (lambda **kw: "2 creations : alpha, beta", OUTILS["lister_creations"][1])
 
     scenario = [
-        AgentStep(pensee="Je liste les creations.", outil="lister_creations", parametres={}),
+        AgentStep(pensee="Je liste les creations.", outil="lister_creations", arguments=""),
         AgentStep(pensee="Voici le resultat.", reponse="Tu as 2 creations : alpha et beta."),
     ]
     evts = []
@@ -364,11 +415,11 @@ if __name__ == "__main__":
     # 3) Delegation : cerveau -> genealogiste.
     scen_cerveau = [
         AgentStep(pensee="Je delegue au genealogiste.", outil="deleguer",
-                  parametres={"agent": "genealogiste", "mission": "liste les creations"}),
+                  arguments='{"agent": "genealogiste", "mission": "liste les creations"}'),
         AgentStep(pensee="Synthese.", reponse="Le genealogiste rapporte : alpha, beta."),
     ]
     scen_sous = [
-        AgentStep(pensee="Je liste.", outil="lister_creations", parametres={}),
+        AgentStep(pensee="Je liste.", outil="lister_creations", arguments=""),
         AgentStep(pensee="Fini.", reponse="alpha, beta."),
     ]
     class _FakeRouter:

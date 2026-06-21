@@ -90,6 +90,8 @@ def demander_consentement(action: dict) -> str:
         desc += f"Touche : {action.get('key')}\n"
     if action.get("keys"):
         desc += f"Touches : {' + '.join(action.get('keys'))}\n"
+    if action.get("url"):
+        desc += f"Ouvrir : {action.get('url')}\n"
 
     message = (
         "NEOGEN demande l'autorisation de contrôler votre souris/clavier.\n\n"
@@ -142,6 +144,7 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
     text = action.get("text", "")
     key = action.get("key", "")
     keys = action.get("keys", [])
+    url = action.get("url", "")
     amount = action.get("amount", 3)
     interval = action.get("interval", 0.05)
 
@@ -168,6 +171,11 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
             pyautogui.press(key)
         elif act_type == "hotkey":
             pyautogui.hotkey(*keys)
+        elif act_type == "open_url":
+            import webbrowser
+            if not url:
+                return False, "open_url sans url"
+            webbrowser.open(url)
         else:
             return False, f"Action inconnue : {act_type}"
         return True, None

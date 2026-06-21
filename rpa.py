@@ -55,6 +55,7 @@ class RpaQueue:
             "text": action.get("text", ""),
             "keys": action.get("keys", []),
             "key": action.get("key", ""),
+            "url": action.get("url", ""),
             "interval": action.get("interval", 0.05),
             "status": "pending",
             "timestamp": datetime.now().isoformat(timespec="seconds"),

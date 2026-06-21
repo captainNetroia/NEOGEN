@@ -727,6 +727,8 @@ body.in-section #breadcrumb{display:none !important;}
 .agent-chat-input textarea{flex:1;resize:none;border-radius:12px;border:1px solid rgba(15,23,42,.14);padding:10px 12px;font:inherit;font-size:14px;max-height:130px;background:rgba(255,255,255,.55)}
 .agent-chat-send{padding:10px 18px;border-radius:12px;border:none;background:linear-gradient(135deg,#0ea5b7,#0c8ea0);color:#fff;font-weight:600;cursor:pointer}
 .agent-chat-send:disabled{opacity:.5;cursor:default}
+.agent-chat-clear{margin-left:auto;background:none;border:none;cursor:pointer;font-size:14px;opacity:.45;padding:2px 6px}
+.agent-chat-clear:hover{opacity:.9}
 .ac-md h3{font-size:15px;margin:8px 0 4px}.ac-md ul{margin:4px 0 4px 18px}.ac-md li{margin:2px 0}
 .ac-md code{background:rgba(15,23,42,.08);padding:1px 5px;border-radius:5px;font-size:12px}
 .ac-md table{border-collapse:collapse;margin:6px 0;font-size:12px}.ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:3px 7px}
@@ -2885,20 +2887,26 @@ function buildChat(mount){
   mount.classList.add('agent-chat','panel','glass');
   mount.innerHTML=
     '<div class="agent-chat-head"><span class="agent-chat-dot"></span><b>'+esc(titre)+'</b>'
-    +'<span class="agent-chat-sub">'+esc(sub)+'</span></div>'
+    +'<span class="agent-chat-sub">'+esc(sub)+'</span>'
+    +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input"><textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'..."></textarea>'
     +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button></div>';
   const log=mount.querySelector('#aclog-'+role);
   const inp=mount.querySelector('#acin-'+role);
   const btn=mount.querySelector('#acsend-'+role);
-  const hist=[];
+  const clr=mount.querySelector('#acclr-'+role);
+  const KEY='neogen_chat_'+role;
+  let hist=[];try{hist=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){hist=[];}
   function add(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+  function _save(){try{localStorage.setItem(KEY,JSON.stringify(hist.slice(-40)));}catch(e){}}
+  hist.forEach(function(m){if(m.role==='user')add('ac-msg user',esc(m.content));else add('ac-msg agent','<div class="ac-md">'+_mdLite(m.content)+'</div>');});
+  if(clr)clr.onclick=function(){hist=[];_save();log.innerHTML='';};
   async function envoyer(){
     const msg=(inp.value||'').trim();if(!msg)return;
     inp.value='';inp.style.height='auto';btn.disabled=true;
     add('ac-msg user',esc(msg));
-    let derniereReponse='';
+    let derniereReponse='';let forgeLine=null;
     try{
       const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({message:msg,historique:hist})});
       if(!resp.ok||!resp.body){add('ac-trace action','erreur reseau ('+(resp.status||'?')+')');btn.disabled=false;return;}
@@ -2915,11 +2923,12 @@ function buildChat(mount){
           else if(evt.type==='action'){add('ac-trace action','&#128295; '+esc(evt.outil||'')+' '+esc(JSON.stringify(evt.parametres||{})));}
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
           else if(evt.type==='delegation'){add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+' : '+esc(evt.mission||''));}
+          else if(evt.type==='forge'){var ft='&#9881; forge : '+esc(((evt.stade||'')+' '+(evt.msg||evt.message||'')).trim()).slice(0,180);if(!forgeLine){forgeLine=add('ac-trace action',ft);}else{forgeLine.innerHTML=ft;log.scrollTop=log.scrollHeight;}}
           else if(evt.type==='reponse'){derniereReponse=evt.texte||'';add('ac-msg agent','<div class="ac-md">'+_mdLite(derniereReponse)+'</div>');}
           else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
         }
       }
-      if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});}
+      if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});_save();}
     }catch(e){add('ac-trace action','&#9888; '+errMsg(e));}
     finally{btn.disabled=false;inp.focus();}
   }
