@@ -28,25 +28,52 @@ le telecharger en ZIP.
 # 1. Cloner
 git clone <repo-url> neogen && cd neogen
 
-# 2. Lancer (remplacer sk-ant-... par ta cle Anthropic)
+# 2. Lancer
+#    - avec Claude par defaut : fournir ta cle Anthropic
 ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+#    - OU sans aucune cle : lancer brut puis choisir ton IA dans l'interface
+#      (GPT, Gemini, DeepSeek, Mistral, ou Ollama en local et gratuit)
+docker compose up --build
 
 # 3. Ouvrir
 http://localhost:8000
 ```
 
-C'est tout. Aucune autre dependance.
+C'est tout. Aucune autre dependance. La cle Anthropic est **facultative** :
+tu peux choisir n'importe quelle IA depuis l'interface (voir section suivante).
 
 ### Ce qui est inclus gratuitement
 
-- Generation de code par IA (Claude)
+- Generation de code par l'IA de TON choix (voir ci-dessous)
 - Membrane de gouvernance (validation automatique)
 - Execution en conteneur Docker durci
 - Registre persistant des produits fabriques
 - Studio de creation interactif (stepper A-Z)
 - Analyse conformite indicative
 - Telechargement ZIP du code genere
-- Interface multi-modele (gateway configurable)
+
+---
+
+## Choisir ton IA (n'importe quel modele)
+
+NEOGEN ne t'enferme dans aucun fournisseur. Tu choisis l'IA qui forge tes produits,
+avec TA cle. La cle est consommee a chaque requete et n'est **jamais** stockee cote serveur.
+
+| IA | Comment l'activer |
+|----|-------------------|
+| **Claude** (Anthropic) | Defaut. Cle via `ANTHROPIC_API_KEY` ou dans l'interface. |
+| **GPT** (OpenAI) | Interface : onglet OpenAI + ta cle `sk-...` |
+| **Gemini** (Google) | Interface : onglet Gemini + ta cle `AIza...` |
+| **DeepSeek** | Interface : onglet DeepSeek + ta cle |
+| **Mistral** | Interface : onglet Mistral + ta cle |
+| **Ollama** (local, gratuit) | Interface : onglet Local + URL `http://localhost:11434` |
+
+**Dans l'interface :** Integrations -> section "Modele IA" -> onglet du fournisseur ->
+choisir le modele -> coller la cle -> Enregistrer -> Activer.
+
+Le modele actif est affiche en haut de la section. Toute production (scan, conseil, forge,
+delegation) utilise alors ce modele. Avec Ollama en local, NEOGEN tourne **100% gratuit
+et hors-ligne** (aucune cle, aucun appel externe).
 
 ### Integrations optionnelles
 
