@@ -141,6 +141,27 @@ def _llm_client(provider=None, model=None, key=None, base=None, tier="fort"):
     return _gw(ctx, tier=tier)
 
 
+@app.post("/llm/verifier")
+def verifier_llm(x_llm_provider: str | None = Header(default=None),
+                 x_llm_model: str | None = Header(default=None),
+                 x_llm_key: str | None = Header(default=None),
+                 x_llm_base: str | None = Header(default=None)):
+    """Teste qu'un provider+modele+cle repond REELLEMENT (petit appel). Ne persiste rien.
+    L'UI ne marque un modele 'actif' que si {ok:true}. Sinon : cle absente/invalide -> rouge."""
+    from gateway import contexte_depuis_headers, client as _gw
+    from sanitizer import nettoyer
+    ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    if ctx is None or not (ctx.api_key or (ctx.provider or "").lower() == "local"):
+        return {"ok": False, "erreur": "Cle API absente"}
+    try:
+        cl = _gw(ctx, tier="leger")
+        cl.messages.create(system="Reponds simplement OK.",
+                           messages=[{"role": "user", "content": "ping"}], max_tokens=5)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "erreur": nettoyer(str(e))[:240]}
+
+
 @app.post("/conseil")
 def conseil_endpoint(demande: DemandeProposition,
                      x_llm_provider: str | None = Header(default=None),

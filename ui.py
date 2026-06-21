@@ -1072,7 +1072,7 @@ body.in-section #breadcrumb{display:none !important;}
         <input type="password" id="integ-api-key">
         <span class="integ-model-dot" id="integ-model-dot"></span>
       </div>
-      <button id="integ-save-btn">Enregistrer</button>
+      <button id="integ-save-btn">Verifier &amp; activer</button>
       <button id="integ-activate-btn" class="ghost" style="display:none">Activer</button>
     </div>
     <div id="integ-status"></div>
@@ -2403,9 +2403,10 @@ async function loadAnalyse(){
   function updateActiveLabel(){
     const p=localStorage.getItem('neogen_active_provider');
     const m=localStorage.getItem('neogen_active_model');
+    const ver=(localStorage.getItem('neogen_verified_'+p)==='1')||p==='local';
     if(p&&m&&PROV[p]){
-      activeLabel.textContent=PROV[p].label+' / '+m;
-      activeLabel.style.color='var(--ok)';
+      activeLabel.textContent=PROV[p].label+' / '+m+(ver?'':' (non verifie)');
+      activeLabel.style.color=ver?'var(--ok)':'#d97706';
     } else {
       activeLabel.textContent='aucun';
       activeLabel.style.color='var(--txt)';
@@ -2415,10 +2416,11 @@ async function loadAnalyse(){
   function updateTabDots(){
     tabs.forEach(t=>{
       const p=t.dataset.prov;
-      const hasKey=!!localStorage.getItem('neogen_key_'+p);
+      const hasKey=!!localStorage.getItem('neogen_key_'+p)||p==='local';
+      const verified=localStorage.getItem('neogen_verified_'+p)==='1';
       const isActive=localStorage.getItem('neogen_active_provider')===p;
-      /* dot vert dans le tab si cle presente */
-      t.style.borderColor=isActive?'var(--ok)':hasKey?'rgba(22,163,74,.4)':'rgba(15,23,42,.12)';
+      /* rouge = pas de cle ; ambre = cle non verifiee ; vert = verifiee ; vert fort = actif */
+      t.style.borderColor=isActive?'var(--ok)':verified?'rgba(22,163,74,.55)':hasKey?'rgba(234,179,8,.55)':'rgba(220,38,38,.4)';
       t.style.color=isActive?'var(--ok)':t.classList.contains('active')?'#fff':'';
     });
   }
@@ -2457,40 +2459,60 @@ async function loadAnalyse(){
     setDot(PROV[curProv].check(k)?'ok':'ko');
   });
 
-  /* Enregistrer */
-  saveBtn.onclick=()=>{
-    const m=modelSel.value,k=keyIn.value.trim();
+  /* Verifie qu'une cle/provider repond REELLEMENT (appel backend /llm/verifier). */
+  async function _verifierCle(prov,model,key){
+    const h={'Content-Type':'application/json','X-LLM-Provider':prov,'X-LLM-Model':model};
+    if(prov==='local'){if(key)h['X-LLM-Base']=key;}else if(key){h['X-LLM-Key']=key;}
+    try{const r=await fetch('/llm/verifier',{method:'POST',headers:h});return await r.json();}
+    catch(e){return{ok:false,erreur:errMsg(e)};}
+  }
+
+  /* Verifier & activer : on n'active QUE si la cle fonctionne reellement. Sinon rouge. */
+  saveBtn.onclick=async()=>{
+    const m=modelSel.value;
     const p=PROV[curProv];
-    if(k&&!p.check(k)){
-      st.innerHTML='<span class="tag ko">format invalide</span> Verifier la cle pour '+p.label;
-      setDot('ko');return;
+    let k=keyIn.value.trim();
+    if(!k)k=localStorage.getItem('neogen_key_'+curProv)||'';   /* cle deja enregistree */
+    if(curProv!=='local'){
+      if(!k){st.innerHTML='<span class="tag ko">API absente</span> Entre ta cle API pour '+p.label+'.';setDot('ko');localStorage.removeItem('neogen_verified_'+curProv);updateTabDots();return;}
+      if(!p.check(k)){st.innerHTML='<span class="tag ko">format invalide</span> Verifie la cle pour '+p.label+'.';setDot('ko');return;}
+    }
+    saveBtn.disabled=true;st.innerHTML='<span class="tag">verification...</span> Test de '+p.label+' / '+m;setDot('');
+    const res=await _verifierCle(curProv,m,k);
+    saveBtn.disabled=false;
+    if(!res||!res.ok){
+      localStorage.removeItem('neogen_verified_'+curProv);setDot('ko');updateTabDots();
+      st.innerHTML='<span class="tag ko">activation impossible</span> '+esc((res&&res.erreur)||'la cle ne repond pas');
+      return;
     }
     localStorage.setItem('neogen_provider',curProv);
     localStorage.setItem('neogen_model_'+curProv,m);
-    if(k){
-      localStorage.setItem('neogen_key_'+curProv,k);
-      localStorage.setItem('neogen_api_key',k); /* compat generateur */
-      keyIn.value='';
-      keyIn.placeholder='cle enregistree (••••'+k.slice(-4)+')';
-      setDot('ok');
-    }
-    actBtn.style.display=(localStorage.getItem('neogen_active_provider')!==curProv)?'':'none';
-    updateTabDots();
-    st.innerHTML='<span class="tag ok">enregistre</span> '+p.label+' / '+m+(k?' — cle mise a jour':'');
-    setTimeout(()=>st.innerHTML='',3000);
-  };
-
-  /* Activer */
-  actBtn.onclick=()=>{
-    const m=modelSel.value;
+    if(keyIn.value.trim()){localStorage.setItem('neogen_key_'+curProv,k);localStorage.setItem('neogen_api_key',k);}
+    localStorage.setItem('neogen_verified_'+curProv,'1');
     localStorage.setItem('neogen_active_provider',curProv);
     localStorage.setItem('neogen_active_model',m);
-    localStorage.setItem('neogen_model',m); /* compat */
-    actBtn.style.display='none';
-    updateActiveLabel();
-    updateTabDots();
-    st.innerHTML='<span class="tag ok">actif</span> '+PROV[curProv].label+' / '+m;
-    setTimeout(()=>st.innerHTML='',3000);
+    localStorage.setItem('neogen_model',m);
+    keyIn.value='';if(k)keyIn.placeholder='cle validee (••••'+k.slice(-4)+')';
+    setDot('ok');actBtn.style.display='none';
+    updateActiveLabel();updateTabDots();
+    st.innerHTML='<span class="tag ok">actif — cle validee</span> '+p.label+' / '+m;
+  };
+
+  /* Activer (re-verifie la cle avant d'activer) */
+  actBtn.onclick=async()=>{
+    const m=modelSel.value;
+    const k=localStorage.getItem('neogen_key_'+curProv)||'';
+    if(curProv!=='local'&&!k){st.innerHTML='<span class="tag ko">API absente</span>';setDot('ko');return;}
+    actBtn.disabled=true;st.innerHTML='<span class="tag">verification...</span>';
+    const res=await _verifierCle(curProv,m,k);
+    actBtn.disabled=false;
+    if(!res||!res.ok){localStorage.removeItem('neogen_verified_'+curProv);setDot('ko');updateTabDots();st.innerHTML='<span class="tag ko">activation impossible</span> '+esc((res&&res.erreur)||'');return;}
+    localStorage.setItem('neogen_verified_'+curProv,'1');
+    localStorage.setItem('neogen_active_provider',curProv);
+    localStorage.setItem('neogen_active_model',m);
+    localStorage.setItem('neogen_model',m);
+    actBtn.style.display='none';updateActiveLabel();updateTabDots();
+    st.innerHTML='<span class="tag ok">actif — cle validee</span> '+PROV[curProv].label+' / '+m;
   };
 
   /* Custom integrations — delegue au systeme global _loadCustom */
