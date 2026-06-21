@@ -26,6 +26,7 @@ _MOTIFS = [
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "CLE_AWS"),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"), "JWT"),
     (re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "CLE_GOOGLE"),
+    (re.compile(r"\bAQ\.[A-Za-z0-9_\-]{20,}"), "CLE_GOOGLE"),  # nouveau format cle Gemini (AQ....)
     (re.compile(r"(?i)\b(api[_-]?key|secret|token|password|passwd|pwd|authorization|bearer)\b\s*[:=]\s*['\"]?([^\s'\"]{8,})"), "SECRET"),
 ]
 
