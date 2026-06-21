@@ -2909,7 +2909,7 @@ function buildChat(mount){
     let derniereReponse='';let forgeLine=null;
     try{
       const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({message:msg,historique:hist})});
-      if(!resp.ok||!resp.body){add('ac-trace action','erreur reseau ('+(resp.status||'?')+')');btn.disabled=false;return;}
+      if(!resp.ok||!resp.body){var dd='';try{dd=(await resp.json()).detail||'';}catch(e){}add('ac-trace action','&#9888; '+esc(dd||('erreur '+resp.status)));btn.disabled=false;return;}
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){
         const {done,value}=await reader.read();if(done)break;

@@ -47,13 +47,35 @@ app = FastAPI(
     version="5.0",
 )
 
+# CORS resserre : par defaut localhost uniquement. En prod, definir NEOGEN_CORS_ORIGINS
+# (liste separee par des virgules) pour autoriser les domaines qui appellent l'API.
+_cors_env = _os.environ.get("NEOGEN_CORS_ORIGINS", "").strip()
+_cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()] or [
+    "http://localhost:8000", "http://127.0.0.1:8000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _exiger_byok(ctx) -> None:
+    """BYOK (Bring Your Own Key) : refuse d'utiliser la cle par defaut (credentials du
+    proprietaire) pour les appels LLM. Autorise si : une cle client est fournie, OU
+    provider 'local' (Ollama self-host, gratuit), OU NEOGEN_ALLOW_DEFAULT_KEY active
+    (dev local du proprietaire). Sinon 402 avec message clair.
+    => en distribution publique, jamais les credits du proprietaire."""
+    if _os.environ.get("NEOGEN_ALLOW_DEFAULT_KEY", "").strip().lower() in ("1", "true", "yes", "on"):
+        return
+    if ctx is not None and (ctx.api_key or (ctx.provider or "").lower() == "local"):
+        return
+    raise HTTPException(status_code=402, detail=(
+        "Connecte ton modele IA dans Integrations (ta cle API, ou Ollama en local) pour "
+        "utiliser les agents et la creation. NEOGEN n'utilise jamais une cle par defaut."
+    ))
 
 
 
@@ -115,6 +137,7 @@ def _llm_client(provider=None, model=None, key=None, base=None, tier="fort"):
     Aucune cle persistee : elle vit le temps de la requete. Provider absent => Anthropic defaut."""
     from gateway import client as _gw, contexte_depuis_headers
     ctx = contexte_depuis_headers(provider, model, key, base)
+    _exiger_byok(ctx)
     return _gw(ctx, tier=tier)
 
 
@@ -130,6 +153,8 @@ def conseil_endpoint(demande: DemandeProposition,
     try:
         cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="leger")
         c = conseiller(demande.intention, cl)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=nettoyer(f"echec du conseil : {e}"))
     return c.model_dump()
@@ -147,6 +172,8 @@ def proposer_endpoint(demande: DemandeProposition,
     try:
         cl = _llm_client(x_llm_provider, x_llm_model, x_llm_key, x_llm_base, tier="fort")
         p = proposer(demande.intention, cl)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=nettoyer(f"echec de la proposition : {e}"))
     return p.model_dump()
@@ -178,6 +205,8 @@ def fabriquer_endpoint(demande: DemandeFabrication,
                 demande.intention, reparer=demande.reparer,
                 max_tentatives=demande.max_tentatives, enregistrer=True, cap=cap, client=cl,
             )
+    except HTTPException:
+        raise
     except Exception as e:  # cle API manquante, panne reseau, provider injoignable, etc.
         raise HTTPException(status_code=502, detail=nettoyer(f"echec de fabrication : {e}"))
 
@@ -337,6 +366,7 @@ def upgrade_produit(produit_id: str, demande: DemandeUpgrade,
     cap = Capacites(persistance=demande.persistance, reseau=demande.reseau,
                     domaines_autorises=demande.domaines_autorises)
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _exiger_byok(_ctx)
     _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -519,6 +549,7 @@ def fabriquer_stream(demande: DemandeFabrication,
     )
     # Resolution du provider/modele PAR REQUETE (cle jamais persistee ni loggee).
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _exiger_byok(_ctx)
     _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -600,6 +631,7 @@ def orchestrer_stream(demande: DemandeFabrication,
         domaines_autorises=demande.domaines_autorises,
     )
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _exiger_byok(_ctx)
     _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -686,6 +718,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
         raise HTTPException(status_code=404, detail=f"agent inconnu : {role}")
 
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _exiger_byok(_ctx)
     hist = [{"role": m.role, "content": m.content} for m in demande.historique]
 
     file_evts: "queue.Queue" = queue.Queue()
