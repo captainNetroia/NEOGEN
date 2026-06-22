@@ -621,6 +621,10 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
     messages: list[dict] = _tronquer_historique(historique)
     messages.append({"role": "user", "content": message})
 
+    # Délégation : profondeur 1 en gratuit, 2 en premium (delegation_complete).
+    _premium = bool(user and user.get("premium"))
+    _max_prof = 2 if _premium else 1
+
     # Choix du tier : figé par profil, ou recommandé selon la demande en mode éco.
     tier = profil.get("tier", "fort")
     if eco:
@@ -668,8 +672,9 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
                 obs = f"Agent '{cible}' inconnu. Choisis parmi: {', '.join(_DELEGABLES)}."
             elif not mission:
                 obs = "Mission vide : precise la mission dans arguments JSON {\"agent\":..., \"mission\":...}."
-            elif _profondeur >= 2:
-                obs = "Profondeur de delegation maximale atteinte."
+            elif _profondeur >= _max_prof:
+                obs = ("Delegation en cascade reservee au premium. " if not _premium
+                       else "Profondeur de delegation maximale atteinte.")
             else:
                 _emit({"type": "delegation", "de": role, "vers": cible, "mission": nettoyer(mission)})
                 obs = dialoguer(cible, mission, ctx=ctx, emit=emit,

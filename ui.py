@@ -2740,6 +2740,14 @@ async function loadAnalyse(){
     const p=PROV[curProv];
     let k=keyIn.value.trim();
     if(!k)k=localStorage.getItem('neogen_key_'+curProv)||'';   /* cle deja enregistree */
+    // Garde freemium : 1 seul modele paye enregistre en gratuit (Ollama local toujours gratuit).
+    if(curProv!=='local' && localStorage.getItem('neogen_premium')!=='1'){
+      var dejaPayes=['anthropic','openai','gemini','deepseek','mistral'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
+      if(dejaPayes.length>=1){
+        st.innerHTML='<span class="tag warn">premium requis</span> Gratuit : 1 modele paye ('+esc(dejaPayes[0])+' deja enregistre) + Ollama local. Passe premium pour plusieurs modeles.';
+        setDot('ko');return;
+      }
+    }
     if(curProv!=='local'){
       if(!k){st.innerHTML='<span class="tag ko">API absente</span> Entre ta cle API pour '+p.label+'.';setDot('ko');localStorage.removeItem('neogen_verified_'+curProv);updateTabDots();return;}
       if(!p.check(k)){st.innerHTML='<span class="tag ko">format invalide</span> Verifie la cle pour '+p.label+'.';setDot('ko');return;}
@@ -2943,6 +2951,13 @@ window.toggleIntegPanel=function(name){
 
 window.confirmerInteg=async function(name){
   const def=INTEG_DEFS[name];if(!def)return;
+  // Garde freemium : max 3 integrations tierces actives en gratuit.
+  if(localStorage.getItem('neogen_premium')!=='1' && !_iActive(name) && integActives().length>=3){
+    var st0=document.getElementById('iam-statut-'+name);
+    var msg='<span class="tag warn">premium requis</span> Limite gratuite : 3 integrations. Passe premium (Compte) pour plus.';
+    if(st0){st0.innerHTML=msg;}else{alert('Limite gratuite : 3 integrations actives. Passe premium pour en activer plus.');}
+    return;
+  }
   const inp=document.getElementById('iam-inp-'+name);
   const val=inp?inp.value.trim():'';
   const form=document.getElementById('iam-'+name);
@@ -3055,7 +3070,16 @@ async function refreshContinuous(){
 (function(){
   const cb=$('#cont-learn-cb');
   if(cb)cb.onchange=async function(){
-    try{await fetch('/rpa/continuous',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:this.checked})});}catch(e){}
+    var self=this;
+    try{
+      var r=await fetch('/rpa/continuous',{method:'POST',headers:{'Content-Type':'application/json',..._authHdrs()},body:JSON.stringify({enabled:self.checked})});
+      if(!r.ok){
+        var d={};try{d=await r.json();}catch(e){}
+        self.checked=false;   // refus -> on remet le toggle a off
+        var st=$('#cont-learn-status');if(st)st.innerHTML='<span class="tag warn">premium requis</span> '+esc(d.detail||'Reserve a la version premium.');
+        return;
+      }
+    }catch(e){self.checked=false;}
     refreshContinuous();if(window.loadImitationList)loadImitationList();
   };
   refreshContinuous();
@@ -3301,11 +3325,28 @@ if(localStorage.getItem('neogen_dark_mode')==='1'){
   if(window._setShaderDark)window._setShaderDark(true);
 }
 
+async function _confirmerPremiumRetour(){
+  // Au retour de Stripe : success_url = #compte?premium_session=cs_xxx
+  var h=location.hash||'';
+  var m=h.match(/premium_session=([^&]+)/);
+  if(!m)return;
+  var t=(typeof _authToken==='function')?_authToken():null;
+  if(!t)return;
+  try{
+    var r=await fetch('/premium/confirmer',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({session_id:m[1]})});
+    var d=await r.json();
+    if(d.premium){alert('Bienvenue en premium ! Acces illimite debloque.');}
+  }catch(e){}
+  // Nettoie le hash pour eviter de reconfirmer
+  location.hash='#compte';
+}
 async function loadQuotas(){
+  await _confirmerPremiumRetour();
   var list=document.getElementById('quotas-list'),badge=document.getElementById('quotas-badge'),cta=document.getElementById('quotas-cta');
   if(!list)return;
   try{
     var d=await(await fetch('/quotas/me',{headers:_authHdrs?_authHdrs():{}})).json();
+    localStorage.setItem('neogen_premium',d.premium?'1':'0');   /* cache pour les gardes UI */
     if(badge)badge.innerHTML=d.premium?'<span class="tag ok">Premium</span>':'<span class="tag">Gratuit</span>';
     if(d.premium){
       list.innerHTML='<div style="font-size:13px;color:var(--ok)">&#10003; Acces illimite a toutes les fonctions.</div>';
@@ -3325,9 +3366,24 @@ async function loadQuotas(){
         +'<div style="height:6px;border-radius:99px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+coul+';transition:width .3s"></div></div></div>';
     }).join('')
       +'<div style="font-size:11px;color:var(--mut);margin-top:8px">Reserve premium : deploiement, apprentissage continu, delegation complete.</div>';
-    if(cta)cta.innerHTML='<button id="premium-cta" style="width:100%">Passer premium (illimite)</button>';
-    var pc=document.getElementById('premium-cta');
-    if(pc)pc.onclick=function(){alert('Le paiement premium arrive bientot (Stripe). En attendant, contacte l\'administrateur pour un acces.');};
+    if(cta)cta.innerHTML='<div style="font-size:12px;color:var(--mut);margin-bottom:6px">Passer premium (illimite) :</div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button id="premium-mensuel" style="flex:1">Mensuel</button>'
+      +'<button id="premium-annuel" style="flex:1">Annuel <span style="font-size:11px;opacity:.85">-30%</span></button></div>';
+    async function _passerPremium(plan,btn){
+      var t=(typeof _authToken==='function')?_authToken():null;
+      if(!t){alert('Connecte-toi d\'abord (plus bas) pour passer premium.');return;}
+      var old=btn.textContent;btn.disabled=true;btn.textContent='Redirection...';
+      try{
+        var r=await fetch('/premium/checkout',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({plan:plan})});
+        var d=await r.json();
+        if(r.ok&&d.url){window.location.href=d.url;}
+        else{alert(d.detail||'Paiement indisponible.');btn.disabled=false;btn.textContent=old;}
+      }catch(e){alert('Erreur reseau.');btn.disabled=false;btn.textContent=old;}
+    }
+    var pm=document.getElementById('premium-mensuel'),pa=document.getElementById('premium-annuel');
+    if(pm)pm.onclick=function(){_passerPremium('mensuel',pm);};
+    if(pa)pa.onclick=function(){_passerPremium('annuel',pa);};
   }catch(e){list.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
 }
 function _initPreferences(){

@@ -30,7 +30,7 @@ import uuid as _uid
 from datetime import datetime as _dt, timedelta as _td
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -1168,6 +1168,118 @@ def _load_cred(filename: str, key: str) -> str:
     return ""
 
 
+def _set_premium(user_id: str, premium: bool) -> bool:
+    """Marque un utilisateur premium (ou non). Utilisé par l'admin et le paiement Stripe."""
+    users = _rjsonl(_USERS)
+    trouve = False
+    for u in users:
+        if u.get("id") == user_id:
+            u["premium"] = bool(premium)
+            trouve = True
+    if trouve:
+        _wjsonl(_USERS, users)
+    return trouve
+
+
+# ── Premium Stripe (abonnement) ───────────────────────────────────────────────
+
+class PremiumCheckoutBody(BaseModel):
+    plan: str = "mensuel"   # mensuel | annuel
+
+
+@app.post("/premium/checkout")
+def premium_checkout(body: PremiumCheckoutBody | None = None,
+                     authorization: str | None = Header(default=None)):
+    """Crée une session Stripe Checkout (abonnement) pour passer premium.
+    Choix du plan : mensuel ou annuel (-30%, géré par le prix Stripe lui-même).
+    Nécessite d'être connecté : on lie le paiement au compte (client_reference_id)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Connecte-toi pour passer premium.")
+    if user.get("premium"):
+        raise HTTPException(status_code=400, detail="Tu es deja premium.")
+    import stripe as _stripe
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    plan = (body.plan if body else "mensuel") or "mensuel"
+    # Prix par plan : mensuel / annuel (-30% intégré au prix Stripe). Fallback : STRIPE_PRICE_ID.
+    if plan == "annuel":
+        price_id = _load_cred("stripe.env", "STRIPE_PRICE_ID_ANNUEL") or _load_cred("stripe.env", "STRIPE_PRICE_ID")
+    else:
+        price_id = _load_cred("stripe.env", "STRIPE_PRICE_ID_MENSUEL") or _load_cred("stripe.env", "STRIPE_PRICE_ID")
+    if not secret_key or not price_id:
+        raise HTTPException(status_code=503, detail="Stripe premium non configure (cle ou price_id manquant).")
+    _stripe.api_key = secret_key
+    base_url = _os.environ.get("NEOGEN_BASE_URL", "http://localhost:8000").rstrip("/")
+    try:
+        # Le mode dépend du type de prix : abonnement si récurrent, sinon paiement unique.
+        prix = _stripe.Price.retrieve(price_id)
+        mode = "subscription" if getattr(prix, "recurring", None) else "payment"
+        session = _stripe.checkout.Session.create(
+            mode=mode,
+            payment_method_types=["card"],
+            line_items=[{"price": price_id, "quantity": 1}],
+            client_reference_id=user["id"],
+            customer_email=user.get("email"),
+            success_url=f"{base_url}/#compte?premium_session={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/#compte",
+        )
+        return {"url": session.url}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+
+
+@app.post("/premium/confirmer")
+def premium_confirmer(data: dict, authorization: str | None = Header(default=None)):
+    """Confirme le paiement au retour de Stripe (fonctionne sans webhook public).
+    Vérifie que la session est payée ET appartient bien à l'utilisateur connecté."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+    session_id = (data.get("session_id") or "").strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id manquant")
+    import stripe as _stripe
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(status_code=503, detail="Stripe non configure")
+    _stripe.api_key = secret_key
+    try:
+        sess = _stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+    # Le paiement doit etre valide ET rattache a CET utilisateur.
+    if sess.get("payment_status") == "paid" and sess.get("client_reference_id") == user["id"]:
+        _set_premium(user["id"], True)
+        return {"ok": True, "premium": True}
+    return {"ok": False, "premium": False, "raison": "Paiement non confirme pour ce compte."}
+
+
+@app.post("/premium/webhook")
+async def premium_webhook(request: Request):
+    """Webhook Stripe (prod) : marque premium sur paiement reussi. Signature verifiee."""
+    import stripe as _stripe
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    wh_secret = _load_cred("stripe.env", "STRIPE_WEBHOOK_SECRET")
+    if not secret_key:
+        raise HTTPException(status_code=503, detail="Stripe non configure")
+    _stripe.api_key = secret_key
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        if wh_secret:
+            event = _stripe.Webhook.construct_event(payload, sig, wh_secret)
+        else:
+            event = _json.loads(payload)  # dev sans secret (moins sur)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Signature invalide : {e}")
+    if event.get("type") == "checkout.session.completed":
+        sess = event["data"]["object"]
+        uid = sess.get("client_reference_id")
+        if uid and sess.get("payment_status") == "paid":
+            _set_premium(uid, True)
+    return {"received": True}
+
+
 class DonBody(BaseModel):
     montant: int  # euros entiers, minimum 1
 
@@ -1323,7 +1435,13 @@ class RpaContinuousBody(BaseModel):
 
 
 @app.post("/rpa/continuous")
-def rpa_continuous_set(body: RpaContinuousBody):
+def rpa_continuous_set(body: RpaContinuousBody, authorization: str | None = Header(default=None)):
+    # Apprentissage continu = fonction premium. Activation refusée en gratuit.
+    if body.enabled:
+        import quotas
+        if not quotas.verifier(_auth(authorization), "apprentissage_continu")["autorise"]:
+            raise HTTPException(status_code=402,
+                                detail="L'apprentissage continu est reserve a la version premium.")
     return {"enabled": rpa.set_continuous(body.enabled)}
 
 
