@@ -751,6 +751,30 @@ def supprimer_skill(nom: str):
     return {"ok": competences.supprimer(nom)}
 
 
+@app.get("/memoire")
+def lister_memoire():
+    """Souvenirs cross-session de l'agent — pour l'affichage dans l'UI."""
+    import memoire_agent
+    return {"memoires": memoire_agent.lister()}
+
+
+class MemoireBody(BaseModel):
+    contenu: str
+    type: str = "fait"
+
+
+@app.post("/memoire")
+def creer_memoire(body: MemoireBody):
+    import memoire_agent
+    return {"ok": True, "memoire": memoire_agent.memoriser(body.contenu, body.type)}
+
+
+@app.delete("/memoire/{mem_id}")
+def supprimer_memoire(mem_id: str):
+    import memoire_agent
+    return {"ok": memoire_agent.supprimer(mem_id)}
+
+
 @app.post("/agent/{role}/chat/stream")
 def agent_chat_stream(role: str, demande: DemandeChat,
                       x_llm_provider: str | None = Header(default=None),

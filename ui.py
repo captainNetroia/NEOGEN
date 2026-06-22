@@ -1084,6 +1084,16 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Le Cerveau forge ses propres competences quand il reussit une tache reproductible. Elles deviennent invocables tout de suite.</div>
     <div id="skills-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
   </div>
+
+  <!-- Memoire cross-session : ce que l'agent retient de toi -->
+  <div class="panel glass" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Memoire de l'agent</div>
+      <button class="ghost" id="mem-refresh" style="font-size:12px;padding:4px 10px">Rafraichir</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Ce que l'agent retient de toi d'une session a l'autre (preferences, projets, faits). Il s'en sert pour personnaliser ses reponses.</div>
+    <div id="mem-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
 </div>
 
 <!-- PRODUCTION -->
@@ -3065,7 +3075,7 @@ const _origShowSection=showSection;
 showSection=function(name){
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
-  if(name==='cerveau'&&window.loadSkills){loadSkills();}
+  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -3295,6 +3305,33 @@ window.deleteSkill=async function(nom){
   const btn=document.getElementById('skills-refresh');
   if(btn)btn.onclick=loadSkills;
   loadSkills();
+})();
+
+// ===== MEMOIRE cross-session =====
+async function loadMemoire(){
+  const el=document.getElementById('mem-list');if(!el)return;
+  try{
+    const d=await(await fetch('/memoire')).json();
+    const list=d.memoires||[];
+    if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">L\'agent ne se souvient de rien pour le moment. Dis-lui qui tu es, tes preferences, tes projets : il les retiendra.</div>';return;}
+    const couleur={user:'#7c3aed',preference:'#0891b2',projet:'#16a34a',fait:'#64748b'};
+    el.innerHTML=list.map(function(m){
+      return '<div class="hist-item" style="align-items:flex-start">'
+        +'<span class="tag" style="flex-shrink:0;background:'+(couleur[m.type]||'#64748b')+'22;color:'+(couleur[m.type]||'#64748b')+'">'+esc(m.type||'fait')+'</span>'
+        +'<span style="flex:1;font-size:13px">'+esc(m.contenu||'')+'<br><span style="font-size:11px;color:var(--mut)">'+esc(m.cree_le||'')+'</span></span>'
+        +'<span style="color:var(--ko);cursor:pointer;font-weight:700;flex-shrink:0" title="Oublier" onclick="deleteMemoire(\''+esc(m.id)+'\')">&times;</span>'
+        +'</div>';
+    }).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
+window.deleteMemoire=async function(id){
+  try{await fetch('/memoire/'+encodeURIComponent(id),{method:'DELETE'});}catch(e){}
+  loadMemoire();
+};
+(function(){
+  const btn=document.getElementById('mem-refresh');
+  if(btn)btn.onclick=loadMemoire;
+  loadMemoire();
 })();
 </script>
 </body>

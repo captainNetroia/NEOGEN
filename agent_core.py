@@ -287,6 +287,29 @@ def outil_utiliser_skill(nom: str = "", contexte: str = "", **kw) -> str:
     return nettoyer(txt)[:3000]
 
 
+# ── Mémoire cross-session : l'agent se souvient d'une session à l'autre ────────
+
+def outil_memoriser(contenu: str = "", type: str = "fait", **kw) -> str:
+    """Enregistre un fait durable (sur l'utilisateur, ses preferences, ses projets)."""
+    import memoire_agent
+    if not contenu.strip():
+        return "Rien a memoriser : fournis 'contenu'."
+    s = memoire_agent.memoriser(contenu, type)
+    if not s:
+        return "Contenu vide apres nettoyage."
+    return f"Memorise ([{s['type']}]) : {s['contenu']}"
+
+
+def outil_rappeler(requete: str = "", **kw) -> str:
+    """Rappelle ce que l'agent sait deja (souvenirs des sessions precedentes)."""
+    import memoire_agent
+    souvenirs = memoire_agent.rappeler(requete)
+    if not souvenirs:
+        return "Aucun souvenir pertinent."
+    return nettoyer("Souvenirs :\n" + "\n".join(
+        f"- [{m.get('type','fait')}] {m.get('contenu','')}" for m in souvenirs))
+
+
 # nom outil -> (fonction, description courte pour le prompt)
 OUTILS: dict[str, tuple[Callable, str]] = {
     "discerner":         (outil_discerner,         "Analyse une intention (valeur/faisabilite/clarte). params: {intention}"),
@@ -303,6 +326,8 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "creer_skill":       (outil_creer_skill,       "Cree une COMPETENCE reutilisable (skill) : un savoir-faire nomme que tu pourras reinvoquer. A faire quand tu reussis une tache utile et reproductible. params: {nom, description, instructions, outils?}"),
     "lister_skills":     (outil_lister_skills,     "Liste les competences (skills) deja apprises. params: {}"),
     "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire. params: {nom, contexte?}"),
+    "memoriser":         (outil_memoriser,         "Memorise un fait DURABLE sur l'utilisateur/ses preferences/ses projets (se souvenir entre sessions). params: {contenu, type?: user|preference|projet|fait}"),
+    "rappeler":          (outil_rappeler,          "Rappelle ce que tu sais deja (souvenirs des sessions precedentes). params: {requete?}"),
 }
 
 
@@ -317,7 +342,7 @@ PROFILS: dict[str, dict] = {
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
-                   "creer_skill", "lister_skills", "utiliser_skill"],
+                   "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
@@ -359,7 +384,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
@@ -412,13 +437,19 @@ def _systeme(role: str, profil: dict) -> str:
     if profil.get("delegue"):
         desc += ("\n  - deleguer : confie une mission a un agent specialise. "
                  'arguments JSON {"agent": "createur|genealogiste|secretaire", "mission": "..."}.')
-    # Compétences apprises : injectées dynamiquement -> disponibles dès leur création.
+    # Compétences apprises + mémoire cross-session : injectées dynamiquement.
     skills_bloc = ""
     try:
         import competences
         skills_bloc = competences.resume_pour_prompt()
     except Exception:
         skills_bloc = ""
+    memoire_bloc = ""
+    try:
+        import memoire_agent
+        memoire_bloc = memoire_agent.resume_pour_prompt()
+    except Exception:
+        memoire_bloc = ""
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -429,7 +460,7 @@ def _systeme(role: str, profil: dict) -> str:
         "- 'arguments' est TOUJOURS une chaine de texte JSON (vide si l'outil n'a pas de parametre). "
         "Ne mets jamais les parametres ailleurs.\n"
         "- N'invente jamais un outil hors de la liste. Si aucun outil n'est utile, reponds directement.\n\n"
-        "OUTILS DISPONIBLES :\n" + desc + skills_bloc
+        "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc
     )
 
 
