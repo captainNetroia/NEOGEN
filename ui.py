@@ -1138,6 +1138,16 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
     <p>Ton profil, modele actif et historique de production.</p>
   </div>
+  <!-- Quotas freemium : compteurs visibles -->
+  <div class="panel glass" style="margin-bottom:18px" id="quotas-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Ton plan</div>
+      <span id="quotas-badge"></span>
+    </div>
+    <div id="quotas-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+    <div id="quotas-cta" style="margin-top:12px"></div>
+  </div>
+
   <!-- Panel Preferences toujours visible (sans connexion requise) -->
   <div class="panel glass" style="margin-bottom:18px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Preferences</div>
@@ -2284,6 +2294,8 @@ function _llmHdrs(extra){
     else if(k){ h['X-LLM-Key']=k; }
   }
   if(localStorage.getItem('neogen_eco')!=='0')h['X-LLM-Eco']='1';   /* mode economie ACTIF par defaut (intelligent) */
+  var _t=(typeof _authToken==='function')?_authToken():null;
+  if(_t)h['Authorization']='Bearer '+_t;   /* identifie l'utilisateur pour les quotas */
   return h;
 }
 async function _fetchMe(){
@@ -3289,7 +3301,37 @@ if(localStorage.getItem('neogen_dark_mode')==='1'){
   if(window._setShaderDark)window._setShaderDark(true);
 }
 
+async function loadQuotas(){
+  var list=document.getElementById('quotas-list'),badge=document.getElementById('quotas-badge'),cta=document.getElementById('quotas-cta');
+  if(!list)return;
+  try{
+    var d=await(await fetch('/quotas/me',{headers:_authHdrs?_authHdrs():{}})).json();
+    if(badge)badge.innerHTML=d.premium?'<span class="tag ok">Premium</span>':'<span class="tag">Gratuit</span>';
+    if(d.premium){
+      list.innerHTML='<div style="font-size:13px;color:var(--ok)">&#10003; Acces illimite a toutes les fonctions.</div>';
+      if(cta)cta.innerHTML='';
+      return;
+    }
+    if(!d.connecte){
+      list.innerHTML='<div style="font-size:13px;color:var(--mut)">Connecte-toi (plus bas) pour suivre tes quotas et debloquer le plan gratuit : 5 creations, 2 mode juge, 3 integrations.</div>';
+      if(cta)cta.innerHTML='';
+      return;
+    }
+    list.innerHTML=(d.quotas||[]).map(function(q){
+      var pct=q.limite?Math.min(100,Math.round(q.utilise/q.limite*100)):0;
+      var coul=q.reste===0?'var(--ko)':(q.reste<=1?'var(--warn)':'var(--ok)');
+      return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">'
+        +'<span>'+esc(q.libelle)+'</span><span style="color:'+coul+';font-weight:600">'+q.utilise+' / '+q.limite+'</span></div>'
+        +'<div style="height:6px;border-radius:99px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+coul+';transition:width .3s"></div></div></div>';
+    }).join('')
+      +'<div style="font-size:11px;color:var(--mut);margin-top:8px">Reserve premium : deploiement, apprentissage continu, delegation complete.</div>';
+    if(cta)cta.innerHTML='<button id="premium-cta" style="width:100%">Passer premium (illimite)</button>';
+    var pc=document.getElementById('premium-cta');
+    if(pc)pc.onclick=function(){alert('Le paiement premium arrive bientot (Stripe). En attendant, contacte l\'administrateur pour un acces.');};
+  }catch(e){list.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
 function _initPreferences(){
+  loadQuotas();
   // Dark mode toggle
   var cb=document.getElementById('dark-toggle-cb');
   if(cb){

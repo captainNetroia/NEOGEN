@@ -100,6 +100,14 @@ def outil_creer_application(intention: str = "", persistance: bool = False,
     from capacites import Capacites
     import registre
     emit = kw.get("_emit")
+    # Quota freemium : la création via le chat compte comme une création (cohérence
+    # avec le studio). Invité (pas de _user) : non compté mais autorisé.
+    _u = kw.get("_user")
+    if _u:
+        import quotas
+        v = quotas.verifier(_u, "creations")
+        if not v["autorise"]:
+            return f"Limite atteinte : {v['raison']}"
     # Le modele peut passer reseau/domaines sous plusieurs formes : on normalise.
     doms = []
     if isinstance(reseau, dict):
@@ -128,6 +136,13 @@ def outil_creer_application(intention: str = "", persistance: bool = False,
         entrees = registre.lister()
         if entrees:
             produit_id = entrees[-1]["id"]
+        # Quota consommé sur succès (cohérence avec le studio).
+        if _u:
+            try:
+                import quotas
+                quotas.incrementer(_u["id"], "creations")
+            except Exception:
+                pass
         # Wiring cohérence : une création réussie cristallise une compétence réutilisable
         # ("comment refaire ce type de produit") -> le savoir-faire s'accumule (auto).
         try:
@@ -583,7 +598,7 @@ def _parse_step(txt: str) -> AgentStep:
 
 def dialoguer(role: str, message: str, historique: list[dict] | None = None,
               ctx=None, emit: Callable[[dict], None] | None = None,
-              _client=None, _profondeur: int = 0, eco: bool = False) -> str:
+              _client=None, _profondeur: int = 0, eco: bool = False, user=None) -> str:
     """
     Fait avancer un agent jusqu'a une reponse. Retourne la reponse finale (str).
     - role : cle de PROFILS (cerveau/createur/genealogiste/secretaire)
@@ -658,7 +673,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             else:
                 _emit({"type": "delegation", "de": role, "vers": cible, "mission": nettoyer(mission)})
                 obs = dialoguer(cible, mission, ctx=ctx, emit=emit,
-                                _client=_client, _profondeur=_profondeur + 1)
+                                _client=_client, _profondeur=_profondeur + 1, eco=eco, user=user)
             _replay("deleguer")
             messages.append({"role": "user", "content": f"[Resultat delegation a {cible}] {obs}"})
             continue
@@ -673,7 +688,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         _emit({"type": "action", "agent": role, "outil": outil, "parametres": params})
         fn = OUTILS[outil][0]
         try:
-            obs = fn(_ctx=ctx, _emit=emit, **params)
+            obs = fn(_ctx=ctx, _emit=emit, _user=user, **params)
         except Exception as e:
             obs = nettoyer(f"Erreur outil {outil} : {e}")
         obs = nettoyer(str(obs))[:2000]

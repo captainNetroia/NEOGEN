@@ -100,6 +100,20 @@ def _exiger_byok(ctx) -> None:
     ))
 
 
+def _verifier_quota(authorization: str | None, type_: str):
+    """Vérifie le quota freemium pour l'action. Renvoie (user, premium).
+    Lève 402 si la limite gratuite est atteinte. Si l'utilisateur n'est pas connecté,
+    on autorise (mode invité) mais sans comptage — l'UI invite à créer un compte."""
+    import quotas
+    user = _auth(authorization)
+    if user is None:
+        return None, False  # invité : pas de comptage (l'UI encourage la connexion)
+    v = quotas.verifier(user, type_)
+    if not v["autorise"]:
+        raise HTTPException(status_code=402, detail=v["raison"])
+    return user, v["premium"]
+
+
 
 class DemandeFabrication(BaseModel):
     intention: str = Field(min_length=3, max_length=2000,
@@ -577,7 +591,8 @@ def fabriquer_stream(demande: DemandeFabrication,
                      x_llm_provider: str | None = Header(default=None),
                      x_llm_model: str | None = Header(default=None),
                      x_llm_key: str | None = Header(default=None),
-                     x_llm_base: str | None = Header(default=None)):
+                     x_llm_base: str | None = Header(default=None),
+                     authorization: str | None = Header(default=None)):
     """Etape 4 du studio : forge le produit en diffusant chaque stade en Server-Sent Events."""
     import queue
     import threading
@@ -593,6 +608,10 @@ def fabriquer_stream(demande: DemandeFabrication,
     # Resolution du provider/modele PAR REQUETE (cle jamais persistee ni loggee).
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
     _exiger_byok(_ctx)
+    # Quotas freemium : création (+ mode jugé si demandé).
+    _user, _ = _verifier_quota(authorization, "creations")
+    if demande.juger:
+        _verifier_quota(authorization, "mode_juge")
     _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -629,6 +648,12 @@ def fabriquer_stream(demande: DemandeFabrication,
                 entrees = registre.lister()
                 if entrees:
                     produit_id = entrees[-1]["id"]
+                # Quota consommé seulement sur succès (modif incluse = 1 usage).
+                if _user:
+                    import quotas
+                    quotas.incrementer(_user["id"], "creations")
+                    if demande.juger:
+                        quotas.incrementer(_user["id"], "mode_juge")
             file_evts.put({
                 "stade": "fini", "succes": r.succes, "verdict": nettoyer(r.verdict),
                 "tentatives": r.tentatives, "lignes": r.lignes, "produit_id": produit_id,
@@ -659,7 +684,8 @@ def orchestrer_stream(demande: DemandeFabrication,
                       x_llm_provider: str | None = Header(default=None),
                       x_llm_model: str | None = Header(default=None),
                       x_llm_key: str | None = Header(default=None),
-                      x_llm_base: str | None = Header(default=None)):
+                      x_llm_base: str | None = Header(default=None),
+                      authorization: str | None = Header(default=None)):
     """Mode delegation : decompose l'intention en organes, delegue chaque organe a un
     sous-agent au tier adapte, assemble sous gouvernance. Diffuse chaque etape en SSE."""
     import queue
@@ -675,6 +701,7 @@ def orchestrer_stream(demande: DemandeFabrication,
     )
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
     _exiger_byok(_ctx)
+    _user, _ = _verifier_quota(authorization, "creations")
     _moteur = resume_ctx(_ctx)
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -699,6 +726,9 @@ def orchestrer_stream(demande: DemandeFabrication,
                 entrees = registre.lister()
                 if entrees:
                     produit_id = entrees[-1]["id"]
+                if _user:
+                    import quotas
+                    quotas.incrementer(_user["id"], "creations")
             file_evts.put({
                 "stade": "fini", "succes": r.succes, "verdict": nettoyer(r.verdict),
                 "tentatives": r.tentatives, "lignes": r.lignes, "produit_id": produit_id,
@@ -859,7 +889,8 @@ def agent_chat_stream(role: str, demande: DemandeChat,
                       x_llm_model: str | None = Header(default=None),
                       x_llm_key: str | None = Header(default=None),
                       x_llm_base: str | None = Header(default=None),
-                      x_llm_eco: str | None = Header(default=None)):
+                      x_llm_eco: str | None = Header(default=None),
+                      authorization: str | None = Header(default=None)):
     """Dialogue avec un agent : il reflechit, appelle des outils, repond. Flux SSE."""
     import queue
     import threading
@@ -873,6 +904,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
     _exiger_byok(_ctx)
     _eco = str(x_llm_eco or "").strip() in ("1", "true", "True", "on")
+    _user = _auth(authorization)   # identifie l'utilisateur pour les quotas (création via chat)
     hist = [{"role": m.role, "content": m.content} for m in demande.historique]
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -884,7 +916,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
 
     def travailler():
         try:
-            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit, eco=_eco)
+            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user)
         except Exception as e:
             file_evts.put({"type": "erreur", "message": nettoyer(str(e))})
         finally:
@@ -1041,6 +1073,7 @@ def auth_me(authorization: str = Header(None)):
         "id": user["id"], "email": user["email"],
         "name": user["name"], "created_at": user.get("created_at"),
         "is_admin": _est_admin(user),
+        "premium": bool(user.get("premium")),
     }
 
 
@@ -1051,6 +1084,38 @@ def auth_logout(authorization: str = Header(None)):
     token = authorization.replace("Bearer ", "").strip()
     _wjsonl(_SESSIONS, [s for s in _rjsonl(_SESSIONS) if s.get("token") != token])
     return {"ok": True}
+
+
+# ── Quotas freemium ───────────────────────────────────────────────────────────
+
+@app.get("/quotas/me")
+def quotas_me(authorization: str = Header(None)):
+    """État des quotas de l'utilisateur (compteurs visibles dans l'UI)."""
+    import quotas
+    return quotas.etat(_auth(authorization))
+
+
+class PremiumBody(BaseModel):
+    email: str
+    premium: bool = True
+
+
+@app.post("/admin/premium")
+def admin_premium(body: PremiumBody, authorization: str = Header(None)):
+    """Active/désactive le premium d'un utilisateur. Admin uniquement.
+    (Le paiement Stripe appellera ceci automatiquement plus tard.)"""
+    user = _auth(authorization)
+    if not _est_admin(user):
+        raise HTTPException(403, "Reserve a l'administrateur")
+    cible = _user_by_email(body.email.strip().lower())
+    if not cible:
+        raise HTTPException(404, "Utilisateur introuvable")
+    users = _rjsonl(_USERS)
+    for u in users:
+        if u.get("id") == cible["id"]:
+            u["premium"] = bool(body.premium)
+    _wjsonl(_USERS, users)
+    return {"ok": True, "email": body.email, "premium": bool(body.premium)}
 
 
 @app.post("/feedback")
@@ -1429,8 +1494,13 @@ class DeployBody(BaseModel):
 
 
 @app.post("/produits/{produit_id}/deploy")
-def deploy_produit(produit_id: str, body: DeployBody):
+def deploy_produit(produit_id: str, body: DeployBody, authorization: str | None = Header(default=None)):
     """Prépare le pack de déploiement et crée une demande pour l'agent local / MCP."""
+    # Déploiement = fonction premium.
+    import quotas
+    _u = _auth(authorization)
+    if not quotas.verifier(_u, "deploiement")["autorise"]:
+        raise HTTPException(status_code=402, detail="Le deploiement est reserve a la version premium.")
     if not registre.est_promu(produit_id):
         raise HTTPException(status_code=403, detail="produit non promu (validation humaine requise)")
     contrat = registre.charger_contrat(produit_id)
