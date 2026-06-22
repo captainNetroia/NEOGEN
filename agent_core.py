@@ -430,7 +430,7 @@ def _tronquer_historique(hist: list[dict] | None) -> list[dict]:
     return out
 
 
-def _systeme(role: str, profil: dict) -> str:
+def _systeme(role: str, profil: dict, eco: bool = False) -> str:
     """Construit le prompt systeme : role + protocole + liste d'outils autorises."""
     outils = list(profil.get("outils", []))
     desc = "\n".join(f"  - {n} : {OUTILS[n][1]}" for n in outils if n in OUTILS)
@@ -460,7 +460,10 @@ def _systeme(role: str, profil: dict) -> str:
         "- 'arguments' est TOUJOURS une chaine de texte JSON (vide si l'outil n'a pas de parametre). "
         "Ne mets jamais les parametres ailleurs.\n"
         "- N'invente jamais un outil hors de la liste. Si aucun outil n'est utile, reponds directement.\n\n"
-        "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc
+        + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
+           "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
+           "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
+        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc
     )
 
 
@@ -546,7 +549,7 @@ def _parse_step(txt: str) -> AgentStep:
 
 def dialoguer(role: str, message: str, historique: list[dict] | None = None,
               ctx=None, emit: Callable[[dict], None] | None = None,
-              _client=None, _profondeur: int = 0) -> str:
+              _client=None, _profondeur: int = 0, eco: bool = False) -> str:
     """
     Fait avancer un agent jusqu'a une reponse. Retourne la reponse finale (str).
     - role : cle de PROFILS (cerveau/createur/genealogiste/secretaire)
@@ -555,6 +558,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
     - ctx : LLMContext (provider/cle actifs) ou None (anthropic par defaut)
     - emit : callback(evt:dict) pour streamer pensee/action/observation (SSE)
     - _client : injecte pour les tests (sinon resolu via gateway)
+    - eco : mode economie -> le tier (modele) est choisi selon la demande (moins de tokens)
     """
     profil = PROFILS.get(role)
     if profil is None:
@@ -564,11 +568,20 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if emit:
             emit(evt)
 
-    systeme = _systeme(profil["role"], profil)
+    systeme = _systeme(profil["role"], profil, eco=eco)
     messages: list[dict] = _tronquer_historique(historique)
     messages.append({"role": "user", "content": message})
 
-    cl = _client or gateway.client(ctx, tier=profil.get("tier", "fort"))
+    # Choix du tier : figé par profil, ou recommandé selon la demande en mode éco.
+    tier = profil.get("tier", "fort")
+    if eco:
+        reco = gateway.recommander_tier(message)
+        # On ne descend jamais sous le tier requis par une vraie complexite, mais on
+        # economise quand la demande est simple (ex: Cerveau "fort" -> "leger" pour "bonjour").
+        tier = reco["tier"]
+        _emit({"type": "eco", "tier": tier, "raison": reco["raison"]})
+
+    cl = _client or gateway.client(ctx, tier=tier)
 
     for _ in range(MAX_ETAPES):
         # Pendant la boucle, messages grossit (action/observation a chaque tour).

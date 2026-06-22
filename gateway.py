@@ -43,6 +43,64 @@ TIERS = {
     "local":     {"fort": "llama3.2",        "moyen": "llama3.2",          "leger": "qwen2.5"},
 }
 
+# ---------------------------------------------------------------------------
+# ROUTEUR DE MODELE : analyse une demande et choisit le tier LE PLUS ECONOME
+# possible (moins de tokens = moins cher = valeur client). Heuristique locale
+# (aucun appel LLM -> gratuit, instantane). C'est le "modele adapte selon la
+# demande" : tache simple -> leger ; tache complexe -> fort.
+# ---------------------------------------------------------------------------
+
+# Signaux de COMPLEXITE (poussent vers 'fort').
+_MOTS_COMPLEXES = (
+    "architecture", "refactor", "refonte", "analyse", "analyser", "strategie",
+    "deboguer", "debug", "optimiser", "securite", "concevoir", "conception",
+    "plan", "planifier", "raisonne", "demontre", "prouve", "compare", "evalue",
+    "multi", "orchestr", "delegue", "genere une app", "cree une app", "code",
+    "algorithme", "juridique", "rgpd", "conformite", "pourquoi", "explique en detail",
+)
+# Signaux de SIMPLICITE (autorisent 'leger').
+_MOTS_SIMPLES = (
+    "bonjour", "salut", "merci", "ok", "oui", "non", "liste", "lister",
+    "affiche", "montre", "quelle heure", "resume court", "traduis", "reformule",
+    "corrige la faute", "convertis", "combien",
+)
+
+
+def recommander_tier(demande: str) -> dict:
+    """Analyse une demande et renvoie {tier, raison, score}. Heuristique, sans appel LLM.
+    Vise l'economie : on ne monte en 'fort' que si la complexite le justifie."""
+    txt = (demande or "").strip().lower()
+    n = len(txt)
+    score = 0
+    raisons = []
+
+    # Longueur : une longue demande est souvent plus complexe.
+    if n > 600:
+        score += 2; raisons.append("demande longue")
+    elif n > 200:
+        score += 1; raisons.append("demande moyenne")
+
+    complexes = sum(1 for m in _MOTS_COMPLEXES if m in txt)
+    simples = sum(1 for m in _MOTS_SIMPLES if m in txt)
+    if complexes:
+        score += complexes + 1; raisons.append(f"{complexes} signal(aux) de complexite")
+    if simples and not complexes:
+        score -= 1; raisons.append("formulation simple")
+
+    # Questions multiples / etapes -> plus complexe.
+    if txt.count("?") >= 2 or " puis " in txt or " ensuite " in txt or "\n" in txt.strip():
+        score += 1; raisons.append("plusieurs etapes")
+
+    if score >= 3:
+        tier = "fort"
+    elif score >= 1:
+        tier = "moyen"
+    else:
+        tier = "leger"
+    return {"tier": tier, "score": score,
+            "raison": ", ".join(raisons) or "demande simple"}
+
+
 # Providers parlant l'API chat/completions compatible OpenAI.
 _OPENAI_COMPAT = {
     "openai":   "https://api.openai.com/v1",

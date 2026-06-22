@@ -793,6 +793,11 @@ body.in-section #breadcrumb{display:none !important;}
 .agent-chat-clear:hover{opacity:.9}
 .ac-md h3{font-size:15px;margin:8px 0 4px}.ac-md ul{margin:4px 0 4px 18px}.ac-md li{margin:2px 0}
 .ac-md code{background:rgba(15,23,42,.08);padding:1px 5px;border-radius:5px;font-size:12px}
+.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:var(--mut);margin-left:auto;margin-right:8px;user-select:none}
+.eco-toggle input{width:30px;height:16px;appearance:none;background:rgba(100,116,139,.35);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.eco-toggle input:checked{background:var(--ok)}
+.eco-toggle input::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s}
+.eco-toggle input:checked::after{left:16px}
 .ac-md table{border-collapse:collapse;margin:8px 0;font-size:12px;width:100%}
 .ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:5px 9px;text-align:left}
 .ac-md th{background:rgba(15,23,42,.06);font-weight:700}
@@ -2254,6 +2259,7 @@ function _llmHdrs(extra){
     if(p==='local'){ if(k)h['X-LLM-Base']=k; }   /* pour local, le champ porte l'URL de base */
     else if(k){ h['X-LLM-Key']=k; }
   }
+  if(localStorage.getItem('neogen_eco')!=='0')h['X-LLM-Eco']='1';   /* mode economie ACTIF par defaut (intelligent) */
   return h;
 }
 async function _fetchMe(){
@@ -3172,6 +3178,8 @@ function buildChat(mount){
   mount.innerHTML=
     '<div class="agent-chat-head"><span class="agent-chat-dot"></span><b>'+esc(titre)+'</b>'
     +'<span class="agent-chat-sub">'+esc(sub)+'</span>'
+    +'<label class="eco-toggle" id="aceco-'+role+'" title="Mode economie : choisit le modele le plus econome selon ta demande (moins de tokens)">'
+    +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input"><textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'..."></textarea>'
@@ -3180,6 +3188,12 @@ function buildChat(mount){
   const inp=mount.querySelector('#acin-'+role);
   const btn=mount.querySelector('#acsend-'+role);
   const clr=mount.querySelector('#acclr-'+role);
+  const ecocb=mount.querySelector('#ececb-'+role);
+  if(ecocb){
+    ecocb.checked=localStorage.getItem('neogen_eco')!=='0';   /* actif par defaut */
+    ecocb.onchange=function(){localStorage.setItem('neogen_eco',this.checked?'1':'0');
+      document.querySelectorAll('[id^="ececb-"]').forEach(function(c){c.checked=ecocb.checked;});};
+  }
   const KEY='neogen_chat_'+role;
   let hist=[];try{hist=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){hist=[];}
   function add(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
@@ -3203,7 +3217,8 @@ function buildChat(mount){
           const chunk=buf.slice(0,idx);buf=buf.slice(idx+2);
           if(!chunk.startsWith('data: '))continue;
           let evt;try{evt=JSON.parse(chunk.slice(6));}catch(e){continue;}
-          if(evt.type==='pensee'){add('ac-trace','&#128173; '+esc(evt.texte||''));}
+          if(evt.type==='eco'){add('ac-trace','&#127793; eco : modele '+esc(evt.tier||'')+' ('+esc(evt.raison||'')+')');}
+          else if(evt.type==='pensee'){add('ac-trace','&#128173; '+esc(evt.texte||''));}
           else if(evt.type==='action'){add('ac-trace action','&#128295; '+esc(evt.outil||'')+' '+esc(JSON.stringify(evt.parametres||{})));}
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
           else if(evt.type==='delegation'){add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+' : '+esc(evt.mission||''));}

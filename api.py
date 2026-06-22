@@ -775,12 +775,25 @@ def supprimer_memoire(mem_id: str):
     return {"ok": memoire_agent.supprimer(mem_id)}
 
 
+class RecommanderBody(BaseModel):
+    demande: str
+
+
+@app.post("/llm/recommander")
+def llm_recommander(body: RecommanderBody):
+    """Analyse une demande et recommande le tier (modele) le plus econome adapte.
+    C'est le 'modele adapte selon la demande' : tache simple -> leger, complexe -> fort."""
+    import gateway
+    return gateway.recommander_tier(body.demande)
+
+
 @app.post("/agent/{role}/chat/stream")
 def agent_chat_stream(role: str, demande: DemandeChat,
                       x_llm_provider: str | None = Header(default=None),
                       x_llm_model: str | None = Header(default=None),
                       x_llm_key: str | None = Header(default=None),
-                      x_llm_base: str | None = Header(default=None)):
+                      x_llm_base: str | None = Header(default=None),
+                      x_llm_eco: str | None = Header(default=None)):
     """Dialogue avec un agent : il reflechit, appelle des outils, repond. Flux SSE."""
     import queue
     import threading
@@ -793,6 +806,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
 
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
     _exiger_byok(_ctx)
+    _eco = str(x_llm_eco or "").strip() in ("1", "true", "True", "on")
     hist = [{"role": m.role, "content": m.content} for m in demande.historique]
 
     file_evts: "queue.Queue" = queue.Queue()
@@ -804,7 +818,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
 
     def travailler():
         try:
-            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit)
+            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit, eco=_eco)
         except Exception as e:
             file_evts.put({"type": "erreur", "message": nettoyer(str(e))})
         finally:
