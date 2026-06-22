@@ -1181,6 +1181,41 @@ def _set_premium(user_id: str, premium: bool) -> bool:
     return trouve
 
 
+def _marquer_essai_utilise(user_id: str) -> None:
+    """Note que l'utilisateur a déjà bénéficié de l'essai premium (un seul par compte)."""
+    users = _rjsonl(_USERS)
+    for u in users:
+        if u.get("id") == user_id:
+            u["essai_utilise"] = True
+    _wjsonl(_USERS, users)
+
+
+def _lier_stripe_customer(user_id: str, customer_id: str) -> None:
+    """Mémorise l'ID client Stripe sur le compte (pour révoquer le premium à l'annulation)."""
+    if not customer_id:
+        return
+    users = _rjsonl(_USERS)
+    for u in users:
+        if u.get("id") == user_id:
+            u["stripe_customer_id"] = customer_id
+    _wjsonl(_USERS, users)
+
+
+def _revoquer_premium_par_customer(customer_id: str) -> bool:
+    """Retire le premium au compte lié à ce client Stripe (annulation/échec de paiement)."""
+    if not customer_id:
+        return False
+    users = _rjsonl(_USERS)
+    trouve = False
+    for u in users:
+        if u.get("stripe_customer_id") == customer_id:
+            u["premium"] = False
+            trouve = True
+    if trouve:
+        _wjsonl(_USERS, users)
+    return trouve
+
+
 # ── Premium Stripe (abonnement) ───────────────────────────────────────────────
 
 class PremiumCheckoutBody(BaseModel):
@@ -1214,7 +1249,7 @@ def premium_checkout(body: PremiumCheckoutBody | None = None,
         # Le mode dépend du type de prix : abonnement si récurrent, sinon paiement unique.
         prix = _stripe.Price.retrieve(price_id)
         mode = "subscription" if getattr(prix, "recurring", None) else "payment"
-        session = _stripe.checkout.Session.create(
+        params = dict(
             mode=mode,
             payment_method_types=["card"],
             line_items=[{"price": price_id, "quantity": 1}],
@@ -1223,6 +1258,13 @@ def premium_checkout(body: PremiumCheckoutBody | None = None,
             success_url=f"{base_url}/#compte?premium_session={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/#compte",
         )
+        # Essai premium 7 jours (abonnement) : CB demandée à l'entrée, débit auto après l'essai.
+        # Un seul essai par utilisateur (on note qu'il l'a déjà utilisé).
+        if mode == "subscription" and not user.get("essai_utilise"):
+            jours = int(_os.environ.get("NEOGEN_TRIAL_DAYS", "7") or 7)
+            params["subscription_data"] = {"trial_period_days": jours}
+            _marquer_essai_utilise(user["id"])
+        session = _stripe.checkout.Session.create(**params)
         return {"url": session.url}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Stripe : {e}")
@@ -1247,10 +1289,13 @@ def premium_confirmer(data: dict, authorization: str | None = Header(default=Non
         sess = _stripe.checkout.Session.retrieve(session_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Stripe : {e}")
-    # Le paiement doit etre valide ET rattache a CET utilisateur.
-    if sess.get("payment_status") == "paid" and sess.get("client_reference_id") == user["id"]:
+    # Valide si paye OU essai actif (no_payment_required), ET rattache a CET utilisateur.
+    statut_ok = sess.get("payment_status") in ("paid", "no_payment_required")
+    if statut_ok and sess.get("client_reference_id") == user["id"]:
         _set_premium(user["id"], True)
-        return {"ok": True, "premium": True}
+        _lier_stripe_customer(user["id"], sess.get("customer") or "")
+        essai = sess.get("payment_status") == "no_payment_required"
+        return {"ok": True, "premium": True, "essai": essai}
     return {"ok": False, "premium": False, "raison": "Paiement non confirme pour ce compte."}
 
 
@@ -1272,11 +1317,20 @@ async def premium_webhook(request: Request):
             event = _json.loads(payload)  # dev sans secret (moins sur)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Signature invalide : {e}")
-    if event.get("type") == "checkout.session.completed":
-        sess = event["data"]["object"]
-        uid = sess.get("client_reference_id")
-        if uid and sess.get("payment_status") == "paid":
+    etype = event.get("type")
+    obj = event.get("data", {}).get("object", {})
+    if etype == "checkout.session.completed":
+        uid = obj.get("client_reference_id")
+        # Paye OU essai actif -> premium accorde + on lie le client Stripe.
+        if uid and obj.get("payment_status") in ("paid", "no_payment_required"):
             _set_premium(uid, True)
+            _lier_stripe_customer(uid, obj.get("customer") or "")
+    elif etype in ("customer.subscription.deleted",):
+        # Abonnement annule/termine -> on retire le premium.
+        _revoquer_premium_par_customer(obj.get("customer") or "")
+    elif etype == "invoice.payment_failed":
+        # Echec de paiement (apres l'essai par ex) -> on retire le premium.
+        _revoquer_premium_par_customer(obj.get("customer") or "")
     return {"received": True}
 
 

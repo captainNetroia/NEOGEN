@@ -3335,7 +3335,7 @@ async function _confirmerPremiumRetour(){
   try{
     var r=await fetch('/premium/confirmer',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({session_id:m[1]})});
     var d=await r.json();
-    if(d.premium){alert('Bienvenue en premium ! Acces illimite debloque.');}
+    if(d.premium){alert(d.essai?'Essai premium 7 jours active ! Acces illimite. Tu seras debite apres l\'essai (annulable avant).':'Bienvenue en premium ! Acces illimite debloque.');}
   }catch(e){}
   // Nettoie le hash pour eviter de reconfirmer
   location.hash='#compte';
@@ -3366,10 +3366,11 @@ async function loadQuotas(){
         +'<div style="height:6px;border-radius:99px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+coul+';transition:width .3s"></div></div></div>';
     }).join('')
       +'<div style="font-size:11px;color:var(--mut);margin-top:8px">Reserve premium : deploiement, apprentissage continu, delegation complete.</div>';
-    if(cta)cta.innerHTML='<div style="font-size:12px;color:var(--mut);margin-bottom:6px">Passer premium (illimite) :</div>'
+    if(cta)cta.innerHTML='<div style="font-size:12px;color:var(--mut);margin-bottom:6px">Passer premium (illimite) &#8212; <b style="color:var(--ok)">7 jours d\'essai gratuit</b> :</div>'
       +'<div style="display:flex;gap:8px">'
-      +'<button id="premium-mensuel" style="flex:1">Mensuel</button>'
-      +'<button id="premium-annuel" style="flex:1">Annuel <span style="font-size:11px;opacity:.85">-30%</span></button></div>';
+      +'<button id="premium-mensuel" style="flex:1">Mensuel<br><span style="font-size:11px;opacity:.85">14,99&#8364;/mois</span></button>'
+      +'<button id="premium-annuel" style="flex:1">Annuel <span style="font-size:11px;opacity:.85">-30%</span><br><span style="font-size:11px;opacity:.85">125,90&#8364;/an</span></button></div>'
+      +'<div style="font-size:11px;color:var(--mut);margin-top:6px">Essai 7j, sans engagement. CB demandee, debitee seulement apres l\'essai. Annulable a tout moment.</div>';
     async function _passerPremium(plan,btn){
       var t=(typeof _authToken==='function')?_authToken():null;
       if(!t){alert('Connecte-toi d\'abord (plus bas) pour passer premium.');return;}
