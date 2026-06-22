@@ -46,6 +46,31 @@ IDLE_GAP = 4.0                      # secondes d'inactivite -> fin de segment
 MIN_SEGMENT = 3                     # actions minimum pour qu'un segment compte
 REPEAT_THRESHOLD = 2               # nb d'occurrences avant apprentissage auto
 
+# Dernière capture d'écran reçue de l'agent local (pour la perception/vision)
+_LAST_SCREENSHOT: dict = {"b64": None, "ts": 0.0}
+
+
+def store_screenshot(b64: str) -> None:
+    """Stocke la dernière capture d'écran envoyée par l'agent local."""
+    _LAST_SCREENSHOT["b64"] = b64
+    _LAST_SCREENSHOT["ts"] = time.time()
+
+
+def get_screenshot(apres: float = 0.0) -> str | None:
+    """Renvoie la dernière capture si elle est plus récente que 'apres', sinon None."""
+    if _LAST_SCREENSHOT["b64"] and _LAST_SCREENSHOT["ts"] > apres:
+        return _LAST_SCREENSHOT["b64"]
+    return None
+
+
+def request_screenshot() -> float:
+    """Demande une capture d'écran à l'agent local. Renvoie l'instant de la demande
+    (sert à savoir si la capture reçue ensuite est bien postérieure)."""
+    t = time.time()
+    RpaQueue.push({"action": "screenshot", "guard": "screenshot"})
+    return t
+
+
 def ping_agent():
     global _LAST_PING_TIME
     _LAST_PING_TIME = time.time()

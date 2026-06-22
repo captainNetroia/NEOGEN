@@ -33,10 +33,36 @@ body.dark .panel,body.dark .glass{background:rgba(15,10,40,.65)!important;border
 body.dark header{background:rgba(10,8,30,.9)!important;border-color:rgba(255,255,255,.1)!important;}
 body.dark .sidebar{background:rgba(10,8,30,.85)!important;border-color:rgba(255,255,255,.09)!important;}
 body.dark input,body.dark textarea,body.dark select{background:rgba(255,255,255,.07)!important;color:var(--txt)!important;border-color:rgba(255,255,255,.15)!important;}
+body.dark input::placeholder,body.dark textarea::placeholder{color:rgba(148,163,184,.65)!important;}
+/* Menus deroulants : les <option> natives doivent etre lisibles en sombre */
+body.dark select option{background:#1a1330!important;color:#e2e8f0!important;}
 body.dark .side-item:hover,body.dark .side-item.active{background:rgba(255,255,255,.07)!important;}
-body.dark .ac-msg.agent{background:rgba(255,255,255,.06)!important;}
-body.dark .ac-msg.user{background:rgba(8,145,178,.3)!important;}
+body.dark .ac-msg.agent{background:rgba(255,255,255,.06)!important;color:#e2e8f0!important;}
+body.dark .ac-msg.agent .ac-md{color:#e2e8f0!important;}
+body.dark .ac-msg.user{background:rgba(8,145,178,.35)!important;color:#fff!important;}
 body.dark .ac-trace{color:rgba(148,163,184,.7)!important;}
+/* Onglets provider + pills : lisibles en sombre */
+body.dark .prov-tab{border-color:rgba(255,255,255,.15)!important;color:var(--mut)!important;}
+body.dark .prov-tab:hover:not(.active){background:rgba(255,255,255,.1)!important;color:#e2e8f0!important;}
+body.dark .consent-btn{border-color:rgba(255,255,255,.15)!important;}
+/* Boutons ghost + secondaires en sombre */
+body.dark button.ghost{background:rgba(255,255,255,.08)!important;color:#e2e8f0!important;border-color:rgba(255,255,255,.18)!important;}
+/* Stepper du studio (1 Intention, 2 ADN...) */
+body.dark .step-title{color:#f1f5f9!important;}
+body.dark .step-pill,body.dark .stepper-item{color:#cbd5e1!important;}
+body.dark .srail-step{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.12)!important;color:#94a3b8!important;}
+body.dark .srail-step.active{background:rgba(124,58,237,.28)!important;color:#f1f5f9!important;}
+body.dark .srail-step.done{color:#cbd5e1!important;}
+/* Cartes integ + items */
+body.dark .integ-act-head:hover{background:rgba(255,255,255,.06)!important;}
+body.dark .integ-act-name,body.dark .integ-name{color:#e2e8f0!important;}
+body.dark .hist-item{border-color:rgba(255,255,255,.08)!important;}
+/* Tags neutres */
+body.dark .tag{background:rgba(255,255,255,.1)!important;}
+/* Modals (deploy + auth) : fond sombre au lieu de blanc */
+body.dark .deploy-modal,body.dark #modal-auth>div{background:#1a1330!important;color:#e2e8f0!important;}
+body.dark .imit-item:hover{background:rgba(255,255,255,.08)!important;}
+body.dark .stat-card{background:rgba(255,255,255,.05)!important;}
 /* Page d'accueil (cartes bento) en mode sombre : verre liquide nocturne */
 body.dark .layer{
   background:linear-gradient(135deg,rgba(40,32,80,.55),rgba(20,16,45,.30) 52%,rgba(35,28,70,.45))!important;
@@ -1048,6 +1074,16 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <p>Le Cerveau coordonne les agents (Forgeron, Genealogiste, Secretaire), parle pour toi et agit.</p>
   </div>
   <div class="agent-chat-mount" data-agent="cerveau" data-titre="🧠 Le Cerveau" data-sub="Je comprends, je delegue aux agents et je synthetise. Demande-moi n'importe quoi."></div>
+
+  <!-- Competences auto-creees par l'agent (skills vivants) -->
+  <div class="panel glass" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Competences apprises (skills)</div>
+      <button class="ghost" id="skills-refresh" style="font-size:12px;padding:4px 10px">Rafraichir</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Le Cerveau forge ses propres competences quand il reussit une tache reproductible. Elles deviennent invocables tout de suite.</div>
+    <div id="skills-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
 </div>
 
 <!-- PRODUCTION -->
@@ -3029,6 +3065,7 @@ const _origShowSection=showSection;
 showSection=function(name){
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
+  if(name==='cerveau'&&window.loadSkills){loadSkills();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -3229,6 +3266,36 @@ function _initPreferences(){
 // Lancer au chargement + quand on arrive sur Compte
 document.addEventListener('DOMContentLoaded',_initPreferences);
 _initPreferences();
+
+// ===== COMPETENCES (skills) auto-creees =====
+async function loadSkills(){
+  const el=document.getElementById('skills-list');if(!el)return;
+  try{
+    const d=await(await fetch('/skills')).json();
+    const list=d.skills||[];
+    if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">Aucune competence apprise pour le moment. Demande au Cerveau d\'accomplir une tache reproductible, il la cristallisera.</div>';return;}
+    el.innerHTML=list.map(function(s){
+      return '<div class="hist-item" style="align-items:flex-start">'
+        +'<span class="tag ok" style="flex-shrink:0">'+esc(s.nom)+'</span>'
+        +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
+        +(s.auto?' <span class="badge live" style="font-size:9px">auto</span>':'')
+        +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
+        +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
+        +'</span>'
+        +'<span style="color:var(--ko);cursor:pointer;font-weight:700;flex-shrink:0" title="Supprimer" onclick="deleteSkill(\''+esc(s.nom)+'\')">&times;</span>'
+        +'</div>';
+    }).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
+window.deleteSkill=async function(nom){
+  try{await fetch('/skills/'+encodeURIComponent(nom),{method:'DELETE'});}catch(e){}
+  loadSkills();
+};
+(function(){
+  const btn=document.getElementById('skills-refresh');
+  if(btn)btn.onclick=loadSkills;
+  loadSkills();
+})();
 </script>
 </body>
 </html>

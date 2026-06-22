@@ -212,6 +212,81 @@ def outil_fermer_onglet(**kw) -> str:
             "pour ne pas fermer l'application ; mets l'onglet a fermer au premier plan.")
 
 
+def outil_regarder_ecran(objectif: str = "", **kw) -> str:
+    """Capture l'ecran de l'utilisateur et l'ANALYSE avec un modele vision.
+    Donne des yeux a l'agent : il peut lire un formulaire, reperer un bouton et ses coordonnees.
+    'objectif' precise ce qu'on cherche (ex: 'trouver le champ email et le bouton connexion')."""
+    import time
+    import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
+    t0 = rpa.request_screenshot()
+    # On attend que l'agent local capture et renvoie l'image (consentement requis cote hote).
+    img = None
+    for _ in range(24):  # ~12 s max
+        time.sleep(0.5)
+        img = rpa.get_screenshot(apres=t0)
+        if img:
+            break
+    if not img:
+        return ("Aucune capture recue. Verifie que l'agent local est lance et que tu as "
+                "autorise l'action sur ta machine.")
+    consigne = (
+        "Tu es les yeux d'un agent qui pilote cet ecran. Decris ce qui est visible et, pour "
+        "chaque element cliquable ou champ pertinent par rapport a l'objectif, donne sa position "
+        "approximative en pixels (x,y) dans l'image. Objectif : " + (objectif or "decrire l'ecran") +
+        "\nReponds de facon concise et structuree (liste : element -> (x,y))."
+    )
+    try:
+        analyse = gateway.voir(_ctx_from(kw), img, consigne)
+    except Exception as e:
+        return nettoyer(f"Vision indisponible : {e}. (Le modele actif voit-il les images ? "
+                        "Pour Ollama, installe un modele vision : `ollama pull llama3.2-vision`.)")
+    return nettoyer("Analyse de l'ecran :\n" + str(analyse))[:2500]
+
+
+# ── Méta-outils : l'agent forge ses PROPRES compétences (comme skill-creator) ──
+
+def outil_creer_skill(nom: str = "", description: str = "", instructions: str = "",
+                      outils=None, **kw) -> str:
+    """Crée une compétence réutilisable (skill) qui devient invocable immédiatement."""
+    import competences
+    if not nom or not instructions:
+        return "Pour creer un skill : fournis au moins 'nom' et 'instructions'."
+    if isinstance(outils, str):
+        outils = [outils]
+    # On ne garde que des références d'outils existants (gouvernance).
+    valides = [o for o in (outils or []) if o in OUTILS]
+    s = competences.creer(nom, description, instructions, valides, auto=kw.get("_auto", False))
+    return (f"Competence '{s['nom']}' creee et disponible des maintenant "
+            f"(invoquable via utiliser_skill). Outils mobilises : {', '.join(s['outils']) or 'aucun'}.")
+
+
+def outil_lister_skills(**kw) -> str:
+    import competences
+    skills = competences.lister()
+    if not skills:
+        return "Aucune competence apprise pour le moment. Tu peux en creer une avec creer_skill."
+    return nettoyer("Competences apprises :\n" + "\n".join(
+        f"- {s['nom']} : {s.get('description','')}" for s in skills[:20]))
+
+
+def outil_utiliser_skill(nom: str = "", contexte: str = "", **kw) -> str:
+    """Invoque une compétence apprise : récupère ses instructions et les applique."""
+    import competences
+    s = competences.charger(nom)
+    if not s:
+        return f"Competence '{nom}' introuvable. Liste-les avec lister_skills."
+    # On renvoie les instructions à l'agent appelant : il les applique dans son raisonnement.
+    txt = (f"COMPETENCE '{s['nom']}' — {s.get('description','')}\n"
+           f"Instructions a appliquer maintenant :\n{s.get('instructions','')}\n")
+    if s.get("outils"):
+        txt += f"Outils a utiliser : {', '.join(s['outils'])}.\n"
+    if contexte:
+        txt += f"Contexte fourni : {contexte}"
+    return nettoyer(txt)[:3000]
+
+
 # nom outil -> (fonction, description courte pour le prompt)
 OUTILS: dict[str, tuple[Callable, str]] = {
     "discerner":         (outil_discerner,         "Analyse une intention (valeur/faisabilite/clarte). params: {intention}"),
@@ -224,6 +299,10 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "rejouer_routine":   (outil_rejouer_routine,   "Rejoue une routine apprise. params: {routine_id}"),
     "ouvrir_url":        (outil_ouvrir_url,        "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),
     "fermer_onglet":     (outil_fermer_onglet,     "Ferme l'onglet/la page web actif du navigateur (Ctrl+W). params: {} (aucun)"),
+    "regarder_ecran":    (outil_regarder_ecran,    "REGARDE l'ecran de l'utilisateur (capture + analyse vision) pour voir avant d'agir : lire un formulaire, reperer un bouton et ses coordonnees. params: {objectif}"),
+    "creer_skill":       (outil_creer_skill,       "Cree une COMPETENCE reutilisable (skill) : un savoir-faire nomme que tu pourras reinvoquer. A faire quand tu reussis une tache utile et reproductible. params: {nom, description, instructions, outils?}"),
+    "lister_skills":     (outil_lister_skills,     "Liste les competences (skills) deja apprises. params: {}"),
+    "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire. params: {nom, contexte?}"),
 }
 
 
@@ -237,13 +316,19 @@ PROFILS: dict[str, dict] = {
         "tier": "fort",
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
-                   "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet"],
+                   "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
+                   "creer_skill", "lister_skills", "utiliser_skill"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
             "de creation, de gestion des creations, ou d'assistance quotidienne, tu DELEGUES a l'agent "
             "adapte via l'outil 'deleguer' (agents: createur, genealogiste, secretaire). Tu synthetises "
-            "les resultats en une reponse claire. Tu vises l'efficacite et le resultat concret."
+            "les resultats en une reponse claire. Tu vises l'efficacite et le resultat concret.\n"
+            "TU APPRENDS : quand tu accomplis une tache utile et reproductible (une suite d'etapes "
+            "qui pourrait resservir), CRISTALLISE-la en competence via 'creer_skill' (nom court, "
+            "description du 'quand l'utiliser', instructions claires). Avant d'agir, regarde si une "
+            "competence existante (lister_skills) correspond deja : si oui, utilise-la (utiliser_skill). "
+            "C'est ainsi que tu deviens plus puissant a chaque session."
         ),
     },
     "createur": {
@@ -274,12 +359,20 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
             "controle de l'ecran (avec consentement) et rejouer des routines apprises pour automatiser "
-            "les taches repetitives."
+            "les taches repetitives.\n"
+            "REGLES DE LUCIDITE (importantes) :\n"
+            "- Avant de cliquer ou remplir quoi que ce soit, utilise 'regarder_ecran' pour VOIR "
+            "reellement l'ecran : tu sauras ou sont les champs/boutons (coordonnees) au lieu de deviner.\n"
+            "- N'invente JAMAIS une URL. Si tu n'es pas certain de l'adresse exacte d'un site, "
+            "dis-le et propose de chercher, plutot que d'ouvrir une URL approximative.\n"
+            "- Ne promets que ce que tes outils permettent reellement. Pour remplir un formulaire : "
+            "d'abord 'regarder_ecran', puis cliquer le champ (controler_ecran), puis taper le texte. "
+            "Si tu n'as pas l'info necessaire, demande-la avant d'agir."
         ),
     },
 }
@@ -319,6 +412,13 @@ def _systeme(role: str, profil: dict) -> str:
     if profil.get("delegue"):
         desc += ("\n  - deleguer : confie une mission a un agent specialise. "
                  'arguments JSON {"agent": "createur|genealogiste|secretaire", "mission": "..."}.')
+    # Compétences apprises : injectées dynamiquement -> disponibles dès leur création.
+    skills_bloc = ""
+    try:
+        import competences
+        skills_bloc = competences.resume_pour_prompt()
+    except Exception:
+        skills_bloc = ""
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -329,7 +429,7 @@ def _systeme(role: str, profil: dict) -> str:
         "- 'arguments' est TOUJOURS une chaine de texte JSON (vide si l'outil n'a pas de parametre). "
         "Ne mets jamais les parametres ailleurs.\n"
         "- N'invente jamais un outil hors de la liste. Si aucun outil n'est utile, reponds directement.\n\n"
-        "OUTILS DISPONIBLES :\n" + desc
+        "OUTILS DISPONIBLES :\n" + desc + skills_bloc
     )
 
 

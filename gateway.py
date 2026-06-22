@@ -313,6 +313,78 @@ def client(ctx: LLMContext | None = None, tier: str = "fort"):
     raise RuntimeError(f"provider inconnu : '{provider}'")
 
 
+# ---------------------------------------------------------------------------
+# VISION : analyser une image (capture d'ecran) avec un modele multimodal.
+# Donne des "yeux" a l'agent RPA. Chaque provider a son format d'image.
+# ---------------------------------------------------------------------------
+# Modeles vision par defaut, par provider (si le modele actif n'est pas multimodal).
+VISION_MODELS = {
+    "anthropic": "claude-sonnet-4-6",   # toute la famille Claude voit
+    "openai":    "gpt-4o",
+    "gemini":    "gemini-2.0-flash",
+    "local":     "llama3.2-vision",      # Ollama : necessite `ollama pull llama3.2-vision` (ou llava)
+}
+
+
+def voir(ctx: LLMContext | None, image_b64: str, prompt: str,
+         mime: str = "image/png", max_tokens: int = 1500) -> str:
+    """Envoie une image + une consigne a un modele multimodal, renvoie le texte.
+    Choisit un modele VISION adapte au provider actif (le modele texte peut ne pas voir)."""
+    ctx = ctx or LLMContext()
+    provider = (ctx.provider or "anthropic").lower()
+    model = VISION_MODELS.get(provider, VISION_MODELS["anthropic"])
+
+    if provider == "anthropic":
+        import anthropic
+        from generator import _load_api_key
+        key = ctx.api_key or _load_api_key()
+        cl = anthropic.Anthropic(api_key=key)
+        res = cl.messages.create(
+            model=model, max_tokens=max_tokens,
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": image_b64}},
+            ]}],
+        )
+        return _text_of(res.content)
+
+    if provider in _OPENAI_COMPAT:
+        base = (ctx.base_url or _OPENAI_COMPAT[provider]).rstrip("/")
+        headers = {"Content-Type": "application/json"}
+        if ctx.api_key:
+            headers["Authorization"] = f"Bearer {ctx.api_key}"
+        body = {"model": model, "max_tokens": max_tokens, "messages": [
+            {"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+            ]}]}
+        try:
+            r = httpx.post(f"{base}/chat/completions", json=body, headers=headers, timeout=_TIMEOUT)
+        except Exception as e:
+            raise RuntimeError(nettoyer(f"{provider} vision injoignable : {e}"))
+        if r.status_code >= 400:
+            raise RuntimeError(nettoyer(f"{provider} vision HTTP {r.status_code} : {r.text[:300]}"))
+        return r.json()["choices"][0]["message"]["content"] or ""
+
+    if provider == "gemini":
+        base = (ctx.base_url or _GEMINI_BASE).rstrip("/")
+        body = {"contents": [{"role": "user", "parts": [
+            {"text": prompt},
+            {"inlineData": {"mimeType": mime, "data": image_b64}},
+        ]}], "generationConfig": {"maxOutputTokens": max_tokens}}
+        url = f"{base}/models/{model}:generateContent?key={ctx.api_key}"
+        try:
+            r = httpx.post(url, json=body, headers={"Content-Type": "application/json"}, timeout=_TIMEOUT)
+        except Exception as e:
+            raise RuntimeError(nettoyer(f"gemini vision injoignable : {e}"))
+        if r.status_code >= 400:
+            raise RuntimeError(nettoyer(f"gemini vision HTTP {r.status_code} : {r.text[:300]}"))
+        data = r.json()
+        return "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+
+    raise RuntimeError(f"vision non supportee pour le provider '{provider}'")
+
+
 def ctx_pour_tier(ctx: LLMContext | None) -> LLMContext | None:
     """Clone le contexte en effacant le modele explicite, pour que le TIER resolve le
     modele (delegation par tier de l'orchestrateur). Garde provider + cle + base_url."""

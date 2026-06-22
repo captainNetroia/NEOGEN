@@ -723,6 +723,34 @@ def lister_agents():
                            "delegue": v.get("delegue", False)} for k, v in PROFILS.items()}}
 
 
+@app.get("/skills")
+def lister_skills():
+    """Compétences (skills) auto-créées par l'agent — pour l'affichage dans l'UI."""
+    import competences
+    return {"skills": competences.lister()}
+
+
+class SkillBody(BaseModel):
+    nom: str
+    description: str = ""
+    instructions: str
+    outils: list[str] = Field(default_factory=list)
+
+
+@app.post("/skills")
+def creer_skill(body: SkillBody):
+    """Création manuelle d'une compétence (l'utilisateur peut aussi en forger)."""
+    import competences
+    s = competences.creer(body.nom, body.description, body.instructions, body.outils)
+    return {"ok": True, "skill": s}
+
+
+@app.delete("/skills/{nom}")
+def supprimer_skill(nom: str):
+    import competences
+    return {"ok": competences.supprimer(nom)}
+
+
 @app.post("/agent/{role}/chat/stream")
 def agent_chat_stream(role: str, demande: DemandeChat,
                       x_llm_provider: str | None = Header(default=None),
@@ -1150,6 +1178,16 @@ def rpa_pending():
     if not act:
         raise HTTPException(status_code=404, detail="No pending actions")
     return act
+
+
+@app.post("/rpa/screenshot")
+def rpa_screenshot(body: dict):
+    """L'agent local envoie une capture d'écran (base64 PNG) pour la perception."""
+    img = body.get("image", "")
+    if not img:
+        raise HTTPException(status_code=400, detail="image manquante")
+    rpa.store_screenshot(img)
+    return {"ok": True}
 
 
 class RpaResultBody(BaseModel):

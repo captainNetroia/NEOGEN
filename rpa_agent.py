@@ -183,6 +183,25 @@ def _fenetre_active_est_neogen() -> bool:
     return ("neogen" in t) or ("localhost:8000" in t)
 
 
+def _capturer_et_envoyer() -> tuple[bool, str | None]:
+    """Capture l'écran, encode en PNG base64, et l'envoie au backend NEOGEN.
+    Donne des 'yeux' à l'agent : le modèle vision analysera cette image."""
+    try:
+        import io, base64
+        img = pyautogui.screenshot()
+        # Réduit la taille pour rester raisonnable côté modèle vision (largeur max ~1280).
+        if img.width > 1280:
+            ratio = 1280 / img.width
+            img = img.resize((1280, int(img.height * ratio)))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        requests.post(f"{SERVER_URL}/rpa/screenshot", json={"image": b64}, timeout=10)
+        return True, None
+    except Exception as e:
+        return False, f"capture écran échouée : {e}"
+
+
 def executer_physique(action: dict) -> tuple[bool, str | None]:
     """Exécute l'action via pyautogui sur l'hôte."""
     act_type = action.get("action")
@@ -229,6 +248,8 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
             if not url:
                 return False, "open_url sans url"
             webbrowser.open(url)
+        elif act_type == "screenshot":
+            return _capturer_et_envoyer()
         else:
             return False, f"Action inconnue : {act_type}"
         return True, None
