@@ -144,9 +144,21 @@ def outil_genealogie(produit_id: str = "", **kw) -> str:
                     + " -> ".join(e.get("id", "?") for e in lign))
 
 
+_MSG_AGENT_ABSENT = ("L'agent local n'est PAS lance : impossible de controler l'ecran. "
+                     "Demande a l'utilisateur de lancer l'agent local (icone barre systeme, "
+                     "ou double-clic sur Lancer-Agent-NEOGEN.bat) puis de reessayer.")
+
+
+def _agent_pret() -> bool:
+    import rpa
+    return rpa.is_agent_connected()
+
+
 def outil_controler_ecran(actions: Any = None, **kw) -> str:
     """Envoie des actions souris/clavier a l'agent local. Consentement requis cote hote."""
     import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
     if not actions:
         return "Aucune action fournie."
     if isinstance(actions, dict):
@@ -167,6 +179,8 @@ def outil_lister_routines(**kw) -> str:
 
 def outil_rejouer_routine(routine_id: str = "", **kw) -> str:
     import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
     ids = rpa.replay_recording(routine_id)
     if ids is None:
         return f"Routine introuvable : {routine_id}."
@@ -176,6 +190,8 @@ def outil_rejouer_routine(routine_id: str = "", **kw) -> str:
 def outil_ouvrir_url(url: str = "", **kw) -> str:
     """Ouvre une page web dans le navigateur de l'utilisateur (via l'agent local, consentement requis)."""
     import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
     url = (url or "").strip()
     if not url:
         return "Aucune URL fournie."
@@ -183,6 +199,17 @@ def outil_ouvrir_url(url: str = "", **kw) -> str:
         url = "https://" + url
     rpa.RpaQueue.push({"action": "open_url", "url": url})
     return f"Demande d'ouverture de {url} envoyee a l'agent local (consentement requis cote utilisateur)."
+
+
+def outil_fermer_onglet(**kw) -> str:
+    """Ferme l'onglet actif du navigateur (raccourci Ctrl+W) via l'agent local."""
+    import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
+    rpa.RpaQueue.push({"action": "hotkey", "keys": ["ctrl", "w"], "guard": "close_tab"})
+    return ("Demande de fermeture de l'onglet actif (Ctrl+W) envoyee a l'agent local. "
+            "Note : si NEOGEN est l'onglet au premier plan, la fermeture sera refusee "
+            "pour ne pas fermer l'application ; mets l'onglet a fermer au premier plan.")
 
 
 # nom outil -> (fonction, description courte pour le prompt)
@@ -196,6 +223,7 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "lister_routines":   (outil_lister_routines,   "Liste les routines apprises par imitation. params: {}"),
     "rejouer_routine":   (outil_rejouer_routine,   "Rejoue une routine apprise. params: {routine_id}"),
     "ouvrir_url":        (outil_ouvrir_url,        "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),
+    "fermer_onglet":     (outil_fermer_onglet,     "Ferme l'onglet/la page web actif du navigateur (Ctrl+W). params: {} (aucun)"),
 }
 
 
@@ -209,7 +237,7 @@ PROFILS: dict[str, dict] = {
         "tier": "fort",
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
-                   "lister_routines", "rejouer_routine", "ouvrir_url"],
+                   "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
@@ -222,7 +250,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Forgeron",
         "tier": "fort",
         "delegue": False,
-        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran", "ouvrir_url"],
+        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran", "ouvrir_url", "fermer_onglet"],
         "role": (
             "Tu es LE FORGERON de NEOGEN. Tu transformes une intention en application, logiciel, SaaS "
             "ou gadget PRET A L'EMPLOI. Tu utilises 'discerner' pour cadrer si besoin, puis "
@@ -246,7 +274,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
@@ -260,6 +288,28 @@ PROFILS: dict[str, dict] = {
 _DELEGABLES = ("createur", "genealogiste", "secretaire")
 
 MAX_ETAPES = 8
+
+# Bornes anti-derive du contexte envoye au modele (perf + cout) :
+MAX_TOURS_HIST = 8        # derniers messages de l'historique conserves
+MAX_LONGUEUR_MSG = 4000   # caracteres max par message (les vieux gros messages sont coupes)
+MAX_MESSAGES_BOUCLE = 24  # taille max de la liste messages pendant la boucle ReAct
+
+
+def _tronquer_historique(hist: list[dict] | None) -> list[dict]:
+    """Garde les derniers tours et borne la taille de chaque message.
+    Evite d'envoyer un historique enorme (localStorage jusqu'a 40 messages) a l'API."""
+    if not hist:
+        return []
+    recent = hist[-MAX_TOURS_HIST:]
+    out = []
+    for m in recent:
+        if not isinstance(m, dict):
+            continue
+        contenu = m.get("content", "")
+        if isinstance(contenu, str) and len(contenu) > MAX_LONGUEUR_MSG:
+            contenu = contenu[:MAX_LONGUEUR_MSG] + " […tronque]"
+        out.append({"role": m.get("role", "user"), "content": contenu})
+    return out
 
 
 def _systeme(role: str, profil: dict) -> str:
@@ -316,6 +366,18 @@ def _extraire_json(txt: str):
     return None
 
 
+_STEP_MARQUEURS = ('"outil"', '"pensee"', '"arguments"')
+
+
+def _est_step_brut(s: str) -> bool:
+    """Vrai si le texte ressemble a un JSON de step agent plutot qu'une reponse lisible."""
+    stripped = s.strip()
+    return stripped.startswith("{") and sum(1 for k in _STEP_MARQUEURS if k in stripped) >= 2
+
+
+_MSG_STEP_BRUT = "Je n'ai pas pu formuler une reponse structuree. Reformule ta demande."
+
+
 def _parse_step(txt: str) -> AgentStep:
     """Parse TOLERANT d'un AgentStep (robuste face aux petits modeles Ollama).
     - extrait le JSON meme imparfait ; gere le cas ou le modele renvoie le SCHEMA
@@ -323,7 +385,10 @@ def _parse_step(txt: str) -> AgentStep:
     - si rien d'exploitable : traite le texte comme une reponse directe (jamais de plantage)."""
     obj = _extraire_json(txt)
     if not isinstance(obj, dict):
-        return AgentStep(pensee="", reponse=(txt or "").strip() or "...")
+        s = (txt or "").strip()
+        if _est_step_brut(s):
+            return AgentStep(pensee="", reponse=_MSG_STEP_BRUT)
+        return AgentStep(pensee="", reponse=s or "...")
     # Le modele a recopie le schema au lieu d'une instance.
     if "pensee" not in obj and isinstance(obj.get("properties"), dict):
         inner = obj["properties"]
@@ -341,7 +406,10 @@ def _parse_step(txt: str) -> AgentStep:
     reponse = reponse if isinstance(reponse, str) and reponse.strip() else None
     # Rien d'exploitable -> reponse directe = texte brut (l'agent repond toujours).
     if not outil and not reponse and not pensee:
-        return AgentStep(pensee="", reponse=(txt or "").strip() or "...")
+        s = (txt or "").strip()
+        if _est_step_brut(s):
+            return AgentStep(pensee="", reponse=_MSG_STEP_BRUT)
+        return AgentStep(pensee="", reponse=s or "...")
     return AgentStep(pensee=pensee, outil=outil, arguments=arguments, reponse=reponse)
 
 
@@ -366,12 +434,16 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             emit(evt)
 
     systeme = _systeme(profil["role"], profil)
-    messages: list[dict] = list(historique or [])
+    messages: list[dict] = _tronquer_historique(historique)
     messages.append({"role": "user", "content": message})
 
     cl = _client or gateway.client(ctx, tier=profil.get("tier", "fort"))
 
     for _ in range(MAX_ETAPES):
+        # Pendant la boucle, messages grossit (action/observation a chaque tour).
+        # On borne en gardant le 1er message (la demande) + la queue recente.
+        if len(messages) > MAX_MESSAGES_BOUCLE:
+            messages = messages[:1] + messages[-(MAX_MESSAGES_BOUCLE - 1):]
         try:
             res = cl.messages.create(system=systeme, messages=messages, max_tokens=4000)
             step = _parse_step(_texte_de(res))

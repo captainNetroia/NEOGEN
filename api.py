@@ -28,6 +28,7 @@ import os as _os
 import secrets as _sec
 import uuid as _uid
 from datetime import datetime as _dt, timedelta as _td
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -1019,6 +1020,68 @@ def integrations_status():
     }
 
 
+class IntegVerifBody(BaseModel):
+    type: str            # url | key | oauth
+    name: str = ""
+    value: str = ""      # URL ou token selon le type
+
+
+@app.post("/integrations/verifier")
+async def integrations_verifier(body: IntegVerifBody):
+    """Verifie REELLEMENT une integration tierce avant de la marquer active.
+    - url  : ping HTTP de l'endpoint (doit repondre)
+    - key  : appel de test (OpenLegi) avec le token fourni
+    - oauth: non verifiable cote serveur -> ok:false, manuel:true (l'UI marque 'non verifie')
+    Retourne {ok: bool, manuel?: bool, erreur?: str}.
+    """
+    import httpx
+    from sanitizer import nettoyer
+    t = (body.type or "").strip()
+    val = (body.value or "").strip()
+
+    if t == "oauth":
+        return {"ok": False, "manuel": True, "erreur": "Verification automatique impossible (connexion via le navigateur)."}
+
+    if t == "url":
+        if not val:
+            return {"ok": False, "erreur": "URL vide."}
+        if not val.startswith(("http://", "https://")):
+            val = "https://" + val
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+                r = await client.get(val)
+            if r.status_code < 500:
+                return {"ok": True}
+            return {"ok": False, "erreur": f"Le service repond en erreur (HTTP {r.status_code})."}
+        except Exception as e:
+            return {"ok": False, "erreur": nettoyer(f"Injoignable : {e}")}
+
+    if t == "key":
+        if not val:
+            return {"ok": False, "erreur": "Token vide."}
+        # OpenLegi : ping reel du MCP avec le token fourni.
+        if body.name == "openlegi":
+            try:
+                async with httpx.AsyncClient(timeout=12) as client:
+                    r = await client.post(
+                        f"https://mcp.openlegi.fr/legifrance/mcp?token={val}",
+                        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                        headers={"Content-Type": "application/json",
+                                 "Accept": "application/json, text/event-stream"},
+                    )
+                if r.status_code in (401, 403):
+                    return {"ok": False, "erreur": "Token refuse (401/403)."}
+                if r.status_code < 500:
+                    return {"ok": True}
+                return {"ok": False, "erreur": f"Service en erreur (HTTP {r.status_code})."}
+            except Exception as e:
+                return {"ok": False, "erreur": nettoyer(f"Injoignable : {e}")}
+        # Cle generique : on ne peut pas tester sans endpoint connu.
+        return {"ok": False, "manuel": True, "erreur": "Pas de test automatique pour cette cle."}
+
+    return {"ok": False, "erreur": "Type d'integration inconnu."}
+
+
 @app.post("/openlegi/conformite")
 async def openlegi_conformite(data: dict):
     """Recherche de textes legaux via OpenLegi (Legifrance MCP)."""
@@ -1053,7 +1116,23 @@ async def openlegi_conformite(data: dict):
 @app.post("/rpa/agent/ping")
 def rpa_ping():
     rpa.ping_agent()
-    return {"recording": rpa.is_recording()}
+    # L'agent capture les actions si enregistrement manuel OU apprentissage continu.
+    return {"recording": rpa.is_recording() or rpa.is_continuous(),
+            "continuous": rpa.is_continuous()}
+
+
+class RpaContinuousBody(BaseModel):
+    enabled: bool
+
+
+@app.post("/rpa/continuous")
+def rpa_continuous_set(body: RpaContinuousBody):
+    return {"enabled": rpa.set_continuous(body.enabled)}
+
+
+@app.get("/rpa/continuous")
+def rpa_continuous_get():
+    return rpa.continuous_status()
 
 
 @app.get("/rpa/status")
@@ -1166,6 +1245,39 @@ def rpa_replay_recording(rec_id: str):
     if ids is None:
         raise HTTPException(status_code=404, detail="Recording not found")
     return {"ids": ids}
+
+
+# ── Paramètres RPA (consentement) ────────────────────────────────────────────
+
+_RPA_SETTINGS_PATH = Path("/app/data/rpa_settings.json")
+_RPA_SETTINGS_DEFAULT: dict = {"consent_level": "sequence"}
+
+
+@app.get("/rpa/settings")
+def rpa_settings_get():
+    try:
+        if _RPA_SETTINGS_PATH.exists():
+            return _json.loads(_RPA_SETTINGS_PATH.read_text())
+    except Exception:
+        pass
+    return _RPA_SETTINGS_DEFAULT.copy()
+
+
+class RpaSettingsBody(BaseModel):
+    consent_level: str
+    sequence_duration: int = 120  # secondes
+
+
+@app.post("/rpa/settings")
+def rpa_settings_post(body: RpaSettingsBody):
+    if body.consent_level not in ("always", "sequence", "auto"):
+        raise HTTPException(status_code=400, detail="consent_level invalide (always|sequence|auto)")
+    if not (0 <= body.sequence_duration <= 86400):
+        raise HTTPException(status_code=400, detail="sequence_duration invalide (0-86400s)")
+    data = {"consent_level": body.consent_level, "sequence_duration": body.sequence_duration}
+    _RPA_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _RPA_SETTINGS_PATH.write_text(_json.dumps(data))
+    return {"ok": True, **data}
 
 
 # ── Endpoint Déploiement Hostinger ───────────────────────────────────────────

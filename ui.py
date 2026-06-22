@@ -26,6 +26,39 @@ PAGE = r"""<!doctype html>
   --c-creation:#0891b2; --c-production:#16a34a; --c-compte:#7c3aed;
   --c-analyse:#2563eb; --c-integration:#ea580c; --c-don:#db2777;
 }
+/* MODE SOMBRE */
+body.dark{--txt:#e2e8f0;--mut:#94a3b8;--line:rgba(226,232,240,.08);
+  background:linear-gradient(135deg,#1e1b4b 0%,#0f172a 45%,#1e1040 100%)!important;}
+body.dark .panel,body.dark .glass{background:rgba(15,10,40,.65)!important;border-color:rgba(255,255,255,.1)!important;}
+body.dark header{background:rgba(10,8,30,.9)!important;border-color:rgba(255,255,255,.1)!important;}
+body.dark .sidebar{background:rgba(10,8,30,.85)!important;border-color:rgba(255,255,255,.09)!important;}
+body.dark input,body.dark textarea,body.dark select{background:rgba(255,255,255,.07)!important;color:var(--txt)!important;border-color:rgba(255,255,255,.15)!important;}
+body.dark .side-item:hover,body.dark .side-item.active{background:rgba(255,255,255,.07)!important;}
+body.dark .ac-msg.agent{background:rgba(255,255,255,.06)!important;}
+body.dark .ac-msg.user{background:rgba(8,145,178,.3)!important;}
+body.dark .ac-trace{color:rgba(148,163,184,.7)!important;}
+/* Page d'accueil (cartes bento) en mode sombre : verre liquide nocturne */
+body.dark .layer{
+  background:linear-gradient(135deg,rgba(40,32,80,.55),rgba(20,16,45,.30) 52%,rgba(35,28,70,.45))!important;
+  border-color:rgba(255,255,255,.16)!important;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.18),inset 0 -16px 30px rgba(0,0,0,.18),0 26px 50px rgba(0,0,0,.4),0 8px 16px rgba(0,0,0,.3)!important;}
+body.dark .layer-label h3{color:#f1f5f9!important;}
+body.dark .layer-label p{color:#a5b0c4!important;}
+body.dark .landing-title h2{color:#f1f5f9!important;}
+body.dark .landing-title p{color:#a5b0c4!important;}
+body.dark .layer:hover{box-shadow:inset 0 2px 0 rgba(255,255,255,.3),0 34px 64px rgba(124,58,237,.35),0 10px 20px rgba(0,0,0,.4)!important;}
+/* Toggle dark mode */
+.dark-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;}
+.dark-toggle input[type=checkbox]{width:36px;height:20px;appearance:none;background:var(--mut);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.dark-toggle input[type=checkbox]:checked{background:var(--c-compte);}
+.dark-toggle input[type=checkbox]::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;}
+.dark-toggle input[type=checkbox]:checked::after{left:19px;}
+/* Boutons consentement */
+.consent-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.consent-btn{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--mut);transition:all .15s;}
+.consent-btn.active{background:var(--c-compte);color:#fff;border-color:var(--c-compte);}
+.consent-btn.danger.active{background:#dc2626;border-color:#dc2626;}
+.consent-btn.safe.active{background:#16a34a;border-color:#16a34a;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:linear-gradient(135deg,#ede9fe 0%,#dbeafe 40%,#fde8f7 100%);
   color:var(--txt);
@@ -152,6 +185,9 @@ header h1 b{color:var(--acc);font-weight:700;}
 .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;flex-shrink:0;position:relative;z-index:1;}
 .badge.live{background:rgba(22,163,74,.14);color:var(--ok);border:1px solid rgba(22,163,74,.28);}
 .badge.soon{background:rgba(100,116,139,.12);color:var(--mut);border:1px solid rgba(100,116,139,.22);}
+.badge.warn{background:rgba(217,119,6,.14);color:var(--warn);border:1px solid rgba(217,119,6,.30);}
+.integ-status-dot.warn{background:var(--warn);box-shadow:0 0 6px var(--warn);}
+.tag.warn{background:rgba(217,119,6,.14);color:var(--warn);border:1px solid rgba(217,119,6,.30);}
 .layer-arrow{color:var(--mut);font-size:18px;transition:transform .2s,color .2s;position:relative;z-index:1;}
 .layer:hover .layer-arrow{transform:translateX(5px);color:var(--acc);}
 
@@ -731,7 +767,14 @@ body.in-section #breadcrumb{display:none !important;}
 .agent-chat-clear:hover{opacity:.9}
 .ac-md h3{font-size:15px;margin:8px 0 4px}.ac-md ul{margin:4px 0 4px 18px}.ac-md li{margin:2px 0}
 .ac-md code{background:rgba(15,23,42,.08);padding:1px 5px;border-radius:5px;font-size:12px}
-.ac-md table{border-collapse:collapse;margin:6px 0;font-size:12px}.ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:3px 7px}
+.ac-md table{border-collapse:collapse;margin:8px 0;font-size:12px;width:100%}
+.ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:5px 9px;text-align:left}
+.ac-md th{background:rgba(15,23,42,.06);font-weight:700}
+.ac-md tr:nth-child(even) td{background:rgba(15,23,42,.025)}
+body.dark .ac-md td,body.dark .ac-md th{border-color:rgba(255,255,255,.14)}
+body.dark .ac-md th{background:rgba(255,255,255,.08)}
+body.dark .ac-md tr:nth-child(even) td{background:rgba(255,255,255,.03)}
+body.dark .ac-md code{background:rgba(255,255,255,.1)}
 </style>
 </head>
 <body>
@@ -1024,6 +1067,33 @@ body.in-section #breadcrumb{display:none !important;}
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
     <p>Ton profil, modele actif et historique de production.</p>
   </div>
+  <!-- Panel Preferences toujours visible (sans connexion requise) -->
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Preferences</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-size:13px;color:var(--txt)">Mode sombre</span>
+      <label class="dark-toggle"><input type="checkbox" id="dark-toggle-cb"></label>
+    </div>
+    <div style="margin-bottom:6px">
+      <div style="font-size:13px;color:var(--txt);margin-bottom:8px">Autorisation agent ecran</div>
+      <div class="consent-btns">
+        <button class="consent-btn safe" data-level="always" data-dur="0" title="Popup avant chaque action">Toujours demander</button>
+        <button class="consent-btn" data-level="sequence" data-dur="120">2 min</button>
+        <button class="consent-btn" data-level="sequence" data-dur="600">10 min</button>
+        <button class="consent-btn" data-level="sequence" data-dur="1800">30 min</button>
+        <button class="consent-btn" data-level="sequence" data-dur="3600">1 h</button>
+        <button class="consent-btn" data-level="sequence" data-dur="7200">2 h</button>
+        <button class="consent-btn" data-level="sequence" data-dur="18000">5 h</button>
+        <button class="consent-btn" data-level="sequence" data-dur="43200">12 h</button>
+        <button class="consent-btn" data-level="sequence" data-dur="86400">24 h</button>
+        <button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, auto-approuve tout">Auto</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+      <span id="agent-local-status" style="font-size:13px;color:var(--mut)">Agent local...</span>
+      <button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">Effacer tous les chats</button>
+    </div>
+  </div>
   <div class="agent-chat-mount" data-agent="secretaire" data-titre="📋 Le Secretaire" data-sub="Ton conseiller, administrateur et assistant au quotidien."></div>
   <div id="compte-root"></div>
 </div>
@@ -1073,7 +1143,6 @@ body.in-section #breadcrumb{display:none !important;}
         <span class="integ-model-dot" id="integ-model-dot"></span>
       </div>
       <button id="integ-save-btn">Verifier &amp; activer</button>
-      <button id="integ-activate-btn" class="ghost" style="display:none">Activer</button>
     </div>
     <div id="integ-status"></div>
   </div>
@@ -1093,7 +1162,16 @@ body.in-section #breadcrumb{display:none !important;}
       <span class="rpa-queue-badge" id="rpa-queue-badge" style="display:none">file: 0</span>
     </div>
 
-    <div class="integ-section-label" style="margin-top:14px">Apprentissage par imitation</div>
+    <div class="integ-section-label" style="margin-top:14px">Apprentissage continu</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px">
+      <div style="font-size:13px;color:var(--txt)">NEOGEN observe et apprend tes routines tout seul
+        <span style="display:block;font-size:11px;color:var(--mut);margin-top:2px">Quand une même séquence revient, elle est enregistrée automatiquement (pas besoin de cliquer « Enregistrer »).</span>
+      </div>
+      <label class="dark-toggle"><input type="checkbox" id="cont-learn-cb"></label>
+    </div>
+    <div id="cont-learn-status" style="font-size:12px;color:var(--mut);min-height:16px"></div>
+
+    <div class="integ-section-label" style="margin-top:14px">Enregistrement manuel</div>
     <div class="imit-controls">
       <button id="btn-imit-start" class="ghost">Enregistrer</button>
       <button id="btn-imit-stop" class="ghost" style="display:none"><span class="imit-rec-dot"></span>Stopper</button>
@@ -1211,6 +1289,7 @@ body.in-section #breadcrumb{display:none !important;}
 precision mediump float;
 uniform vec2 res;
 uniform float t;
+uniform float dark;
 
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 
@@ -1246,8 +1325,11 @@ void main(){
   else if(f<.66)col=mix(c2,c3,(f-.33)/.33);
   else col=mix(c3,c4,(f-.66)/.34);
 
-  /* Fond clair avec couleur bien presente (glassmorphism) */
-  col=mix(vec3(1.),col,.52);
+  /* Mode clair : couleurs pastel sur fond blanc.
+     Mode sombre : couleurs profondes assombries sur fond nuit (glassmorphism nocturne). */
+  vec3 clair=mix(vec3(1.),col,.52);
+  vec3 sombre=mix(vec3(.05,.04,.12),col*.55,.40);
+  col=mix(clair,sombre,dark);
 
   gl_FragColor=vec4(col,1.);
 }`;
@@ -1270,6 +1352,7 @@ void main(){
 
   const uRes=gl.getUniformLocation(prog,'res');
   const uTime=gl.getUniformLocation(prog,'t');
+  const uDark=gl.getUniformLocation(prog,'dark');
 
   function resize(){
     canvas.width=innerWidth;canvas.height=innerHeight;
@@ -1279,9 +1362,14 @@ void main(){
   window.addEventListener('resize',resize);
 
   const start=Date.now();
+  let _darkTarget=document.body.classList.contains('dark')?1:0;
+  let _darkCur=_darkTarget;
+  window._setShaderDark=function(v){_darkTarget=v?1:0;};
   function draw(){
+    _darkCur+=(_darkTarget-_darkCur)*.08; /* transition douce */
     gl.uniform2f(uRes,canvas.width,canvas.height);
     gl.uniform1f(uTime,(Date.now()-start)/1000);
+    gl.uniform1f(uDark,_darkCur);
     gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     requestAnimationFrame(draw);
   }
@@ -2221,6 +2309,29 @@ async function renderCompteConnecte(root,user){
     +'<div style="display:flex;align-items:center;gap:10px;margin-top:10px">'
     +'<button id="fb-submit-btn">Envoyer</button><span id="fb-status"></span></div></div>'
 
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Preferences</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<span style="font-size:13px;color:var(--txt)">Mode sombre</span>'
+    +'<label class="dark-toggle"><input type="checkbox" id="dark-toggle-cb"><span style="font-size:12px;color:var(--mut)"></span></label></div>'
+    +'<div style="margin-bottom:6px"><div style="font-size:13px;color:var(--txt);margin-bottom:8px">Autorisation agent ecran</div>'
+    +'<div class="consent-btns">'
+    +'<button class="consent-btn safe" data-level="always" data-dur="0" title="Popup avant chaque action">Toujours demander</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="120" title="Autorise pour 2 minutes">2 min</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="600" title="Autorise pour 10 minutes">10 min</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="1800" title="Autorise pour 30 minutes">30 min</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="3600" title="Autorise pour 1 heure">1 h</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="7200" title="Autorise pour 2 heures">2 h</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="18000" title="Autorise pour 5 heures">5 h</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="43200" title="Autorise pour 12 heures">12 h</button>'
+    +'<button class="consent-btn" data-level="sequence" data-dur="86400" title="Autorise pour 24 heures">24 h</button>'
+    +'<button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, toutes les actions passent automatiquement">Auto</button>'
+    +'</div></div>'
+    +'<div style="margin-top:14px;display:flex;align-items:center;gap:10px">'
+    +'<span id="agent-local-status" style="font-size:13px;color:var(--mut)">Agent local...</span>'
+    +'<button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">Effacer tous les chats</button>'
+    +'</div></div>'
+
     +'<div class="panel glass">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Historique de production</div>'
     +'<div id="compte-historique"><div style="color:var(--mut);font-size:13px">Chargement...</div></div></div>';
@@ -2232,6 +2343,55 @@ async function renderCompteConnecte(root,user){
       ?'<span class="tag ok">'+esc(ap)+'</span> <b>'+esc(am)+'</b>'
       :'<span class="tag ko">aucun</span>, configure dans Integrations';
   }
+
+  // --- Dark mode ---
+  const darkCb=$('#dark-toggle-cb');
+  if(darkCb){
+    darkCb.checked=document.body.classList.contains('dark');
+    darkCb.onchange=function(){
+      document.body.classList.toggle('dark',this.checked);
+      localStorage.setItem('neogen_dark_mode',this.checked?'1':'0');
+    };
+  }
+
+  // --- Consentement ---
+  function _activateConsentBtn(lvl,dur){
+    document.querySelectorAll('.consent-btn').forEach(function(b){
+      var match=(b.dataset.level===lvl)&&(lvl!=='sequence'||String(b.dataset.dur)===String(dur));
+      b.classList.toggle('active',match);
+    });
+  }
+  async function loadConsentLevel(){
+    var lvl='sequence',dur=120;
+    try{var r=await fetch('/rpa/settings');if(r.ok){var d=await r.json();lvl=d.consent_level||'sequence';dur=d.sequence_duration||120;}}catch(e){}
+    _activateConsentBtn(lvl,dur);
+  }
+  document.querySelectorAll('.consent-btn').forEach(function(b){
+    b.onclick=async function(){
+      var lvl=this.dataset.level,dur=parseInt(this.dataset.dur||'0',10);
+      try{await fetch('/rpa/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({consent_level:lvl,sequence_duration:dur})});}catch(e){}
+      _activateConsentBtn(lvl,dur);
+    };
+  });
+  loadConsentLevel();
+
+  // --- Agent local status ---
+  const agSt=$('#agent-local-status');
+  if(agSt){
+    fetch('/rpa/status').then(r=>r.json()).then(function(d){
+      agSt.innerHTML=d.connected
+        ?'<span class="tag ok">Agent local connecte</span>'
+        :'<span class="tag ko">Agent local non lance</span> <span style="font-size:11px;color:var(--mut)">Lancer rpa_agent.py sur votre machine</span>';
+    }).catch(function(){agSt.innerHTML='<span class="tag ko">Agent local injoignable</span>';});
+  }
+
+  // --- Effacer tous les chats ---
+  const clrAll=$('#clear-chats-btn');
+  if(clrAll)clrAll.onclick=function(){
+    ['cerveau','createur','genealogiste','secretaire'].forEach(function(r){localStorage.removeItem('neogen_chat_'+r);});
+    document.querySelectorAll('.agent-chat-log').forEach(function(el){el.innerHTML='';});
+    clrAll.textContent='Efface !';setTimeout(function(){clrAll.textContent='Effacer tous les chats';},1500);
+  };
 
   const dBtn=$('#deconnexion-btn');
   if(dBtn)dBtn.onclick=async()=>{
@@ -2394,7 +2554,6 @@ async function loadAnalyse(){
   const keyIn=ge('integ-api-key');
   const dot=ge('integ-model-dot');
   const saveBtn=ge('integ-save-btn');
-  const actBtn=ge('integ-activate-btn');
   const st=ge('integ-status');
   const activeLabel=ge('integ-active-label');
   if(!modelSel||!keyIn)return;
@@ -2437,9 +2596,6 @@ async function loadAnalyse(){
     keyIn.placeholder=hasKey?'cle enregistree (••••'+localStorage.getItem('neogen_key_'+prov).slice(-4)+')':p.ph;
     keyIn.value='';
     setDot(hasKey?'ok':'');
-    /* bouton Activer : visible si cle dispo et pas deja actif */
-    const isActive=localStorage.getItem('neogen_active_provider')===prov;
-    actBtn.style.display=(hasKey&&!isActive)?'':'none';
   }
 
   function switchProv(prov){
@@ -2496,26 +2652,9 @@ async function loadAnalyse(){
     localStorage.setItem('neogen_active_model',m);
     localStorage.setItem('neogen_model',m);
     keyIn.value='';if(k)keyIn.placeholder='cle validee (••••'+k.slice(-4)+')';
-    setDot('ok');actBtn.style.display='none';
+    setDot('ok');
     updateActiveLabel();updateTabDots();
     st.innerHTML='<span class="tag ok">actif — cle validee</span> '+p.label+' / '+m;
-  };
-
-  /* Activer (re-verifie la cle avant d'activer) */
-  actBtn.onclick=async()=>{
-    const m=modelSel.value;
-    const k=localStorage.getItem('neogen_key_'+curProv)||'';
-    if(curProv!=='local'&&!k){st.innerHTML='<span class="tag ko">API absente</span>';setDot('ko');return;}
-    actBtn.disabled=true;st.innerHTML='<span class="tag">verification...</span>';
-    const res=await _verifierCle(curProv,m,k);
-    actBtn.disabled=false;
-    if(!res||!res.ok){localStorage.removeItem('neogen_verified_'+curProv);setDot('ko');updateTabDots();st.innerHTML='<span class="tag ko">activation impossible</span> '+esc((res&&res.erreur)||'');return;}
-    localStorage.setItem('neogen_verified_'+curProv,'1');
-    localStorage.setItem('neogen_active_provider',curProv);
-    localStorage.setItem('neogen_active_model',m);
-    localStorage.setItem('neogen_model',m);
-    actBtn.style.display='none';updateActiveLabel();updateTabDots();
-    st.innerHTML='<span class="tag ok">actif — cle validee</span> '+PROV[curProv].label+' / '+m;
   };
 
   /* Custom integrations — delegue au systeme global _loadCustom */
@@ -2586,8 +2725,12 @@ function integActives(){return Object.keys(INTEG_DEFS).filter(k=>_iActive(k));}
 
 function _renderActivatable(k,def){
   const active=_iActive(k);
-  const dot='<span class="integ-status-dot'+(active?' ok':'')+'"></span>';
-  const badge=active?'<span class="badge live">actif</span>':'<span class="badge soon">inactif</span>';
+  const d=_iGet(k)||{};
+  const verifie=active&&d.verifie!==false; /* server-detected ou verifie = true */
+  let dot,badge;
+  if(active&&verifie){dot='<span class="integ-status-dot ok"></span>';badge='<span class="badge live">actif</span>';}
+  else if(active){dot='<span class="integ-status-dot warn"></span>';badge='<span class="badge warn">non verifie</span>';}
+  else{dot='<span class="integ-status-dot"></span>';badge='<span class="badge soon">inactif</span>';}
   const auto=def.type==='server'?'<span style="font-size:10px;color:var(--mut);margin-left:3px">auto</span>':'';
   return '<div class="integ-activatable'+(active?' active':'')+'" id="ia-'+k+'">'
     +'<div class="integ-act-head" onclick="toggleIntegPanel(\''+k+'\')">'
@@ -2690,11 +2833,35 @@ window.toggleIntegPanel=function(name){
   }
 };
 
-window.confirmerInteg=function(name){
+window.confirmerInteg=async function(name){
+  const def=INTEG_DEFS[name];if(!def)return;
   const inp=document.getElementById('iam-inp-'+name);
   const val=inp?inp.value.trim():'';
-  _iSet(name,{active:true,key:val,source:'user'});
-  renderIntegGrid();updateOutilsActifs();
+  const form=document.getElementById('iam-'+name);
+  // Zone de statut
+  let statut=document.getElementById('iam-statut-'+name);
+  if(!statut&&form){statut=document.createElement('div');statut.id='iam-statut-'+name;statut.style.cssText='font-size:12px;margin-top:8px';form.appendChild(statut);}
+  if(statut)statut.innerHTML='<span style="color:var(--mut)">Verification en cours...</span>';
+  // Verification reelle cote serveur
+  let res={ok:false,erreur:'erreur'};
+  try{
+    res=await(await fetch('/integrations/verifier',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:def.type,name:name,value:val})})).json();
+  }catch(e){res={ok:false,erreur:'serveur injoignable'};}
+  if(res.ok){
+    _iSet(name,{active:true,key:val,source:'user',verifie:true});
+    if(statut)statut.innerHTML='<span class="tag ok">verifie et actif</span>';
+    renderIntegGrid();updateOutilsActifs();
+  } else if(res.manuel){
+    // Non verifiable automatiquement (ex oauth) : actif mais marque "non verifie"
+    _iSet(name,{active:true,key:val,source:'user',verifie:false});
+    if(statut)statut.innerHTML='<span class="tag warn">actif (non verifie)</span> <span style="color:var(--mut);font-size:11px">'+esc(res.erreur||'')+'</span>';
+    renderIntegGrid();updateOutilsActifs();
+  } else {
+    // Echec : NE PAS activer, rouge + raison
+    if(statut)statut.innerHTML='<span class="tag ko">activation impossible</span> <span style="color:var(--ko);font-size:11px">'+esc(res.erreur||'')+'</span>';
+  }
 };
 
 window.desactiverInteg=function(name){
@@ -2761,6 +2928,31 @@ async function pollRpaStatus(){
 }
 _rpaInterval=setInterval(pollRpaStatus,3000);
 pollRpaStatus();
+
+/* ===== APPRENTISSAGE CONTINU ===== */
+async function refreshContinuous(){
+  const cb=$('#cont-learn-cb'),st=$('#cont-learn-status');
+  if(!cb)return;
+  try{
+    const d=await(await fetch('/rpa/continuous')).json();
+    cb.checked=!!d.enabled;
+    if(d.enabled){
+      let txt='Observation active.';
+      if(d.learned&&d.learned.length)txt+=' '+d.learned.length+' routine(s) apprise(s) automatiquement.';
+      else txt+=' En attente d\'une séquence répétée...';
+      st.textContent=txt;
+    }else st.textContent='';
+  }catch(e){}
+}
+(function(){
+  const cb=$('#cont-learn-cb');
+  if(cb)cb.onchange=async function(){
+    try{await fetch('/rpa/continuous',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:this.checked})});}catch(e){}
+    refreshContinuous();if(window.loadImitationList)loadImitationList();
+  };
+  refreshContinuous();
+  setInterval(refreshContinuous,5000);
+})();
 
 /* ===== IMITATION RECORDING UI ===== */
 $('#btn-imit-start').onclick=async()=>{
@@ -2894,8 +3086,26 @@ $('#btn-deploy-confirm').onclick=async()=>{
 };
 
 /* ===== AGENTS CONVERSATIONNELS (chat -> outils -> reponse, multi-provider) ===== */
+/* Convertit un bloc de tableau markdown (lignes |...|) en <table> HTML. */
+function _mdTable(lines){
+  const row=l=>l.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+  const head=row(lines[0]);
+  const body=lines.slice(2).map(row);
+  let h='<table class="ac-tbl"><thead><tr>'+head.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>';
+  body.forEach(r=>{h+='<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
+  return h+'</tbody></table>';
+}
 function _mdLite(t){
   let s=esc(t);
+  // Tableaux : detecter les blocs |..| avec ligne de separation |---|---| (avant le traitement \n)
+  const ls=s.split('\n');const out=[];let i=0;
+  while(i<ls.length){
+    if(/^\s*\|.*\|\s*$/.test(ls[i])&&i+1<ls.length&&/^\s*\|[\s:|-]+\|\s*$/.test(ls[i+1])){
+      let j=i+2;while(j<ls.length&&/^\s*\|.*\|\s*$/.test(ls[j]))j++;
+      out.push(_mdTable(ls.slice(i,j)));i=j;
+    } else {out.push(ls[i]);i++;}
+  }
+  s=out.join('\n');
   s=s.replace(/^#{1,4}\s+(.*)$/gm,'<h3>$1</h3>');
   s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
   s=s.replace(/`([^`]+)`/g,'<code>$1</code>');
@@ -2903,6 +3113,8 @@ function _mdLite(t){
   s=s.replace(/(?:<li>[\s\S]*?<\/li>)+/g,m=>'<ul>'+m+'</ul>');
   s=s.replace(/\n/g,'<br>');
   s=s.replace(/<\/ul><br>/g,'</ul>').replace(/<br>(<h3>)/g,'$1').replace(/(<\/h3>)<br>/g,'$1');
+  // Nettoyer les <br> parasites autour des tableaux
+  s=s.replace(/<\/table><br>/g,'</table>').replace(/<br>(<table)/g,'$1');
   return s;
 }
 function buildChat(mount){
@@ -2949,7 +3161,8 @@ function buildChat(mount){
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
           else if(evt.type==='delegation'){add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+' : '+esc(evt.mission||''));}
           else if(evt.type==='forge'){var ft='&#9881; forge : '+esc(((evt.stade||'')+' '+(evt.msg||evt.message||'')).trim()).slice(0,180);if(!forgeLine){forgeLine=add('ac-trace action',ft);}else{forgeLine.innerHTML=ft;log.scrollTop=log.scrollHeight;}}
-          else if(evt.type==='reponse'){derniereReponse=evt.texte||'';add('ac-msg agent','<div class="ac-md">'+_mdLite(derniereReponse)+'</div>');}
+          else if(evt.type==='reponse'){var _rt=evt.texte||'';var _isStep=_rt.trimStart().startsWith('{')&&['"outil"','"pensee"','"arguments"'].filter(function(k){return _rt.includes(k);}).length>=2;if(_isStep){add('ac-trace action','&#9888; Reponse illisible (petit modele). Reformule ta demande.');}else{derniereReponse=_rt;if(_rt)add('ac-msg agent','<div class="ac-md">'+_mdLite(_rt)+'</div>');}}
+
           else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
         }
       }
@@ -2962,6 +3175,60 @@ function buildChat(mount){
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();envoyer();}});
 }
 document.querySelectorAll('.agent-chat-mount').forEach(buildChat);
+
+// ===== PREFERENCES (dark mode + consentement + agent local) =====
+// Dark mode persistant au chargement
+if(localStorage.getItem('neogen_dark_mode')==='1'){
+  document.body.classList.add('dark');
+  if(window._setShaderDark)window._setShaderDark(true);
+}
+
+function _initPreferences(){
+  // Dark mode toggle
+  var cb=document.getElementById('dark-toggle-cb');
+  if(cb){
+    cb.checked=document.body.classList.contains('dark');
+    cb.onchange=function(){
+      document.body.classList.toggle('dark',this.checked);
+      localStorage.setItem('neogen_dark_mode',this.checked?'1':'0');
+      if(window._setShaderDark)window._setShaderDark(this.checked);
+    };
+  }
+  // Consentement
+  function _activateConsentBtn(lvl,dur){
+    document.querySelectorAll('.consent-btn').forEach(function(b){
+      var match=(b.dataset.level===lvl)&&(lvl!=='sequence'||String(b.dataset.dur)===String(dur));
+      b.classList.toggle('active',match);
+    });
+  }
+  fetch('/rpa/settings').then(function(r){return r.json();}).then(function(d){
+    _activateConsentBtn(d.consent_level||'sequence',d.sequence_duration||120);
+  }).catch(function(){});
+  document.querySelectorAll('.consent-btn').forEach(function(b){
+    b.onclick=function(){
+      var lvl=this.dataset.level,dur=parseInt(this.dataset.dur||'0',10);
+      fetch('/rpa/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({consent_level:lvl,sequence_duration:dur})}).catch(function(){});
+      _activateConsentBtn(lvl,dur);
+    };
+  });
+  // Agent local status
+  var st=document.getElementById('agent-local-status');
+  if(st){
+    fetch('/rpa/status').then(function(r){return r.json();}).then(function(d){
+      st.innerHTML=d.connected?'<span class="tag ok">Agent local connecte</span>':'<span class="tag ko">Agent local non lance</span> <span style="font-size:11px;color:var(--mut)">Lancer rpa_agent.py sur votre machine</span>';
+    }).catch(function(){st.innerHTML='<span class="tag ko">Agent local injoignable</span>';});
+  }
+  // Effacer tous les chats
+  var clr=document.getElementById('clear-chats-btn');
+  if(clr)clr.onclick=function(){
+    ['cerveau','createur','genealogiste','secretaire'].forEach(function(r){localStorage.removeItem('neogen_chat_'+r);});
+    document.querySelectorAll('.agent-chat-log').forEach(function(el){el.innerHTML='';});
+    clr.textContent='Efface !';setTimeout(function(){clr.textContent='Effacer tous les chats';},1500);
+  };
+}
+// Lancer au chargement + quand on arrive sur Compte
+document.addEventListener('DOMContentLoaded',_initPreferences);
+_initPreferences();
 </script>
 </body>
 </html>

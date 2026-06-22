@@ -18,6 +18,20 @@ import threading
 import logging
 import ctypes
 import platform
+import json as _json
+from pathlib import Path
+
+_SETTINGS_PATH = Path(__file__).parent / "data" / "rpa_settings.json"
+
+
+def _lire_settings() -> dict:
+    """Lit les settings RPA depuis le fichier partagé (ecrit par l'API Docker)."""
+    try:
+        if _SETTINGS_PATH.exists():
+            return _json.loads(_SETTINGS_PATH.read_text())
+    except Exception:
+        pass
+    return {"consent_level": "sequence", "sequence_duration": 120}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("NEOGEN-Agent")
@@ -69,17 +83,29 @@ def demander_consentement(action: dict) -> str:
     Thread-safe (appele depuis poll_loop) et toujours au premier plan.
     Windows : MessageBox natif (ctypes). Autres OS : invite console.
 
-    Consentement par SÉQUENCE : si une autorisation est déjà active (fenêtre
-    AUTO_APPROVE_WINDOW), on approuve directement sans redemander -> l'agent
-    enchaîne les actions et on le voit faire. "Oui" ouvre/prolonge la fenêtre.
+    Niveau de consentement (lu depuis data/rpa_settings.json) :
+      "auto"     -> jamais de popup, toujours approuve
+      "sequence" -> fenetre AUTO_APPROVE_WINDOW (comportement par defaut)
+      "always"   -> toujours demander, ignore la fenetre
 
     Retourne 'approved', 'rejected' ou 'cancelled' (arret d'urgence).
     """
     global _auto_approve_until
 
-    # Déjà autorisé pour cette séquence -> on exécute sans redemander.
-    if time.time() < _auto_approve_until:
+    s = _lire_settings()
+    level = s.get("consent_level", "sequence")
+    window = float(s.get("sequence_duration", 120))
+
+    # Mode auto : aucune popup, toujours approuve.
+    if level == "auto":
+        logger.info("  [consent:auto] Action approuvee sans popup.")
         return "approved"
+
+    # Mode sequence (defaut) : fenetre d'auto-approbation.
+    if level == "sequence" and time.time() < _auto_approve_until:
+        return "approved"
+
+    # Mode always : toujours redemander (ignore _auto_approve_until).
 
     desc = f"Action : {action.get('action')}\n"
     if action.get("x") is not None and action.get("y") is not None:
@@ -96,7 +122,7 @@ def demander_consentement(action: dict) -> str:
     message = (
         "NEOGEN demande l'autorisation de contrôler votre souris/clavier.\n\n"
         f"Première action :\n{desc}\n"
-        f"Oui = Autoriser la séquence ({int(AUTO_APPROVE_WINDOW)}s, sans redemander)\n"
+        f"Oui = Autoriser la séquence ({int(window)}s, sans redemander)\n"
         "Non = Ignorer cette action\n"
         "Annuler = ARRÊT D'URGENCE (vide la file)\n\n"
         "Arrêt d'urgence à tout moment : poussez la souris dans le coin HAUT-GAUCHE de l'écran."
@@ -113,8 +139,8 @@ def demander_consentement(action: dict) -> str:
             0, message, "NEOGEN - Consentement requis", flags
         )
         if res == 6:      # IDYES
-            _auto_approve_until = time.time() + AUTO_APPROVE_WINDOW
-            logger.info(f"  Séquence autorisée pour {int(AUTO_APPROVE_WINDOW)}s. Exécution visible...")
+            _auto_approve_until = time.time() + window
+            logger.info(f"  Séquence autorisée pour {int(window)}s. Exécution visible...")
             return "approved"
         elif res == 7:    # IDNO
             return "rejected"
@@ -136,6 +162,27 @@ def demander_consentement(action: dict) -> str:
     return "rejected"
 
 
+def _titre_fenetre_active() -> str:
+    """Titre de la fenêtre au premier plan (Windows). Vide ailleurs / si erreur."""
+    if platform.system() != "Windows":
+        return ""
+    try:
+        u32 = ctypes.windll.user32
+        h = u32.GetForegroundWindow()
+        n = u32.GetWindowTextLengthW(h)
+        buf = ctypes.create_unicode_buffer(n + 1)
+        u32.GetWindowTextW(h, buf, n + 1)
+        return buf.value or ""
+    except Exception:
+        return ""
+
+
+def _fenetre_active_est_neogen() -> bool:
+    """Vrai si la fenêtre active semble être NEOGEN (pour ne pas la fermer)."""
+    t = _titre_fenetre_active().lower()
+    return ("neogen" in t) or ("localhost:8000" in t)
+
+
 def executer_physique(action: dict) -> tuple[bool, str | None]:
     """Exécute l'action via pyautogui sur l'hôte."""
     act_type = action.get("action")
@@ -147,6 +194,12 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
     url = action.get("url", "")
     amount = action.get("amount", 3)
     interval = action.get("interval", 0.05)
+    guard = action.get("guard", "")
+
+    # Garde anti-suicide : ne JAMAIS fermer l'onglet si NEOGEN est au premier plan.
+    if guard == "close_tab" and _fenetre_active_est_neogen():
+        return False, ("Fermeture annulee : la fenetre active est NEOGEN. "
+                       "Mets l'onglet a fermer au premier plan puis reessaye.")
 
     # Déplacement visible : la souris glisse (duration) au lieu de se téléporter,
     # pour que l'utilisateur voie concrètement l'agent agir.
@@ -328,7 +381,76 @@ def poll_loop():
         time.sleep(POLL_INTERVAL)
 
 
-if __name__ == "__main__":
+# ── Icône barre système (tray) ────────────────────────────────────────────────
+# Présence visuelle dans la zone de notification Windows (comme Ollama/Docker),
+# avec menu Statut / Ouvrir NEOGEN / Quitter. Optionnel : si pystray/Pillow ne
+# sont pas installés, on retombe sur le mode console.
+
+def _icone_image(connecte: bool):
+    """Dessine un disque (vert = connecté au serveur, gris = en attente)."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    couleur = (22, 163, 74, 255) if connecte else (100, 116, 139, 255)
+    d.ellipse([10, 10, 54, 54], fill=couleur)
+    d.ellipse([24, 24, 40, 40], fill=(255, 255, 255, 230))
+    return img
+
+
+def _lancer_tray():
+    """Lance l'agent avec une icône barre système. Retourne False si indisponible."""
+    try:
+        import pystray
+    except Exception:
+        return False
+
+    def _serveur_ok() -> bool:
+        try:
+            return requests.get(f"{SERVER_URL}/health", timeout=2).status_code == 200
+        except Exception:
+            return False
+
+    icon = pystray.Icon("neogen-agent", _icone_image(False), "NEOGEN - Agent local")
+
+    def _statut_texte(_=None):
+        return "Serveur : connecté" if _serveur_ok() else "Serveur : injoignable"
+
+    def _ouvrir(_=None):
+        import webbrowser
+        webbrowser.open(SERVER_URL)
+
+    def _quitter(_=None):
+        global running
+        running = False
+        toggle_listeners(False)
+        icon.stop()
+
+    icon.menu = pystray.Menu(
+        pystray.MenuItem(_statut_texte, None, enabled=False),
+        pystray.MenuItem("Ouvrir NEOGEN", _ouvrir),
+        pystray.MenuItem("Quitter l'agent", _quitter),
+    )
+
+    def _maj_icone():
+        """Met à jour la couleur de l'icône selon l'état du serveur."""
+        while running:
+            try:
+                icon.icon = _icone_image(_serveur_ok())
+                icon.update_menu()
+            except Exception:
+                pass
+            time.sleep(5)
+
+    threading.Thread(target=ping_loop, daemon=True).start()
+    threading.Thread(target=poll_loop, daemon=True).start()
+    threading.Thread(target=_maj_icone, daemon=True).start()
+    logger.info("Agent lancé avec icône barre système. Clic droit sur l'icône pour le menu.")
+    icon.run()  # bloquant jusqu'à Quitter
+    sys.exit(0)
+
+
+def _lancer_console():
+    """Mode console classique (fallback si pas de tray)."""
     print("=" * 68)
     print("           NEOGEN - AGENT LOCAL AUTOMATISATION & IMITATION           ")
     print("=" * 68)
@@ -337,16 +459,21 @@ if __name__ == "__main__":
     print("   Fermer l'agent : Ctrl+C dans cette console")
     print("=" * 68 + "\n")
 
-    t1 = threading.Thread(target=ping_loop, daemon=True)
-    t2 = threading.Thread(target=poll_loop, daemon=True)
-    t1.start()
-    t2.start()
+    threading.Thread(target=ping_loop, daemon=True).start()
+    threading.Thread(target=poll_loop, daemon=True).start()
 
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\nArrêt de l'agent local.")
+        global running
         running = False
         toggle_listeners(False)
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    # Préférence : icône barre système. Si pystray/Pillow absents -> console.
+    if not _lancer_tray():
+        _lancer_console()

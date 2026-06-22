@@ -33,6 +33,19 @@ _ACTIVE_RECORDING: list[dict] = []
 _IS_RECORDING: bool = False
 _LAST_PING_TIME: float = 0.0
 
+# ── Apprentissage continu (non-draconien) ─────────────────────────────────────
+# Au lieu d'un enregistrement manuel start/stop, l'agent observe en continu (si
+# active par l'utilisateur), segmente le flux par pauses, et quand une MEME
+# sequence revient -> il l'apprend automatiquement comme routine reutilisable.
+_CONTINUOUS: bool = False
+_SEGMENT: list[dict] = []           # segment d'actions en cours de construction
+_LAST_ACTION_TIME: float = 0.0      # pour couper les segments aux pauses
+_SEEN_SIGNATURES: dict[str, int] = {}  # signature de sequence -> nb d'occurrences
+_AUTO_LEARNED: list[dict] = []      # routines apprises automatiquement (resume)
+IDLE_GAP = 4.0                      # secondes d'inactivite -> fin de segment
+MIN_SEGMENT = 3                     # actions minimum pour qu'un segment compte
+REPEAT_THRESHOLD = 2               # nb d'occurrences avant apprentissage auto
+
 def ping_agent():
     global _LAST_PING_TIME
     _LAST_PING_TIME = time.time()
@@ -56,6 +69,7 @@ class RpaQueue:
             "keys": action.get("keys", []),
             "key": action.get("key", ""),
             "url": action.get("url", ""),
+            "guard": action.get("guard", ""),
             "interval": action.get("interval", 0.05),
             "status": "pending",
             "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -144,11 +158,8 @@ def start_recording() -> bool:
 def is_recording() -> bool:
     return _IS_RECORDING
 
-def add_recorded_action(action: dict) -> None:
-    """Ajoute une action interceptée à la session active."""
-    if not _IS_RECORDING:
-        return
-    item = {
+def _normaliser_action(action: dict) -> dict:
+    return {
         "id": str(uuid.uuid4()),
         "action": action.get("action", "click"),
         "x": action.get("x"),
@@ -158,10 +169,101 @@ def add_recorded_action(action: dict) -> None:
         "keys": action.get("keys", []),
         "key": action.get("key", ""),
         "interval": action.get("interval", 0.05),
-        "timestamp": datetime.now().isoformat(timespec="seconds")
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
-    _ACTIVE_RECORDING.append(item)
-    logger.info(f"[IMITATION] Action enregistrée : {item['action']}")
+
+
+def add_recorded_action(action: dict) -> None:
+    """Ajoute une action interceptée. Va vers l'enregistrement manuel (si actif)
+    ET/OU vers l'apprentissage continu (si actif)."""
+    item = _normaliser_action(action)
+    if _IS_RECORDING:
+        _ACTIVE_RECORDING.append(item)
+        logger.info(f"[IMITATION] Action enregistrée : {item['action']}")
+    if _CONTINUOUS:
+        _continu_observer(item)
+
+
+# ── Apprentissage continu : observation + détection de routines récurrentes ────
+
+def set_continuous(enabled: bool) -> bool:
+    """Active/désactive l'apprentissage continu. À l'arrêt, finalise le segment."""
+    global _CONTINUOUS, _SEGMENT
+    if enabled:
+        _CONTINUOUS = True
+        logger.info("[APPRENTISSAGE] Mode continu activé.")
+    else:
+        _continu_finaliser_segment()
+        _CONTINUOUS = False
+        logger.info("[APPRENTISSAGE] Mode continu désactivé.")
+    return _CONTINUOUS
+
+
+def is_continuous() -> bool:
+    return _CONTINUOUS
+
+
+def _signature_segment(seg: list[dict]) -> str:
+    """Signature stable d'une séquence : la suite des types d'actions."""
+    return ">".join(a.get("action", "?") for a in seg)
+
+
+def _continu_observer(item: dict) -> None:
+    """Ajoute l'action au segment courant ; coupe le segment après une pause."""
+    global _SEGMENT, _LAST_ACTION_TIME
+    now = time.time()
+    if _SEGMENT and (now - _LAST_ACTION_TIME) > IDLE_GAP:
+        _continu_finaliser_segment()
+    _SEGMENT.append(item)
+    _LAST_ACTION_TIME = now
+
+
+def _continu_finaliser_segment() -> None:
+    """Clôt le segment en cours : si une même séquence revient, l'apprend en routine."""
+    global _SEGMENT, _SEEN_SIGNATURES
+    seg, _SEGMENT = _SEGMENT, []
+    if len(seg) < MIN_SEGMENT:
+        return
+    sig = _signature_segment(seg)
+    _SEEN_SIGNATURES[sig] = _SEEN_SIGNATURES.get(sig, 0) + 1
+    occ = _SEEN_SIGNATURES[sig]
+    logger.info(f"[APPRENTISSAGE] Segment {sig} vu {occ} fois.")
+    if occ == REPEAT_THRESHOLD:
+        # Séquence récurrente -> on l'apprend automatiquement.
+        nom = f"Routine apprise ({len(seg)} etapes)"
+        rec = _sauver_routine(nom, seg, auto=True)
+        if rec:
+            _AUTO_LEARNED.append({"id": rec["id"], "name": nom,
+                                  "steps": len(seg), "signature": sig})
+            logger.info(f"[APPRENTISSAGE] Routine récurrente apprise : {rec['id']}")
+
+
+def _sauver_routine(name: str, actions: list[dict], auto: bool = False) -> dict | None:
+    """Persiste une séquence comme routine réutilisable (même format que stop_recording)."""
+    if not actions:
+        return None
+    os.makedirs(IMITATIONS_DIR, exist_ok=True)
+    rec_id = str(uuid.uuid4())[:8]
+    record = {
+        "id": rec_id,
+        "name": name,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "auto": auto,
+        "actions": actions,
+    }
+    with open(os.path.join(IMITATIONS_DIR, f"{rec_id}.json"), "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+    return record
+
+
+def continuous_status() -> dict:
+    """État de l'apprentissage continu (pour l'UI)."""
+    return {
+        "enabled": _CONTINUOUS,
+        "segment_len": len(_SEGMENT),
+        "signatures": len(_SEEN_SIGNATURES),
+        "learned": _AUTO_LEARNED[-10:],
+    }
 
 def stop_recording(name: str) -> dict | None:
     """Arrête l'enregistrement et le persiste dans data/imitations/{name}.json."""
