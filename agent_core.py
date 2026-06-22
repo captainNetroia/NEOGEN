@@ -64,10 +64,19 @@ def _ctx_from(kw: dict):
     return kw.get("_ctx")
 
 
+def _contexte_memoire() -> str:
+    """Résumé des souvenirs pour personnaliser proposer/conseiller (wiring de cohérence)."""
+    try:
+        import memoire_agent
+        return memoire_agent.resume_pour_prompt(limite=8)
+    except Exception:
+        return ""
+
+
 def outil_discerner(intention: str = "", **kw) -> str:
     from proposer import proposer
     cl = gateway.client(_ctx_from(kw), tier="moyen")
-    p = proposer(intention, cl)
+    p = proposer(intention, cl, contexte=_contexte_memoire())
     return nettoyer(
         f"Discernement -> valeur:{getattr(p,'valeur','?')}/10 "
         f"faisabilite:{getattr(p,'faisabilite','?')}/10 clarte:{getattr(p,'clarte','?')}/10. "
@@ -78,7 +87,7 @@ def outil_discerner(intention: str = "", **kw) -> str:
 def outil_conseiller(intention: str = "", **kw) -> str:
     from conseillers import conseiller
     cl = gateway.client(_ctx_from(kw), tier="moyen")
-    c = conseiller(intention, cl)
+    c = conseiller(intention, cl, contexte=_contexte_memoire())
     return nettoyer(str(c.model_dump() if hasattr(c, "model_dump") else c))[:1500]
 
 
@@ -114,14 +123,39 @@ def outil_creer_application(intention: str = "", persistance: bool = False,
     r = orchestrer(intention, ctx=_ctx_from(kw), cap=cap, reparer=True,
                    max_tentatives=3, enregistrer=True, progress=progress)
     produit_id = None
+    skill_msg = ""
     if r.succes:
         entrees = registre.lister()
         if entrees:
             produit_id = entrees[-1]["id"]
+        # Wiring cohérence : une création réussie cristallise une compétence réutilisable
+        # ("comment refaire ce type de produit") -> le savoir-faire s'accumule (auto).
+        try:
+            import competences
+            cap_txt = []
+            if persistance:
+                cap_txt.append("persistance")
+            if reseau_on:
+                cap_txt.append("reseau:" + ",".join(cap.domaines_autorises) if cap.domaines_autorises else "reseau")
+            instructions = (
+                f"Pour creer ce type de produit : utilise creer_application avec une intention "
+                f"du genre \"{intention[:120]}\". Capacites typiques : {', '.join(cap_txt) or 'aucune'}. "
+                f"Reference : produit {produit_id}."
+            )
+            s = competences.creer(
+                nom=f"creer {intention[:32]}",
+                description=f"Refaire un produit similaire a : {intention[:80]}",
+                instructions=instructions,
+                outils=["creer_application"],
+                auto=True,
+            )
+            skill_msg = f" Competence apprise automatiquement : '{s['nom']}'."
+        except Exception:
+            skill_msg = ""
     return nettoyer(
         f"Creation {'reussie' if r.succes else 'echouee'} (verdict:{r.verdict}, "
         f"tentatives:{r.tentatives}, lignes:{r.lignes}). "
-        f"produit_id={produit_id}. Lecons: {'; '.join((r.lecons or [])[:3])}"
+        f"produit_id={produit_id}. Lecons: {'; '.join((r.lecons or [])[:3])}.{skill_msg}"
     )
 
 

@@ -1099,6 +1099,26 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Ce que l'agent retient de toi d'une session a l'autre (preferences, projets, faits). Il s'en sert pour personnaliser ses reponses.</div>
     <div id="mem-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
   </div>
+
+  <!-- Taches autonomes (cron : l'agent agit tout seul a intervalle) -->
+  <div class="panel glass" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Taches autonomes</div>
+      <button class="ghost" id="tache-add-btn" style="font-size:12px;padding:4px 10px">+ Nouvelle tache</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">L'agent agit tout seul a intervalle regulier (veille, rapport...). Tourne sur le modele local gratuit (aucun credit consomme).</div>
+    <div id="tache-form" class="hidden" style="margin-bottom:12px;display:flex;flex-direction:column;gap:7px">
+      <input type="text" id="tache-nom" placeholder="Nom (ex: Veille quotidienne)">
+      <select id="tache-agent"><option value="cerveau">Le Cerveau</option><option value="genealogiste">Le Genealogiste</option><option value="secretaire">Le Secretaire</option></select>
+      <textarea id="tache-msg" rows="2" placeholder="Que doit faire l'agent ? (ex: resume l'etat de mes creations)"></textarea>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:12px;color:var(--mut)">Toutes les</span>
+        <input type="number" id="tache-interval" value="60" min="5" style="width:80px"><span style="font-size:12px;color:var(--mut)">minutes (min 5)</span>
+        <button id="tache-save" style="margin-left:auto;font-size:13px;padding:6px 14px">Creer</button>
+      </div>
+    </div>
+    <div id="tache-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
 </div>
 
 <!-- PRODUCTION -->
@@ -1156,6 +1176,10 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <p>Metriques de production, capacites utilisees, repartition tentatives.</p>
   </div>
   <div class="stat-grid" id="analyse-stats"></div>
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Auto-amelioration (l'usage nourrit le systeme)</div>
+    <div id="analyse-auto"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
   <div class="panel glass" style="margin-bottom:18px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Capacites utilisees</div>
     <div id="analyse-caps"></div>
@@ -2506,7 +2530,27 @@ async function loadCompte(){
 }
 
 /* Analyse */
+async function loadAutoAmelioration(){
+  const el=$('#analyse-auto');if(!el)return;
+  try{
+    const a=await(await fetch('/auto-amelioration')).json();
+    if(!a.total){el.innerHTML='<div style="color:var(--mut);font-size:13px">'+esc(a.action_suggeree||'')+'</div>';return;}
+    let h='<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
+      +'<span class="tag '+(a.sain?'ok':'warn')+'">'+(a.sain?'systeme sain':a.signaux.length+' signal(aux)')+'</span>'
+      +'<span style="font-size:12px;color:var(--mut)">'+Math.round((a.taux_succes||0)*100)+'% succes, '+(a.tentatives_moyennes||0)+' tentatives/creation</span></div>';
+    if(a.signaux&&a.signaux.length){
+      h+=a.signaux.map(function(s){
+        return '<div class="hist-item" style="align-items:flex-start"><span class="tag warn" style="flex-shrink:0">'+esc(s.type)+'</span>'
+          +'<span style="flex:1;font-size:13px">'+esc(s.detail)+'<br><span style="font-size:12px;color:var(--mut)">&#8594; '+esc(s.amelioration)+'</span></span></div>';
+      }).join('');
+    }else{
+      h+='<div style="font-size:13px;color:var(--mut)">'+esc(a.action_suggeree||'')+'</div>';
+    }
+    el.innerHTML=h;
+  }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
 async function loadAnalyse(){
+  loadAutoAmelioration();
   const statsEl=$('#analyse-stats'),capsEl=$('#analyse-caps'),tentEl=$('#analyse-tentatives');
   const empty=msg=>{if(statsEl)statsEl.innerHTML='<div style="color:var(--mut);font-size:13px">'+msg+'</div>';};
   try{
@@ -3081,7 +3125,7 @@ const _origShowSection=showSection;
 showSection=function(name){
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
-  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();}
+  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -3347,6 +3391,52 @@ window.deleteMemoire=async function(id){
   const btn=document.getElementById('mem-refresh');
   if(btn)btn.onclick=loadMemoire;
   loadMemoire();
+})();
+
+// ===== TACHES AUTONOMES (cron) =====
+async function loadTaches(){
+  const el=document.getElementById('tache-list');if(!el)return;
+  try{
+    const d=await(await fetch('/taches')).json();
+    const list=d.taches||[];
+    if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">Aucune tache. L\'agent peut agir tout seul : cree une veille, un rapport...</div>';return;}
+    el.innerHTML=list.map(function(t){
+      var last=(t.logs&&t.logs.length)?t.logs[t.logs.length-1]:null;
+      return '<div class="hist-item" style="align-items:flex-start">'
+        +'<span class="tag '+(t.actif?'ok':'')+'" style="flex-shrink:0">'+(t.actif?'actif':'pause')+'</span>'
+        +'<span style="flex:1;font-size:13px"><b>'+esc(t.nom)+'</b> <span style="color:var(--mut);font-size:11px">('+esc(t.agent)+', toutes les '+t.intervalle_minutes+'min)</span>'
+        +'<br><span style="font-size:12px;color:var(--mut)">'+esc(t.message)+'</span>'
+        +(last?'<br><span style="font-size:11px;color:var(--mut)">dernier: '+esc(last.t)+' &#8594; '+esc((last.resultat||'').slice(0,90))+'</span>':'')
+        +'</span>'
+        +'<span style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+        +'<span style="cursor:pointer;font-size:11px;color:var(--acc)" onclick="toggleTache(\''+esc(t.id)+'\','+(!t.actif)+')">'+(t.actif?'pause':'activer')+'</span>'
+        +'<span style="cursor:pointer;font-size:11px;color:var(--ko)" onclick="deleteTache(\''+esc(t.id)+'\')">supprimer</span>'
+        +'</span></div>';
+    }).join('');
+  }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
+}
+window.toggleTache=async function(id,actif){
+  try{await fetch('/taches/'+encodeURIComponent(id)+'/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({actif:actif})});}catch(e){}
+  loadTaches();
+};
+window.deleteTache=async function(id){
+  try{await fetch('/taches/'+encodeURIComponent(id),{method:'DELETE'});}catch(e){}
+  loadTaches();
+};
+(function(){
+  const add=document.getElementById('tache-add-btn'),form=document.getElementById('tache-form'),save=document.getElementById('tache-save');
+  if(add)add.onclick=function(){form.classList.toggle('hidden');};
+  if(save)save.onclick=async function(){
+    var nom=(document.getElementById('tache-nom').value||'').trim();
+    var agent=document.getElementById('tache-agent').value;
+    var msg=(document.getElementById('tache-msg').value||'').trim();
+    var interval=parseInt(document.getElementById('tache-interval').value||'60',10);
+    if(!nom||!msg){return;}
+    try{await fetch('/taches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:nom,agent:agent,message:msg,intervalle_minutes:interval})});}catch(e){}
+    document.getElementById('tache-nom').value='';document.getElementById('tache-msg').value='';
+    form.classList.add('hidden');loadTaches();
+  };
+  loadTaches();
 })();
 </script>
 </body>

@@ -41,7 +41,7 @@ class Conseil(BaseModel):
     cadrage: Cadrage
 
 
-def conseiller(intention: str, client) -> Conseil:
+def conseiller(intention: str, client, contexte: str = "") -> Conseil:
     systeme = (
         "Tu es le CONSEILLER de NEOGEN. Pour une intention de produit/besoin, tu produis "
         "DEUX choses, concretes et professionnelles :\n"
@@ -51,10 +51,13 @@ def conseiller(intention: str, client) -> Conseil:
         "2) CADRAGE analytique : les questions cles a poser au client, les donnees a collecter, "
         "les types de sources a chercher, et les pieges. Sois precis, pas generique."
     )
+    contenu = f"Intention/besoin : {intention}"
+    if contexte:
+        contenu += f"\n\nContexte connu sur l'utilisateur/ses projets (pour personnaliser) :\n{contexte}"
     resp = parse_resilient(
         client, model=MODEL, max_tokens=3500, thinking={"type": "adaptive"},
         system=systeme,
-        messages=[{"role": "user", "content": f"Intention/besoin : {intention}"}],
+        messages=[{"role": "user", "content": contenu}],
         output_format=Conseil,
     )
     if resp.parsed_output is None:

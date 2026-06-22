@@ -63,6 +63,27 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def _demarrer_services_autonomes():
+    """Lance le planificateur (cron) + la passerelle Telegram si configurée."""
+    try:
+        import planificateur
+        planificateur.demarrer()
+    except Exception:
+        pass
+    try:
+        import passerelle_telegram
+        passerelle_telegram.demarrer()
+    except Exception:
+        pass
+
+
+@app.get("/telegram/statut")
+def telegram_statut():
+    import passerelle_telegram
+    return passerelle_telegram.statut()
+
+
 def _exiger_byok(ctx) -> None:
     """BYOK (Bring Your Own Key) : refuse d'utiliser la cle par defaut (credentials du
     proprietaire) pour les appels LLM. Autorise si : une cle client est fournie, OU
@@ -749,6 +770,51 @@ def creer_skill(body: SkillBody):
 def supprimer_skill(nom: str):
     import competences
     return {"ok": competences.supprimer(nom)}
+
+
+@app.get("/auto-amelioration")
+def auto_amelioration():
+    """Analyse l'usage réel (registre) et déduit des signaux d'amélioration concrets."""
+    import auto_amelioration as aa
+    return aa.analyser_usage()
+
+
+# ── Planificateur : tâches autonomes (cron léger, modèle local) ───────────────
+
+@app.get("/taches")
+def lister_taches():
+    import planificateur
+    return {"taches": planificateur.lister()}
+
+
+class TacheBody(BaseModel):
+    nom: str
+    agent: str = "cerveau"
+    message: str
+    intervalle_minutes: int = 60
+
+
+@app.post("/taches")
+def creer_tache(body: TacheBody):
+    import planificateur
+    return {"ok": True, "tache": planificateur.creer(
+        body.nom, body.agent, body.message, body.intervalle_minutes)}
+
+
+class TacheToggleBody(BaseModel):
+    actif: bool
+
+
+@app.post("/taches/{tache_id}/toggle")
+def toggle_tache(tache_id: str, body: TacheToggleBody):
+    import planificateur
+    return {"ok": planificateur.basculer(tache_id, body.actif)}
+
+
+@app.delete("/taches/{tache_id}")
+def supprimer_tache(tache_id: str):
+    import planificateur
+    return {"ok": planificateur.supprimer(tache_id)}
 
 
 @app.get("/memoire")

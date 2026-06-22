@@ -43,7 +43,7 @@ class PropositionADN(BaseModel):
     resume: str = Field(description="une phrase resumant l'ADN propose")
 
 
-def proposer(intention: str, client) -> PropositionADN:
+def proposer(intention: str, client, contexte: str = "") -> PropositionADN:
     vocab_murs = "; ".join(f"{k} ({v})" for k, v in REGLES_MURS.items())
     systeme = (
         "Tu es la faculte de PROPOSITION de NEOGEN. Un produit part de ZERO, sans mur. "
@@ -65,10 +65,13 @@ def proposer(intention: str, client) -> PropositionADN:
         "Rappelle-toi : ce n'est qu'une PROPOSITION, l'humain validera. Sois honnete et sobre : "
         "ne propose pas une capacite 'au cas ou'."
     )
+    contenu = f"Intention : {intention}"
+    if contexte:
+        contenu += f"\n\nContexte connu sur l'utilisateur/ses projets (pour personnaliser, sans l'imposer) :\n{contexte}"
     resp = parse_resilient(
         client, model=MODEL, max_tokens=4000, thinking={"type": "adaptive"},
         system=systeme,
-        messages=[{"role": "user", "content": f"Intention : {intention}"}],
+        messages=[{"role": "user", "content": contenu}],
         output_format=PropositionADN,
     )
     if resp.parsed_output is None:
