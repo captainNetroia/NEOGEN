@@ -844,6 +844,7 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
   <div class="side-item" style="--lc:var(--c-compte)" onclick="showSection('compte')" id="side-compte">
     <span class="side-dot"></span>Compte
     <span class="side-badge live">live</span>
+    <span id="gen-wallet-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.12);border-radius:99px;padding:1px 8px">0 GEN</span>
   </div>
   <div class="side-item" style="--lc:var(--c-analyse)" onclick="showSection('analyse')" id="side-analyse">
     <span class="side-dot"></span>Analyse
@@ -1106,14 +1107,16 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Taches autonomes</div>
       <button class="ghost" id="tache-add-btn" style="font-size:12px;padding:4px 10px">+ Nouvelle tache</button>
     </div>
-    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">L'agent agit tout seul a intervalle regulier (veille, rapport...). Tourne sur le modele local gratuit (aucun credit consomme).</div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">L'agent agit tout seul a intervalle regulier (veille, rapport...). Choisis le modele : <b>local</b> (gratuit, aucun credit) ou un provider configure cote instance. Provider injoignable -> bascule auto sur local.</div>
     <div id="tache-form" class="hidden" style="margin-bottom:12px;display:flex;flex-direction:column;gap:7px">
       <input type="text" id="tache-nom" placeholder="Nom (ex: Veille quotidienne)">
       <select id="tache-agent"><option value="cerveau">Le Cerveau</option><option value="genealogiste">Le Genealogiste</option><option value="secretaire">Le Secretaire</option></select>
       <textarea id="tache-msg" rows="2" placeholder="Que doit faire l'agent ? (ex: resume l'etat de mes creations)"></textarea>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--mut)">Modele</span>
+        <select id="tache-provider" style="font-size:12px"><option value="local">Local (gratuit)</option><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="mistral">Mistral</option></select>
         <span style="font-size:12px;color:var(--mut)">Toutes les</span>
-        <input type="number" id="tache-interval" value="60" min="5" style="width:80px"><span style="font-size:12px;color:var(--mut)">minutes (min 5)</span>
+        <input type="number" id="tache-interval" value="60" min="5" style="width:70px"><span style="font-size:12px;color:var(--mut)">min</span>
         <button id="tache-save" style="margin-left:auto;font-size:13px;padding:6px 14px">Creer</button>
       </div>
     </div>
@@ -1138,6 +1141,16 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
     <p>Ton profil, modele actif et historique de production.</p>
   </div>
+  <!-- Wallet Genyte (GEN) -->
+  <div class="panel glass" style="margin-bottom:18px" id="gen-wallet-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Portefeuille Genyte</div>
+      <span id="gen-wallet-badge" style="font-size:18px;font-weight:800;color:#f59e0b">— GEN</span>
+    </div>
+    <div id="gen-wallet-detail" style="font-size:12px;color:var(--mut)">Connecte-toi pour voir ton solde.</div>
+    <div id="gen-wallet-history" style="margin-top:10px"></div>
+  </div>
+
   <!-- Quotas freemium : compteurs visibles -->
   <div class="panel glass" style="margin-bottom:18px" id="quotas-panel">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1146,6 +1159,41 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
     </div>
     <div id="quotas-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
     <div id="quotas-cta" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Tarifs multi-paliers -->
+  <div class="panel glass" style="margin-bottom:18px" id="tarifs-panel">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Passer au niveau superieur</div>
+    <div style="display:flex;gap:6px;margin-bottom:14px" id="tarif-period-toggle">
+      <button class="ghost tarif-period active" data-period="mensuel" style="flex:1;font-size:12px;padding:5px 0">Mensuel</button>
+      <button class="ghost tarif-period" data-period="annuel" style="flex:1;font-size:12px;padding:5px 0">Annuel <span style="color:#10b981;font-size:10px;font-weight:700">-30%</span></button>
+    </div>
+    <div id="tarifs-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+    <div style="font-size:11px;color:var(--mut);margin-top:10px;text-align:center">Essai 7j gratuit avec CB. Annulable a tout moment.</div>
+  </div>
+
+  <!-- Packs GEN -->
+  <div class="panel glass" style="margin-bottom:18px" id="packs-gen-panel">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Recharger des Genyte (GEN)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="packs-grid">
+      <button class="ghost pack-btn" data-pack="starter" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">100 GEN</span><span style="font-size:11px;opacity:.7">Starter — 2&#8364;</span></button>
+      <button class="ghost pack-btn" data-pack="pro" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">500 GEN</span><span style="font-size:11px;opacity:.7">Pro — 8&#8364; <span style="color:#10b981">-20%</span></span></button>
+      <button class="ghost pack-btn" data-pack="power" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">1 500 GEN</span><span style="font-size:11px;opacity:.7">Power — 20&#8364; <span style="color:#10b981">-33%</span></span></button>
+      <button class="ghost pack-btn" data-pack="ultimate" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">5 000 GEN</span><span style="font-size:11px;opacity:.7">Ultimate — 50&#8364; <span style="color:#10b981">-50%</span></span></button>
+    </div>
+  </div>
+
+  <!-- Télémétrie RGPD -->
+  <div class="panel glass" style="margin-bottom:18px" id="telemetrie-panel">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Amelioration communautaire (opt-in)</div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Contribue a rendre NEOGEN plus intelligent. Donnees anonymisees. <b style="color:#f59e0b">+5 GEN/mois</b> si tu participes.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap" id="tele-consent-btns">
+      <button class="ghost tele-btn" data-niveau="aucun" style="font-size:12px;padding:5px 12px">Aucun</button>
+      <button class="ghost tele-btn" data-niveau="erreurs" style="font-size:12px;padding:5px 12px">Erreurs only</button>
+      <button class="ghost tele-btn" data-niveau="usage" style="font-size:12px;padding:5px 12px">Erreurs + usage</button>
+      <button class="ghost tele-btn" data-niveau="tout" style="font-size:12px;padding:5px 12px">Tout contribuer</button>
+    </div>
+    <div id="tele-status" style="font-size:11px;color:var(--mut);margin-top:8px"></div>
   </div>
 
   <!-- Panel Preferences toujours visible (sans connexion requise) -->
@@ -2558,7 +2606,30 @@ async function loadAutoAmelioration(){
     }else{
       h+='<div style="font-size:13px;color:var(--mut)">'+esc(a.action_suggeree||'')+'</div>';
     }
+    // Points forts (ce qui marche deja bien)
+    if(a.points_forts&&a.points_forts.length){
+      h+='<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--ok)">POINTS FORTS</div>'
+        +a.points_forts.map(function(p){return '<div style="font-size:12px;color:var(--mut)">&#10003; '+esc(p)+'</div>';}).join('');
+    }
+    // Sources analysees (transparence : la boucle lit vraiment plusieurs journaux)
+    if(a.sources){
+      h+='<div style="margin-top:8px;font-size:11px;color:var(--mut)">Sources : '
+        +(a.sources.creations||0)+' creations, '+(a.sources.erreurs_journalisees||0)+' erreurs, '
+        +(a.sources.decisions_membrane||0)+' decisions membrane</div>';
+    }
     el.innerHTML=h;
+    // Actions automatiques deja prises par la boucle fermee
+    try{
+      const j=await(await fetch('/auto-amelioration/journal')).json();
+      if(j.actions&&j.actions.length){
+        el.innerHTML+='<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--acc)">ACTIONS AUTO PRISES</div>'
+          +j.actions.slice(0,6).map(function(ac){
+            var quoi=ac.action==='lecon_cristallisee'?('Leçon cristallisee : '+esc(ac.competence||ac.type_erreur||'')):
+                     ac.action==='pattern_memorise'?('Pattern memorise : '+esc(ac.domaine||'')):esc(ac.action||'');
+            return '<div style="font-size:12px;color:var(--mut)">'+esc(ac.iso||'')+' &#8594; '+quoi+'</div>';
+          }).join('');
+      }
+    }catch(e){}
   }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
 }
 async function loadAnalyse(){
@@ -3325,66 +3396,220 @@ if(localStorage.getItem('neogen_dark_mode')==='1'){
   if(window._setShaderDark)window._setShaderDark(true);
 }
 
-async function _confirmerPremiumRetour(){
-  // Au retour de Stripe : success_url = #compte?premium_session=cs_xxx
-  var h=location.hash||'';
-  var m=h.match(/premium_session=([^&]+)/);
-  if(!m)return;
+// ===== GENYTE WALLET + CREDITS =====
+async function loadWallet(){
+  var badge=document.getElementById('gen-wallet-badge'),
+      detail=document.getElementById('gen-wallet-detail'),
+      navBadge=document.getElementById('gen-wallet-nav'),
+      hist=document.getElementById('gen-wallet-history');
+  var t=(typeof _authToken==='function')?_authToken():null;
+  if(!t){
+    if(badge)badge.textContent='— GEN';
+    if(detail)detail.textContent='Connecte-toi pour voir ton solde.';
+    if(navBadge)navBadge.style.display='none';
+    return;
+  }
+  try{
+    var d=await(await fetch('/credits/me',{headers:_authHdrs?_authHdrs():{}})).json();
+    if(badge)badge.textContent=d.solde+' GEN';
+    if(navBadge){navBadge.textContent=d.solde+' GEN';navBadge.style.display='';}
+    var palierLabel={'gratuit':'Gratuit','essential':'Essential','pro':'Pro','power':'Power','enterprise':'Enterprise'};
+    if(detail)detail.innerHTML='<span style="color:var(--ok);font-weight:600">'+esc(palierLabel[d.palier]||d.palier)+'</span>'
+      +(d.gen_mensuel>0?' · <span style="color:#f59e0b">+'+d.gen_mensuel+' GEN/mois</span>':'');
+    if(hist&&d.historique&&d.historique.length){
+      hist.innerHTML='<div style="font-size:11px;color:var(--mut);margin-bottom:4px">Dernieres transactions</div>'
+        +d.historique.slice(0,5).map(function(tx){
+          var sign=tx.montant>0?'+':'';
+          var col=tx.montant>0?'#10b981':'#f87171';
+          var ts=new Date(tx.ts*1000).toLocaleDateString('fr-FR');
+          return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid rgba(100,116,139,.1)">'
+            +'<span>'+esc(tx.description||tx.type)+'</span>'
+            +'<span style="color:'+col+';font-weight:700">'+sign+tx.montant+' GEN</span>'
+            +'<span style="color:var(--mut)">'+ts+'</span></div>';
+        }).join('');
+    }
+  }catch(e){if(detail)detail.textContent='Erreur de chargement.';}
+}
+
+async function _acheterPackGen(pack,btn){
+  var t=(typeof _authToken==='function')?_authToken():null;
+  if(!t){alert('Connecte-toi d\'abord.');return;}
+  var old=btn.innerHTML;btn.disabled=true;btn.textContent='...';
+  try{
+    var r=await fetch('/credits/recharger',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({pack:pack})});
+    var d=await r.json();
+    if(r.ok&&d.url)window.location.href=d.url;
+    else{alert(d.detail||'Indisponible.');btn.disabled=false;btn.innerHTML=old;}
+  }catch(e){alert('Erreur reseau.');btn.disabled=false;btn.innerHTML=old;}
+}
+
+function _initPacksGen(){
+  document.querySelectorAll('.pack-btn').forEach(function(btn){
+    btn.onclick=function(){_acheterPackGen(btn.dataset.pack,btn);};
+  });
+}
+
+// ===== TELEMETRIE RGPD =====
+async function loadTelemetrie(){
   var t=(typeof _authToken==='function')?_authToken():null;
   if(!t)return;
   try{
-    var r=await fetch('/premium/confirmer',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({session_id:m[1]})});
-    var d=await r.json();
-    if(d.premium){alert(d.essai?'Essai premium 7 jours active ! Acces illimite. Tu seras debite apres l\'essai (annulable avant).':'Bienvenue en premium ! Acces illimite debloque.');}
+    var d=await(await fetch('/telemetrie/consentement',{headers:_authHdrs?_authHdrs():{}})).json();
+    var niv=d.niveau||'aucun';
+    document.querySelectorAll('.tele-btn').forEach(function(b){
+      b.classList.toggle('ok',b.dataset.niveau===niv);
+    });
+    var st=document.getElementById('tele-status');
+    if(st)st.textContent=niv==='aucun'?'Pas de contribution active.':'Niveau actif : '+niv;
   }catch(e){}
-  // Nettoie le hash pour eviter de reconfirmer
-  location.hash='#compte';
 }
+
+function _initTelemetrie(){
+  document.querySelectorAll('.tele-btn').forEach(function(btn){
+    btn.onclick=async function(){
+      var t=(typeof _authToken==='function')?_authToken():null;
+      if(!t){alert('Connecte-toi d\'abord.');return;}
+      try{
+        var r=await fetch('/telemetrie/consentement',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({niveau:btn.dataset.niveau})});
+        var d=await r.json();
+        if(d.ok){
+          loadTelemetrie();
+          if(d.recompense)alert(d.recompense);
+        }
+      }catch(e){}
+    };
+  });
+}
+
+// ===== TARIFS MULTI-PALIERS =====
+var _tarifPeriod='mensuel';
+var _PALIERS=[
+  {cle:'essential',label:'Essential',prix:{mensuel:'14,99',annuel:'10,49'},couleur:'#6366f1',
+   features:['Productions illimitees','1 provider IA','Mode Juge 1 GEN','200 GEN/mois']},
+  {cle:'pro',label:'Pro',prix:{mensuel:'29,99',annuel:'20,99'},couleur:'#8b5cf6',
+   features:['3 providers IA','RPA + Apprentissage','10 crons, Telegram','600 GEN/mois']},
+  {cle:'power',label:'Power',prix:{mensuel:'49,99',annuel:'34,99'},couleur:'#a855f7',
+   features:['Delegation multi-agents','Vision activee','Cron illimite','1 500 GEN/mois']},
+  {cle:'enterprise',label:'Enterprise',prix:{mensuel:'99,99',annuel:'69,99'},couleur:'#d946ef',
+   features:['GEN illimites','Telemetrie privee','Webhooks API','SLA 99,9%']},
+];
+
+function renderTarifs(palierActuel){
+  var grid=document.getElementById('tarifs-grid');
+  if(!grid)return;
+  grid.innerHTML=_PALIERS.map(function(p){
+    var actif=p.cle===palierActuel;
+    var prix=p.prix[_tarifPeriod];
+    var per=_tarifPeriod==='annuel'?'/mois (annuel)':'/mois';
+    return '<div style="border:1px solid '+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+';border-radius:12px;padding:12px;background:rgba(0,0,0,.2)">'
+      +'<div style="font-size:12px;font-weight:700;color:'+p.couleur+';margin-bottom:4px">'+esc(p.label)+'</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--txt);margin-bottom:6px">'+prix+'&#8364;<span style="font-size:10px;font-weight:400;color:var(--mut)">'+per+'</span></div>'
+      +'<ul style="font-size:11px;color:var(--mut);padding:0 0 0 14px;margin:0 0 10px">'+p.features.map(function(f){return'<li>'+esc(f)+'</li>';}).join('')+'</ul>'
+      +(actif?'<button class="ghost" disabled style="width:100%;font-size:11px;opacity:.5">Plan actuel</button>'
+        :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>')
+      +'</div>';
+  }).join('');
+  // Bind upgrade btns
+  grid.querySelectorAll('.tarif-upgrade-btn').forEach(function(btn){
+    btn.onclick=function(){_passerPremium(_tarifPeriod,btn.dataset.palier,btn);};
+  });
+}
+
+async function _passerPremium(plan,palier,btn){
+  var t=(typeof _authToken==='function')?_authToken():null;
+  if(!t){alert('Connecte-toi d\'abord (plus bas) pour choisir un plan.');return;}
+  var old=btn.textContent;btn.disabled=true;btn.textContent='Redirection...';
+  try{
+    var r=await fetch('/premium/checkout',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({plan:plan,palier:palier})});
+    var d=await r.json();
+    if(r.ok&&d.url)window.location.href=d.url;
+    else{alert(d.detail||'Paiement indisponible.');btn.disabled=false;btn.textContent=old;}
+  }catch(e){alert('Erreur reseau.');btn.disabled=false;btn.textContent=old;}
+}
+
+function _initTarifToggle(palierActuel){
+  document.querySelectorAll('.tarif-period').forEach(function(btn){
+    btn.onclick=function(){
+      _tarifPeriod=btn.dataset.period;
+      document.querySelectorAll('.tarif-period').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      renderTarifs(palierActuel);
+    };
+  });
+}
+
+async function _confirmerPremiumRetour(){
+  var h=location.hash||'';
+  // Confirmation abonnement premium
+  var m=h.match(/premium_session=([^&]+)/);
+  if(m){
+    var t=(typeof _authToken==='function')?_authToken():null;
+    if(t){
+      try{
+        var r=await fetch('/premium/confirmer',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({session_id:m[1]})});
+        var d=await r.json();
+        if(d.premium){
+          var msg=d.essai?'Essai '+d.palier+' 7 jours active ! Debit apres l\'essai (annulable).':'Bienvenue sur le plan '+d.palier+' !';
+          alert(msg);
+        }
+      }catch(e){}
+    }
+    location.hash='#compte';
+  }
+  // Confirmation achat pack GEN
+  var mg=h.match(/credits_ok=([^&]+)/);
+  if(mg){
+    var gen=parseInt(mg[1])||0;
+    var sess_id=(h.match(/credits_session=([^&]+)/)||[])[1]||'';
+    var t2=(typeof _authToken==='function')?_authToken():null;
+    if(t2&&sess_id){
+      try{
+        await fetch('/credits/confirmer-recharge',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t2},body:JSON.stringify({session_id:sess_id})});
+      }catch(e){}
+    }
+    if(gen>0)alert(gen+' GEN credites sur ton compte !');
+    location.hash='#compte';
+  }
+}
+
 async function loadQuotas(){
   await _confirmerPremiumRetour();
   var list=document.getElementById('quotas-list'),badge=document.getElementById('quotas-badge'),cta=document.getElementById('quotas-cta');
   if(!list)return;
   try{
     var d=await(await fetch('/quotas/me',{headers:_authHdrs?_authHdrs():{}})).json();
-    localStorage.setItem('neogen_premium',d.premium?'1':'0');   /* cache pour les gardes UI */
-    if(badge)badge.innerHTML=d.premium?'<span class="tag ok">Premium</span>':'<span class="tag">Gratuit</span>';
+    var palierActuel=d.palier||'gratuit';
+    localStorage.setItem('neogen_premium',d.premium?'1':'0');
+    localStorage.setItem('neogen_palier',palierActuel);
+    var palierLabels={'gratuit':'Gratuit','essential':'Essential','pro':'Pro','power':'Power','enterprise':'Enterprise'};
+    var palierColor={'gratuit':'var(--mut)','essential':'#6366f1','pro':'#8b5cf6','power':'#a855f7','enterprise':'#d946ef'};
+    if(badge)badge.innerHTML='<span style="font-size:12px;font-weight:700;color:'+palierColor[palierActuel]+'">'+(palierLabels[palierActuel]||palierActuel)+'</span>';
     if(d.premium){
-      list.innerHTML='<div style="font-size:13px;color:var(--ok)">&#10003; Acces illimite a toutes les fonctions.</div>';
+      list.innerHTML='<div style="font-size:13px;color:var(--ok)">&#10003; Fonctions debloquees selon ton palier '+esc(palierLabels[palierActuel]||palierActuel)+'.</div>';
       if(cta)cta.innerHTML='';
-      return;
-    }
-    if(!d.connecte){
-      list.innerHTML='<div style="font-size:13px;color:var(--mut)">Connecte-toi (plus bas) pour suivre tes quotas et debloquer le plan gratuit : 5 creations, 2 mode juge, 3 integrations.</div>';
+    } else if(!d.connecte){
+      list.innerHTML='<div style="font-size:13px;color:var(--mut)">Connecte-toi pour suivre tes quotas.</div>';
       if(cta)cta.innerHTML='';
-      return;
+    } else {
+      list.innerHTML=(d.quotas||[]).map(function(q){
+        var pct=q.limite?Math.min(100,Math.round(q.utilise/q.limite*100)):0;
+        var coul=q.reste===0?'var(--ko)':(q.reste<=1?'var(--warn)':'var(--ok)');
+        return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">'
+          +'<span>'+esc(q.libelle)+'</span><span style="color:'+coul+';font-weight:600">'+q.utilise+' / '+q.limite+'</span></div>'
+          +'<div style="height:6px;border-radius:99px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+coul+';transition:width .3s"></div></div></div>';
+      }).join('')
+        +'<div style="font-size:11px;color:var(--mut);margin-top:8px">Depasse tes limites avec un plan superieur. <b style="color:#f59e0b">Depense des GEN</b> pour des actions ponctuelles.</div>';
+      if(cta)cta.innerHTML='';
     }
-    list.innerHTML=(d.quotas||[]).map(function(q){
-      var pct=q.limite?Math.min(100,Math.round(q.utilise/q.limite*100)):0;
-      var coul=q.reste===0?'var(--ko)':(q.reste<=1?'var(--warn)':'var(--ok)');
-      return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">'
-        +'<span>'+esc(q.libelle)+'</span><span style="color:'+coul+';font-weight:600">'+q.utilise+' / '+q.limite+'</span></div>'
-        +'<div style="height:6px;border-radius:99px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+coul+';transition:width .3s"></div></div></div>';
-    }).join('')
-      +'<div style="font-size:11px;color:var(--mut);margin-top:8px">Reserve premium : deploiement, apprentissage continu, delegation complete.</div>';
-    if(cta)cta.innerHTML='<div style="font-size:12px;color:var(--mut);margin-bottom:6px">Passer premium (illimite) &#8212; <b style="color:var(--ok)">7 jours d\'essai gratuit</b> :</div>'
-      +'<div style="display:flex;gap:8px">'
-      +'<button id="premium-mensuel" style="flex:1">Mensuel<br><span style="font-size:11px;opacity:.85">14,99&#8364;/mois</span></button>'
-      +'<button id="premium-annuel" style="flex:1">Annuel <span style="font-size:11px;opacity:.85">-30%</span><br><span style="font-size:11px;opacity:.85">125,90&#8364;/an</span></button></div>'
-      +'<div style="font-size:11px;color:var(--mut);margin-top:6px">Essai 7j, sans engagement. CB demandee, debitee seulement apres l\'essai. Annulable a tout moment.</div>';
-    async function _passerPremium(plan,btn){
-      var t=(typeof _authToken==='function')?_authToken():null;
-      if(!t){alert('Connecte-toi d\'abord (plus bas) pour passer premium.');return;}
-      var old=btn.textContent;btn.disabled=true;btn.textContent='Redirection...';
-      try{
-        var r=await fetch('/premium/checkout',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({plan:plan})});
-        var d=await r.json();
-        if(r.ok&&d.url){window.location.href=d.url;}
-        else{alert(d.detail||'Paiement indisponible.');btn.disabled=false;btn.textContent=old;}
-      }catch(e){alert('Erreur reseau.');btn.disabled=false;btn.textContent=old;}
-    }
-    var pm=document.getElementById('premium-mensuel'),pa=document.getElementById('premium-annuel');
-    if(pm)pm.onclick=function(){_passerPremium('mensuel',pm);};
-    if(pa)pa.onclick=function(){_passerPremium('annuel',pa);};
+    // Rendu du tableau des tarifs
+    renderTarifs(palierActuel);
+    _initTarifToggle(palierActuel);
+    // Wallet
+    await loadWallet();
+    // Telemetrie
+    loadTelemetrie();
+    _initTelemetrie();
+    _initPacksGen();
   }catch(e){list.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
 }
 function _initPreferences(){
@@ -3501,9 +3726,12 @@ async function loadTaches(){
     if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">Aucune tache. L\'agent peut agir tout seul : cree une veille, un rapport...</div>';return;}
     el.innerHTML=list.map(function(t){
       var last=(t.logs&&t.logs.length)?t.logs[t.logs.length-1]:null;
+      var ech=(t.echecs_consecutifs||0);
+      var provLabel=(t.provider||'local')+(t.model?(' / '+t.model):'');
       return '<div class="hist-item" style="align-items:flex-start">'
         +'<span class="tag '+(t.actif?'ok':'')+'" style="flex-shrink:0">'+(t.actif?'actif':'pause')+'</span>'
-        +'<span style="flex:1;font-size:13px"><b>'+esc(t.nom)+'</b> <span style="color:var(--mut);font-size:11px">('+esc(t.agent)+', toutes les '+t.intervalle_minutes+'min)</span>'
+        +'<span style="flex:1;font-size:13px"><b>'+esc(t.nom)+'</b> <span style="color:var(--mut);font-size:11px">('+esc(t.agent)+' · '+esc(provLabel)+' · '+t.intervalle_minutes+'min)</span>'
+        +(ech?' <span class="tag" style="background:rgba(245,158,11,.15);color:#f59e0b">'+ech+' echec(s)</span>':'')
         +'<br><span style="font-size:12px;color:var(--mut)">'+esc(t.message)+'</span>'
         +(last?'<br><span style="font-size:11px;color:var(--mut)">dernier: '+esc(last.t)+' &#8594; '+esc((last.resultat||'').slice(0,90))+'</span>':'')
         +'</span>'
@@ -3530,8 +3758,9 @@ window.deleteTache=async function(id){
     var agent=document.getElementById('tache-agent').value;
     var msg=(document.getElementById('tache-msg').value||'').trim();
     var interval=parseInt(document.getElementById('tache-interval').value||'60',10);
+    var provider=(document.getElementById('tache-provider')||{}).value||'local';
     if(!nom||!msg){return;}
-    try{await fetch('/taches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:nom,agent:agent,message:msg,intervalle_minutes:interval})});}catch(e){}
+    try{await fetch('/taches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom:nom,agent:agent,message:msg,intervalle_minutes:interval,provider:provider})});}catch(e){}
     document.getElementById('tache-nom').value='';document.getElementById('tache-msg').value='';
     form.classList.add('hidden');loadTaches();
   };

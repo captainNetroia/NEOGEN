@@ -38,10 +38,32 @@ class Resultat:
     classement: list = field(default_factory=list)
 
 
+JOURNAL_ERREURS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "journal_erreurs.jsonl")
+
+
 def _ledger(entree: dict):
     os.makedirs(os.path.dirname(LEDGER_PROD), exist_ok=True)
     with open(LEDGER_PROD, "a", encoding="utf-8") as f:
         f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+
+
+def _consigner_erreur(intention: str, tentative: int, erreur: str, etape: str,
+                      murs: list | None = None):
+    """Consigne un echec dans journal_erreurs.jsonl (alimente l'auto-amelioration : detection
+    de recurrence par type d'erreur). Entree LEGERE (sans diagnostic LLM) -> gratuit. Ne leve jamais."""
+    try:
+        from sanitizer import nettoyer
+        os.makedirs(os.path.dirname(JOURNAL_ERREURS), exist_ok=True)
+        with open(JOURNAL_ERREURS, "a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "intention": nettoyer(intention)[:200],
+                "tentative": tentative,
+                "environnement": {"etape": etape, "murs": murs or []},
+                "erreur": nettoyer(erreur)[:300],
+            }, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=3, tracer=True,
@@ -84,6 +106,9 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
             lecons.append(f"membrane: {raison}")
             feedback = (module.code, f"Mur viole: {raison}")
             verdict = f"membrane REJETE: {raison}"
+            if tracer:
+                _consigner_erreur(intention, t, f"Mur viole: {raison}", "membrane",
+                                  murs=[getattr(m, "id", str(m)) for m in adn.murs])
             if not reparer:
                 break
             continue
@@ -95,6 +120,8 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
             lecons.append(f"scan: {dangers}")
             feedback = (module.code, f"Appels dangereux: {dangers}")
             verdict = f"scan BLOQUE: {dangers}"
+            if tracer:
+                _consigner_erreur(intention, t, f"Appels dangereux: {dangers}", "scan")
             if not reparer:
                 break
             continue
@@ -114,6 +141,8 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
         lecons.append(f"execution: {derniere}")
         feedback = (module.code, err.strip()[-500:])
         verdict = f"execution echec: {derniere}"
+        if tracer:
+            _consigner_erreur(intention, t, derniere, "execution")
         if not reparer:
             break
 
@@ -128,6 +157,13 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
         parent = charger_derniere()
         engendrer(parent, Patrimoine(lecons=nettoyer_valeur(lecons)),
                   resume=nettoyer(f"production '{intention[:40]}' : {'succes' if succes else 'echec'}"))
+        # Boucle fermée : chaque production (succès comme échec) nourrit l'auto-amélioration.
+        # Non bloquant + throttlé + idempotent côté auto_amelioration -> jamais de spam.
+        try:
+            import auto_amelioration
+            auto_amelioration.declencher_async()
+        except Exception:
+            pass
 
     return Resultat(succes, verdict, t, lignes, lecons, code_final)
 

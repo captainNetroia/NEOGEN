@@ -30,16 +30,23 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-20.
 
 from __future__ import annotations
 import sys
+import concurrent.futures
+import threading
 
 from pydantic import BaseModel, Field
 
 import gateway
+import robustesse as rob
 from compositeur import forger_adn, EffetsDeclares
 from usine import ModuleGenere
 from usine_multi_organes import assembler
 from generator import parse_resilient
 from pipeline import fabriquer, _client
 import registre as _reg
+
+# Parallélisme borné : les sous-agents sont des appels I/O (LLM) -> les threads
+# donnent une vraie concurrence. Borné pour ne pas saturer le provider.
+MAX_WORKERS = 4
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +59,9 @@ class OrganePlan(BaseModel):
     tier: str = Field(description="difficulte de cet organe : 'fort' (logique complexe/critique), "
                                   "'moyen' (standard), 'leger' (trivial/utilitaire)")
     difficulte: str = Field(default="", description="courte justification du tier choisi")
+    depend_de: list[str] = Field(default_factory=list,
+                                 description="noms d'organes dont la CONCEPTION de celui-ci depend "
+                                             "(rare : les signatures suffisent en general). Vide si aucune.")
 
 
 class PlanDelegation(BaseModel):
@@ -73,6 +83,26 @@ def _tier_sain(t: str) -> str:
     return t if t in _TIERS_VALIDES else "moyen"
 
 
+def ordonner_vagues(organes: list) -> list[list]:
+    """Ordonne les organes en VAGUES topologiques selon depend_de. Parallelisme intra-vague.
+    Tolerant aux cycles / dependances inconnues : ce qui resterait bloque finit en derniere vague.
+    Fonction pure (testable hors-ligne)."""
+    noms = {o.nom_fonction for o in organes}
+    restants = list(organes)
+    faits: set[str] = set()
+    vagues: list[list] = []
+    while restants:
+        prete = [o for o in restants
+                 if all((d not in noms) or (d in faits) for d in (getattr(o, "depend_de", None) or []))]
+        if not prete:                      # cycle/dep inconnue -> on debloque tout le reste
+            prete = list(restants)
+        vagues.append(prete)
+        for o in prete:
+            faits.add(o.nom_fonction)
+        restants = [o for o in restants if o not in prete]
+    return vagues
+
+
 # ---------------------------------------------------------------------------
 # 2. PLAN : l'architecte conçoit le contrat + assigne un tier par organe
 # ---------------------------------------------------------------------------
@@ -90,6 +120,9 @@ def concevoir_plan(adn, client) -> PlanDelegation:
         "   - 'moyen' : implementation standard, transformation de donnees courante\n"
         "   - 'leger' : utilitaire trivial (formatage, validation simple, getter)\n"
         "   Sois discriminant : tout n'est pas 'fort'. La delegation au bon tier est la valeur.\n"
+        "   Si la CONCEPTION d'un organe depend reellement d'un autre, renseigne 'depend_de' "
+        "(liste de noms d'organes) ; sinon laisse vide : les organes seront alors implementes EN "
+        "PARALLELE. La plupart du temps les signatures suffisent -> depend_de vide.\n"
         "3) Ecris le CODE D'ASSEMBLAGE : l'orchestration qui appelle ces fonctions dans le bon "
         "ordre, plus un bloc if __name__=='__main__' avec une demo et des assert prouvant que "
         "tout marche.\n"
@@ -180,40 +213,73 @@ def orchestrer(intention: str, ctx=None, *, cap=None, reparer=True, max_tentativ
 
     volume_nom = ("viv_" + _reg._slug(intention)) if (cap and getattr(cap, "persistance", False)) else None
 
-    # generer_fn pour le pipeline : delegue les organes, mais sur repair ne re-delegue
-    # QUE les organes cites dans l'erreur — les autres sont reutilises du cache.
+    # Cache d'implementations partage entre tentatives (protege par verrou : ecrit par threads).
     _cache_impls: dict[str, str] = {}
+    _cache_lock = threading.Lock()
 
-    def generer_fn(_adn, feedback=None):
-        impls = []
-        erreur_txt = (feedback[1] if feedback else "").lower()
-        for o in plan.organes:
-            cl = gateway.client(ctx_tiers, tier=o.tier)
-            modele = getattr(cl, "model", "?")
-            # Reutilise si: repair en cours ET organe non cite dans l'erreur ET deja en cache.
-            if feedback and o.nom_fonction not in erreur_txt and o.nom_fonction in _cache_impls:
-                impls.append(_cache_impls[o.nom_fonction])
-                _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
-                       "modele": modele, "statut": "reutilise"})
-                continue
-            _emit({"stade": "sous_agent", "organe": o.nom_fonction, "role": o.role,
-                   "tier": o.tier, "modele": modele, "statut": "en_cours"})
-            try:
-                impl = deleguer_organe(plan, o, cl, feedback=feedback)
-            except Exception as e:
-                _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
-                       "modele": modele, "statut": "echec", "raison": str(e)[:200]})
-                raise
-            _cache_impls[o.nom_fonction] = impl.code
-            impls.append(impl.code)
+    def _impl_un_organe(o: OrganePlan, feedback):
+        """Implemente UN organe, isole : retry + disjoncteur par provider. Renvoie (nom, code)
+        ou (nom, Exception). Une panne d'organe ne tue jamais les autres."""
+        cl = gateway.client(ctx_tiers, tier=o.tier)
+        modele = getattr(cl, "model", "?")
+        _emit({"stade": "sous_agent", "organe": o.nom_fonction, "role": o.role,
+               "tier": o.tier, "modele": modele, "statut": "en_cours"})
+        prov = getattr(cl, "provider", "anthropic")
+        disj = rob.Disjoncteur.pour(f"delegation:{prov}", seuil=4, cooldown_s=30.0)
+        try:
+            impl = disj.appeler(
+                lambda: rob.reessayer(lambda: deleguer_organe(plan, o, cl, feedback=feedback),
+                                      tentatives=2, delai=1.5, backoff=2.0,
+                                      nom=f"organe:{o.nom_fonction}", source="delegation"),
+                defaut=None,
+            )
+            if impl is None:
+                raise RuntimeError(f"provider {prov} indisponible pour {o.nom_fonction}")
             _emit({"stade": "sous_agent", "organe": o.nom_fonction, "role": o.role,
                    "tier": o.tier, "modele": modele, "statut": "fait",
                    "lignes": len(impl.code.splitlines())})
+            return (o.nom_fonction, impl.code)
+        except Exception as e:
+            _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
+                   "modele": modele, "statut": "echec", "raison": str(e)[:200]})
+            return (o.nom_fonction, e)
+
+    def generer_fn(_adn, feedback=None):
+        erreur_txt = (feedback[1] if feedback else "").lower()
+        # Sur repair : ne re-delegue QUE les organes cites dans l'erreur (les autres = cache).
+        a_refaire = [o for o in plan.organes
+                     if not (feedback and o.nom_fonction not in erreur_txt and o.nom_fonction in _cache_impls)]
+        for o in plan.organes:
+            if o not in a_refaire:
+                _emit({"stade": "sous_agent", "organe": o.nom_fonction, "tier": o.tier,
+                       "modele": getattr(gateway.client(ctx_tiers, tier=o.tier), "model", "?"),
+                       "statut": "reutilise"})
+
+        echecs: list[str] = []
+        for vague in ordonner_vagues(a_refaire):
+            # PARALLELISATION reelle intra-vague : chaque organe sur son thread, isole.
+            workers = min(MAX_WORKERS, len(vague)) or 1
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+                resultats = list(pool.map(lambda o: _impl_un_organe(o, feedback), vague))
+            for nom, res in resultats:
+                if isinstance(res, Exception):
+                    echecs.append(f"{nom}: {res}")
+                else:
+                    with _cache_lock:
+                        _cache_impls[nom] = res
+
+        if echecs:
+            # Tolerance aux pannes : on remonte une erreur agregee -> le pipeline relance
+            # une tentative de repair qui ne re-delegue que les organes encore en echec.
+            raise RuntimeError("organes en echec -> " + " | ".join(echecs[:5]))
+
+        # Assemblage dans l'ordre du plan (le cache contient tout).
+        impls = [_cache_impls[o.nom_fonction] for o in plan.organes]
         code = assembler(impls, plan.code_assemblage)
         _emit({"stade": "assemblage", "msg": "organes recolles via le contrat d'interface",
                "lignes": len(code.splitlines())})
         return ModuleGenere(code=code,
-                            explication=f"Produit assemble par delegation ({len(plan.organes)} organes).",
+                            explication=f"Produit assemble par delegation parallele ({len(plan.organes)} organes).",
                             effets=plan.effets)
 
     # On reutilise tout le pipeline gouverne : membrane + scan + conteneur + reparation + ledger + lignee.
@@ -238,7 +304,36 @@ def registre_enregistrer(intention, r) -> str:
 # ---------------------------------------------------------------------------
 # CLI : demo locale (chemin Anthropic par defaut)
 # ---------------------------------------------------------------------------
+def _autotest_vagues() -> None:
+    """Auto-test hors-ligne de l'ordonnancement en vagues (aucun appel reseau)."""
+    class _O:
+        def __init__(self, nom, deps=None):
+            self.nom_fonction = nom
+            self.depend_de = deps or []
+    # Chaine A -> B -> C : 3 vagues d'un organe chacune.
+    vagues = ordonner_vagues([_O("C", ["B"]), _O("B", ["A"]), _O("A")])
+    assert [[o.nom_fonction for o in v] for v in vagues] == [["A"], ["B"], ["C"]], vagues
+    # Independants : une seule vague (tout en parallele).
+    v2 = ordonner_vagues([_O("X"), _O("Y"), _O("Z")])
+    assert len(v2) == 1 and len(v2[0]) == 3
+    # Cycle : ne boucle pas a l'infini, debloque tout.
+    v3 = ordonner_vagues([_O("P", ["Q"]), _O("Q", ["P"])])
+    assert sum(len(v) for v in v3) == 2
+    # Dependance inconnue : ignoree (organe pret quand meme).
+    v4 = ordonner_vagues([_O("M", ["inexistant"])])
+    assert [o.nom_fonction for o in v4[0]] == ["M"]
+    print("  ordonner_vagues : chaine / parallele / cycle / dep inconnue : OK")
+
+
 if __name__ == "__main__":
+    if "--test" in sys.argv:
+        print("=" * 72)
+        print("NEOGEN - ORCHESTRATEUR : auto-verification (hors-ligne)")
+        print("=" * 72)
+        _autotest_vagues()
+        print("  TOUT VERT.")
+        sys.exit(0)
+
     intention = " ".join(sys.argv[1:]) or "une calculatrice de pourboire qui repartit l'addition entre convives"
     print("=" * 72)
     print(f"NEOGEN - ORCHESTRATEUR DE DELEGATION : '{intention}'")

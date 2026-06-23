@@ -185,6 +185,111 @@ def test_orchestrateur_imports():
     print("  [OK] orchestrateur : imports et modeles Pydantic ok")
 
 
+# ── Robustesse (socle transverse) ─────────────────────────────────────────────
+
+def test_robustesse():
+    import robustesse as rob
+    tmp = tempfile.mkdtemp()
+    rob.JOURNAL = os.path.join(tmp, "j.jsonl")
+    rob.IDEMPOTENCE = os.path.join(tmp, "i.json")
+    rob.SANTE = os.path.join(tmp, "s.json")
+    rob._DATA = tmp
+    # retry : echoue 2x puis reussit
+    c = {"n": 0}
+    def flaky():
+        c["n"] += 1
+        if c["n"] < 3:
+            raise ValueError("x")
+        return "ok"
+    assert rob.reessayer(flaky, tentatives=5, delai=0.01) == "ok"
+    # protege : renvoie defaut sans planter
+    assert rob.protege(lambda: int("pas_un_nombre"), defaut="safe") == "safe"
+    # idempotence
+    assert not rob.deja_fait("k")
+    rob.marquer_fait("k")
+    assert rob.deja_fait("k")
+    # disjoncteur
+    cb = rob.Disjoncteur.pour("t_test", seuil=2, cooldown_s=0.05)
+    cb.appeler(lambda: (_ for _ in ()).throw(RuntimeError("a")))
+    cb.appeler(lambda: (_ for _ in ()).throw(RuntimeError("b")))
+    assert not cb.disponible()
+    print("  [OK] robustesse : retry / protege / idempotence / disjoncteur")
+
+
+# ── Quotas multi-paliers ───────────────────────────────────────────────────────
+
+def test_quotas_paliers():
+    import quotas
+    assert quotas.palier({"premium": True}) == "essential"   # retro-compat
+    assert quotas.palier({"palier": "power"}) == "power"
+    assert not quotas.verifier({"id": "z"}, "deploiement")["autorise"]      # gratuit
+    assert quotas.verifier({"id": "z", "palier": "essential"}, "deploiement")["autorise"]
+    assert not quotas.verifier({"id": "z", "palier": "essential"}, "delegation_complete")["autorise"]
+    assert quotas.verifier({"id": "z", "palier": "pro"}, "delegation_complete")["autorise"]
+    assert quotas.verifier({"id": "z", "palier": "power"}, "vision")["autorise"]
+    print("  [OK] quotas : paliers + fonctions deverrouillees par rang")
+
+
+# ── Credits (Genyte) ───────────────────────────────────────────────────────────
+
+def test_credits():
+    import credits, tempfile as _tf
+    t = _tf.mkdtemp()
+    credits.SOLDES_FILE = os.path.join(t, "s.json")
+    credits.TXNS_FILE = os.path.join(t, "t.jsonl")
+    uid = "u_test"
+    credits.crediter(uid, 100, "earn", "test")
+    assert credits.solde(uid) == 100
+    r = credits.debiter(uid, 30, "mode_juge")
+    assert r["ok"] and credits.solde(uid) == 70
+    assert not credits.debiter(uid, 999, "mode_juge")["ok"]
+    assert credits.cout("mode_juge", "power") == 0
+    assert credits.cout("delegation_complete", "gratuit") is None
+    print("  [OK] credits : crediter/debiter/cout par palier")
+
+
+# ── Competences (socle + cristallisation idempotente) ──────────────────────────
+
+def test_competences_socle():
+    import competences, robustesse as rob
+    t = tempfile.mkdtemp()
+    competences.SKILLS_DIR = os.path.join(t, "skills")
+    rob._DATA = tempfile.mkdtemp()
+    rob.IDEMPOTENCE = os.path.join(rob._DATA, "i.json")
+    rob.JOURNAL = os.path.join(rob._DATA, "j.jsonl")
+    competences.assurer_socle()
+    skills = competences.lister()
+    assert all(any(s["nom"] == b["nom"] for s in skills) for b in competences.SOCLE)
+    assert competences.supprimer("discernement_avant_creation") is False  # socle protege
+    a1 = competences.cristalliser_auto("x", "d", "i", ["discerner"], signature="sig_x")
+    a2 = competences.cristalliser_auto("x", "d", "i", ["discerner"], signature="sig_x")
+    assert a1 is not None and a2 is None  # idempotent
+    print("  [OK] competences : socle present/protege + cristallisation idempotente")
+
+
+# ── Orchestrateur : ordonnancement en vagues ────────────────────────────────────
+
+def test_orchestrateur_vagues():
+    from orchestrateur import ordonner_vagues
+    class _O:
+        def __init__(self, n, d=None): self.nom_fonction = n; self.depend_de = d or []
+    v = ordonner_vagues([_O("C", ["B"]), _O("B", ["A"]), _O("A")])
+    assert [[o.nom_fonction for o in w] for w in v] == [["A"], ["B"], ["C"]]
+    assert len(ordonner_vagues([_O("X"), _O("Y")])) == 1  # paralleles
+    assert sum(len(w) for w in ordonner_vagues([_O("P", ["Q"]), _O("Q", ["P"])])) == 2  # cycle
+    print("  [OK] orchestrateur : vagues chaine/parallele/cycle")
+
+
+# ── Auto-amelioration (analyse multi-sources) ───────────────────────────────────
+
+def test_auto_amelioration():
+    import auto_amelioration as aa
+    assert aa._type_erreur("ZeroDivisionError: division by zero") == "ZeroDivisionError"
+    res = aa.analyser_usage()
+    assert "signaux" in res and "sources" in res and "points_forts" in res
+    print("  [OK] auto-amelioration : analyse multi-sources structuree")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -199,6 +304,12 @@ if __name__ == "__main__":
         test_diff_gouvernance,
         test_pipeline_smoke,
         test_orchestrateur_imports,
+        test_robustesse,
+        test_quotas_paliers,
+        test_credits,
+        test_competences_socle,
+        test_orchestrateur_vagues,
+        test_auto_amelioration,
     ]
     print("=" * 60)
     print("NEOGEN - TESTS AUTOMATISES (offline)")

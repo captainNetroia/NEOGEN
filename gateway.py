@@ -387,8 +387,29 @@ VISION_MODELS = {
 def voir(ctx: LLMContext | None, image_b64: str, prompt: str,
          mime: str = "image/png", max_tokens: int = 1500) -> str:
     """Envoie une image + une consigne a un modele multimodal, renvoie le texte.
-    Choisit un modele VISION adapte au provider actif (le modele texte peut ne pas voir)."""
+    Choisit un modele VISION adapte au provider actif. FALLBACK (coup d'avance) : si le
+    provider actif ne voit pas (ex: Ollama sans modele vision) ET qu'une cle Anthropic
+    SYSTEME est dispo + NEOGEN_VISION_FALLBACK active, on bascule sur Claude (qui voit)."""
     ctx = ctx or LLMContext()
+    try:
+        return _voir_impl(ctx, image_b64, prompt, mime, max_tokens)
+    except Exception as e_primaire:
+        import os as _os
+        if _os.environ.get("NEOGEN_VISION_FALLBACK", "").strip().lower() in ("1", "true", "yes", "on") \
+           and (ctx.provider or "").lower() != "anthropic":
+            try:
+                from generator import _load_api_key
+                cle_sys = _load_api_key()
+                if cle_sys:
+                    ctx_fb = LLMContext(provider="anthropic", api_key=cle_sys)
+                    return ("[vision via fallback systeme] "
+                            + _voir_impl(ctx_fb, image_b64, prompt, mime, max_tokens))
+            except Exception:
+                pass
+        raise e_primaire
+
+
+def _voir_impl(ctx: LLMContext, image_b64: str, prompt: str, mime: str, max_tokens: int) -> str:
     provider = (ctx.provider or "anthropic").lower()
     model = VISION_MODELS.get(provider, VISION_MODELS["anthropic"])
 

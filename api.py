@@ -65,17 +65,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _demarrer_services_autonomes():
-    """Lance le planificateur (cron) + la passerelle Telegram si configurée."""
-    try:
-        import planificateur
-        planificateur.demarrer()
-    except Exception:
-        pass
-    try:
-        import passerelle_telegram
-        passerelle_telegram.demarrer()
-    except Exception:
-        pass
+    """Lance le planificateur (cron) + Telegram + l'auto-amélioration (boucle fermée)
+    + matérialise le socle de compétences. Chaque démarrage est protégé (jamais bloquant)."""
+    import robustesse as _rob
+    _rob.protege(lambda: __import__("planificateur").demarrer(), operation="start cron", source="startup")
+    _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
+    _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
+    _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")
+    _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
 
 
 @app.get("/telegram/statut")
@@ -156,12 +153,30 @@ def info():
 @app.get("/health")
 def health():
     ok, info = docker_disponible()
-    return {
+    sortie = {
         "status": "ok",
         "docker": ok,
         "docker_info": info,
         "note": "sans Docker, l'execution du code genere retombe sur l'isolation processus (moins sure)",
     }
+    # Observabilité : santé des composants de fond + statut cron + signaux récents.
+    try:
+        import robustesse as _rob
+        sortie["sante"] = _rob.sante().get("composants", {})
+        sortie["alertes_recentes"] = _rob.lire_journal(limite=10, niveau_min="alerte")
+    except Exception:
+        pass
+    try:
+        import planificateur as _pl
+        sortie["cron"] = _pl.statut()
+    except Exception:
+        pass
+    try:
+        import passerelle_telegram as _tg
+        sortie["telegram"] = _tg.statut()
+    except Exception:
+        pass
+    return sortie
 
 
 class DemandeProposition(BaseModel):
@@ -804,9 +819,26 @@ def supprimer_skill(nom: str):
 
 @app.get("/auto-amelioration")
 def auto_amelioration():
-    """Analyse l'usage réel (registre) et déduit des signaux d'amélioration concrets."""
+    """Analyse multi-sources (registre + erreurs + membrane + skills) -> signaux + points forts."""
     import auto_amelioration as aa
     return aa.analyser_usage()
+
+
+@app.get("/auto-amelioration/journal")
+def auto_amelioration_journal():
+    """Trace des actions automatiques prises par la boucle d'auto-amélioration."""
+    import auto_amelioration as aa
+    return {"actions": aa.journal_actions(limite=30)}
+
+
+@app.post("/auto-amelioration/cycle")
+def auto_amelioration_cycle(authorization: str = Header(None)):
+    """Force un cycle d'auto-amélioration (admin). Retourne le rapport + actions prises."""
+    user = _auth(authorization)
+    if not _est_admin(user):
+        raise HTTPException(403, "Réservé à l'administrateur")
+    import auto_amelioration as aa
+    return aa.cycle(force=True)
 
 
 # ── Planificateur : tâches autonomes (cron léger, modèle local) ───────────────
@@ -822,13 +854,16 @@ class TacheBody(BaseModel):
     agent: str = "cerveau"
     message: str
     intervalle_minutes: int = 60
+    provider: str = "local"      # local | anthropic | openai | gemini | deepseek | mistral
+    model: str | None = None
 
 
 @app.post("/taches")
 def creer_tache(body: TacheBody):
     import planificateur
     return {"ok": True, "tache": planificateur.creer(
-        body.nom, body.agent, body.message, body.intervalle_minutes)}
+        body.nom, body.agent, body.message, body.intervalle_minutes,
+        provider=body.provider, model=body.model)}
 
 
 class TacheToggleBody(BaseModel):
@@ -1069,11 +1104,15 @@ def auth_me(authorization: str = Header(None)):
     user = _auth(authorization)
     if not user:
         raise HTTPException(401, "Non authentifie")
+    import quotas as _q
+    import credits as _cred
     return {
         "id": user["id"], "email": user["email"],
         "name": user["name"], "created_at": user.get("created_at"),
         "is_admin": _est_admin(user),
         "premium": bool(user.get("premium")),
+        "palier": _q.palier(user),
+        "solde_gen": _cred.solde(user["id"]),
     }
 
 
@@ -1168,13 +1207,14 @@ def _load_cred(filename: str, key: str) -> str:
     return ""
 
 
-def _set_premium(user_id: str, premium: bool) -> bool:
-    """Marque un utilisateur premium (ou non). Utilisé par l'admin et le paiement Stripe."""
+def _set_premium(user_id: str, premium: bool, palier: str = "essential") -> bool:
+    """Marque un utilisateur premium + définit son palier. Utilisé par l'admin et Stripe."""
     users = _rjsonl(_USERS)
     trouve = False
     for u in users:
         if u.get("id") == user_id:
             u["premium"] = bool(premium)
+            u["palier"] = palier if premium else "gratuit"
             trouve = True
     if trouve:
         _wjsonl(_USERS, users)
@@ -1210,43 +1250,79 @@ def _revoquer_premium_par_customer(customer_id: str) -> bool:
     for u in users:
         if u.get("stripe_customer_id") == customer_id:
             u["premium"] = False
+            u["palier"] = "gratuit"
             trouve = True
     if trouve:
         _wjsonl(_USERS, users)
     return trouve
 
 
+def _palier_depuis_price_id(price_id: str) -> str:
+    """Déduit le palier depuis un price_id Stripe (via stripe.env)."""
+    mapping = {
+        _load_cred("stripe.env", "STRIPE_PRICE_ESSENTIAL_MENSUEL"): "essential",
+        _load_cred("stripe.env", "STRIPE_PRICE_ESSENTIAL_ANNUEL"):  "essential",
+        _load_cred("stripe.env", "STRIPE_PRICE_PRO_MENSUEL"):       "pro",
+        _load_cred("stripe.env", "STRIPE_PRICE_PRO_ANNUEL"):        "pro",
+        _load_cred("stripe.env", "STRIPE_PRICE_POWER_MENSUEL"):     "power",
+        _load_cred("stripe.env", "STRIPE_PRICE_POWER_ANNUEL"):      "power",
+        _load_cred("stripe.env", "STRIPE_PRICE_ENTERPRISE_MENSUEL"):"enterprise",
+        _load_cred("stripe.env", "STRIPE_PRICE_ENTERPRISE_ANNUEL"): "enterprise",
+        # Anciens IDs (rétrocompat)
+        _load_cred("stripe.env", "STRIPE_PRICE_ID_MENSUEL"): "essential",
+        _load_cred("stripe.env", "STRIPE_PRICE_ID_ANNUEL"):  "essential",
+    }
+    return mapping.get(price_id, "essential")
+
+
 # ── Premium Stripe (abonnement) ───────────────────────────────────────────────
 
 class PremiumCheckoutBody(BaseModel):
-    plan: str = "mensuel"   # mensuel | annuel
+    plan: str = "mensuel"      # mensuel | annuel
+    palier: str = "essential"  # essential | pro | power | enterprise
+
+
+_PALIERS_VALIDES = ("essential", "pro", "power", "enterprise")
+
+_PRICE_KEY_MAP = {
+    ("essential", "mensuel"): "STRIPE_PRICE_ESSENTIAL_MENSUEL",
+    ("essential", "annuel"):  "STRIPE_PRICE_ESSENTIAL_ANNUEL",
+    ("pro",       "mensuel"): "STRIPE_PRICE_PRO_MENSUEL",
+    ("pro",       "annuel"):  "STRIPE_PRICE_PRO_ANNUEL",
+    ("power",     "mensuel"): "STRIPE_PRICE_POWER_MENSUEL",
+    ("power",     "annuel"):  "STRIPE_PRICE_POWER_ANNUEL",
+    ("enterprise","mensuel"): "STRIPE_PRICE_ENTERPRISE_MENSUEL",
+    ("enterprise","annuel"):  "STRIPE_PRICE_ENTERPRISE_ANNUEL",
+}
 
 
 @app.post("/premium/checkout")
 def premium_checkout(body: PremiumCheckoutBody | None = None,
                      authorization: str | None = Header(default=None)):
-    """Crée une session Stripe Checkout (abonnement) pour passer premium.
-    Choix du plan : mensuel ou annuel (-30%, géré par le prix Stripe lui-même).
-    Nécessite d'être connecté : on lie le paiement au compte (client_reference_id)."""
+    """Crée une session Stripe Checkout pour passer au palier choisi (essential/pro/power/enterprise).
+    Plan mensuel ou annuel (-30%). Essai 7j avec CB pour le premier abonnement."""
     user = _auth(authorization)
     if not user:
         raise HTTPException(status_code=401, detail="Connecte-toi pour passer premium.")
-    if user.get("premium"):
-        raise HTTPException(status_code=400, detail="Tu es deja premium.")
+    import quotas as _qotas
+    palier_actuel = _qotas.palier(user)
+    plan   = (body.plan   if body else "mensuel") or "mensuel"
+    palier = (body.palier if body else "essential") or "essential"
+    if palier not in _PALIERS_VALIDES:
+        palier = "essential"
+    if palier_actuel == palier:
+        raise HTTPException(status_code=400, detail=f"Tu es deja au palier '{palier}'.")
     import stripe as _stripe
     secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
-    plan = (body.plan if body else "mensuel") or "mensuel"
-    # Prix par plan : mensuel / annuel (-30% intégré au prix Stripe). Fallback : STRIPE_PRICE_ID.
-    if plan == "annuel":
-        price_id = _load_cred("stripe.env", "STRIPE_PRICE_ID_ANNUEL") or _load_cred("stripe.env", "STRIPE_PRICE_ID")
-    else:
-        price_id = _load_cred("stripe.env", "STRIPE_PRICE_ID_MENSUEL") or _load_cred("stripe.env", "STRIPE_PRICE_ID")
+    cle_price = _PRICE_KEY_MAP.get((palier, plan))
+    price_id = (_load_cred("stripe.env", cle_price) if cle_price else "") or \
+               _load_cred("stripe.env", "STRIPE_PRICE_ID_MENSUEL") or \
+               _load_cred("stripe.env", "STRIPE_PRICE_ID")
     if not secret_key or not price_id:
-        raise HTTPException(status_code=503, detail="Stripe premium non configure (cle ou price_id manquant).")
+        raise HTTPException(status_code=503, detail="Stripe premium non configure.")
     _stripe.api_key = secret_key
     base_url = _os.environ.get("NEOGEN_BASE_URL", "http://localhost:8000").rstrip("/")
     try:
-        # Le mode dépend du type de prix : abonnement si récurrent, sinon paiement unique.
         prix = _stripe.Price.retrieve(price_id)
         mode = "subscription" if getattr(prix, "recurring", None) else "payment"
         params = dict(
@@ -1255,17 +1331,16 @@ def premium_checkout(body: PremiumCheckoutBody | None = None,
             line_items=[{"price": price_id, "quantity": 1}],
             client_reference_id=user["id"],
             customer_email=user.get("email"),
+            metadata={"palier": palier},
             success_url=f"{base_url}/#compte?premium_session={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/#compte",
         )
-        # Essai premium 7 jours (abonnement) : CB demandée à l'entrée, débit auto après l'essai.
-        # Un seul essai par utilisateur (on note qu'il l'a déjà utilisé).
         if mode == "subscription" and not user.get("essai_utilise"):
             jours = int(_os.environ.get("NEOGEN_TRIAL_DAYS", "7") or 7)
-            params["subscription_data"] = {"trial_period_days": jours}
+            params["subscription_data"] = {"trial_period_days": jours, "metadata": {"palier": palier}}
             _marquer_essai_utilise(user["id"])
         session = _stripe.checkout.Session.create(**params)
-        return {"url": session.url}
+        return {"url": session.url, "palier": palier, "plan": plan}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Stripe : {e}")
 
@@ -1292,10 +1367,13 @@ def premium_confirmer(data: dict, authorization: str | None = Header(default=Non
     # Valide si paye OU essai actif (no_payment_required), ET rattache a CET utilisateur.
     statut_ok = sess.get("payment_status") in ("paid", "no_payment_required")
     if statut_ok and sess.get("client_reference_id") == user["id"]:
-        _set_premium(user["id"], True)
+        palier_sess = (sess.get("metadata") or {}).get("palier", "essential")
+        _set_premium(user["id"], True, palier_sess)
         _lier_stripe_customer(user["id"], sess.get("customer") or "")
         essai = sess.get("payment_status") == "no_payment_required"
-        return {"ok": True, "premium": True, "essai": essai}
+        import credits as _cred
+        _cred.recharger_mensuel(user["id"], palier_sess)
+        return {"ok": True, "premium": True, "palier": palier_sess, "essai": essai}
     return {"ok": False, "premium": False, "raison": "Paiement non confirme pour ce compte."}
 
 
@@ -1321,10 +1399,12 @@ async def premium_webhook(request: Request):
     obj = event.get("data", {}).get("object", {})
     if etype == "checkout.session.completed":
         uid = obj.get("client_reference_id")
-        # Paye OU essai actif -> premium accorde + on lie le client Stripe.
         if uid and obj.get("payment_status") in ("paid", "no_payment_required"):
-            _set_premium(uid, True)
+            palier_evt = (obj.get("metadata") or {}).get("palier", "essential")
+            _set_premium(uid, True, palier_evt)
             _lier_stripe_customer(uid, obj.get("customer") or "")
+            import credits as _cred
+            _cred.recharger_mensuel(uid, palier_evt)
     elif etype in ("customer.subscription.deleted",):
         # Abonnement annule/termine -> on retire le premium.
         _revoquer_premium_par_customer(obj.get("customer") or "")
@@ -1370,6 +1450,229 @@ def don_checkout(body: DonBody):
         return {"url": session.url}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+
+
+# ── Économie Genyte (GEN) ─────────────────────────────────────────────────────
+
+@app.get("/credits/me")
+def credits_me(authorization: str = Header(None)):
+    """Solde GEN + historique des 50 dernières transactions."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import credits as _cred
+    import quotas as _q
+    return {
+        "solde": _cred.solde(user["id"]),
+        "palier": _q.palier(user),
+        "historique": _cred.historique(user["id"]),
+        "gen_mensuel": _cred.GEN_MENSUEL.get(_q.palier(user), 0),
+    }
+
+
+class CreditsDepenseBody(BaseModel):
+    fonction: str
+    montant: int | None = None   # si None, utilise le coût par défaut du palier
+
+
+@app.post("/credits/depenser")
+def credits_depenser(body: CreditsDepenseBody, authorization: str = Header(None)):
+    """Débite des GEN pour une fonction. 402 si solde insuffisant."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import credits as _cred
+    import quotas as _q
+    p = _q.palier(user)
+    montant = body.montant if body.montant is not None else (_cred.cout(body.fonction, p) or 0)
+    if montant is None:
+        raise HTTPException(402, f"'{body.fonction}' non disponible sur le palier {p}.")
+    result = _cred.debiter(user["id"], montant, body.fonction)
+    if not result["ok"]:
+        raise HTTPException(402, f"Solde GEN insuffisant ({result['manque']} GEN manquants).")
+    return result
+
+
+class CreditsRechargerBody(BaseModel):
+    pack: str   # starter | pro | power | ultimate
+
+
+_PACKS_GEN = {
+    "starter":  {"gen": 100,   "eur": 200},
+    "pro":      {"gen": 500,   "eur": 800},
+    "power":    {"gen": 1500,  "eur": 2000},
+    "ultimate": {"gen": 5000,  "eur": 5000},
+}
+
+
+@app.post("/credits/recharger")
+def credits_recharger(body: CreditsRechargerBody, authorization: str = Header(None)):
+    """Crée une session Stripe Checkout pour acheter un pack GEN."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    pack = _PACKS_GEN.get(body.pack)
+    if not pack:
+        raise HTTPException(400, f"Pack inconnu : {body.pack}. Valides : {list(_PACKS_GEN)}")
+    import stripe as _stripe
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(503, "Stripe non configure")
+    _stripe.api_key = secret_key
+    base_url = _os.environ.get("NEOGEN_BASE_URL", "http://localhost:8000").rstrip("/")
+    try:
+        session = _stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": pack["eur"],
+                    "product_data": {
+                        "name": f"Pack GEN {body.pack.capitalize()} — {pack['gen']} Genyte",
+                        "description": f"{pack['gen']} GEN crédités immédiatement sur ton compte NEOGEN",
+                    },
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            client_reference_id=user["id"],
+            customer_email=user.get("email"),
+            metadata={"type": "credits", "pack": body.pack, "gen": str(pack["gen"])},
+            success_url=f"{base_url}/#compte?credits_ok={pack['gen']}",
+            cancel_url=f"{base_url}/#compte",
+        )
+        return {"url": session.url, "pack": body.pack, "gen": pack["gen"]}
+    except Exception as e:
+        raise HTTPException(502, f"Stripe : {e}")
+
+
+@app.post("/credits/confirmer-recharge")
+def credits_confirmer_recharge(data: dict, authorization: str = Header(None)):
+    """Confirme l'achat d'un pack GEN (retour Stripe). Crédite le compte."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    session_id = (data.get("session_id") or "").strip()
+    if not session_id:
+        raise HTTPException(400, "session_id manquant")
+    import stripe as _stripe
+    _stripe.api_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    try:
+        sess = _stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(502, f"Stripe : {e}")
+    if (sess.get("payment_status") != "paid" or
+            sess.get("client_reference_id") != user["id"] or
+            (sess.get("metadata") or {}).get("type") != "credits"):
+        return {"ok": False, "raison": "Session invalide ou non payée."}
+    gen = int((sess.get("metadata") or {}).get("gen", 0))
+    pack = (sess.get("metadata") or {}).get("pack", "")
+    import credits as _cred
+    nouveau = _cred.crediter(user["id"], gen, "purchase", f"Pack GEN {pack}")
+    return {"ok": True, "gen_ajoutes": gen, "nouveau_solde": nouveau}
+
+
+@app.get("/credits/boosts")
+def credits_boosts(authorization: str = Header(None)):
+    """Boosts Flash actifs (non expirés) de l'utilisateur."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import boosts as _boosts
+    return {"boosts": _boosts.boosts_actifs(user["id"])}
+
+
+class BoostActiverBody(BaseModel):
+    type_boost: str   # flash_24h | flash_7j
+
+
+@app.post("/credits/boosts/activer")
+def credits_boosts_activer(body: BoostActiverBody, authorization: str = Header(None)):
+    """Active un boost Flash en débitant les GEN."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import boosts as _boosts
+    import quotas as _q
+    result = _boosts.activer(user["id"], body.type_boost, _q.palier(user))
+    if not result["ok"]:
+        raise HTTPException(402, result["raison_refus"])
+    return result
+
+
+# ── Télémétrie RGPD ────────────────────────────────────────────────────────────
+
+class TelemetrieConsentBody(BaseModel):
+    niveau: str   # aucun | erreurs | usage | tout
+
+
+@app.post("/telemetrie/consentement")
+def telemetrie_set_consent(body: TelemetrieConsentBody, authorization: str = Header(None)):
+    """Définit le niveau de consentement télémétrique de l'utilisateur."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import telemetrie as _tele
+    import recompenses as _reco
+    niveaux = ("aucun", "erreurs", "usage", "tout")
+    if body.niveau not in niveaux:
+        raise HTTPException(400, f"Niveau invalide. Valides : {niveaux}")
+    _tele.set_consentement(user["id"], body.niveau)   # type: ignore[arg-type]
+    result = {"ok": True, "niveau": body.niveau}
+    # Bonus GEN si opt-in activé pour la première fois
+    if body.niveau != "aucun":
+        r = _reco.declencher(user["id"], "telemetrie_mensuelle")
+        if r["ok"]:
+            result["recompense"] = r["message"]
+    return result
+
+
+@app.get("/telemetrie/consentement")
+def telemetrie_get_consent(authorization: str = Header(None)):
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import telemetrie as _tele
+    return {"niveau": _tele.get_consentement(user["id"])}
+
+
+@app.delete("/telemetrie/me")
+def telemetrie_effacer(authorization: str = Header(None)):
+    """RGPD : efface TOUTES les données télémétrique liées à ce compte."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import telemetrie as _tele
+    return _tele.effacer(user["id"])
+
+
+@app.get("/admin/telemetrie")
+def admin_telemetrie(authorization: str = Header(None)):
+    """Stats télémétrie agrégées anonymes. Admin uniquement."""
+    user = _auth(authorization)
+    if not _est_admin(user):
+        raise HTTPException(403, "Réservé à l'administrateur")
+    import telemetrie as _tele
+    return _tele.stats_agregees()
+
+
+# ── Récompenses Genyte ─────────────────────────────────────────────────────────
+
+class RecompenseBody(BaseModel):
+    evenement: str   # premiere_creation | premier_skill | streak_7j | ...
+
+
+@app.post("/recompenses/declencher")
+def recompenses_declencher(body: RecompenseBody, authorization: str = Header(None)):
+    """Déclenche une récompense GEN (côté serveur, avec anti-abus cooldown)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifié")
+    import recompenses as _reco
+    result = _reco.declencher(user["id"], body.evenement)
+    if not result["ok"] and result["raison_refus"]:
+        raise HTTPException(429, result["raison_refus"])
+    return result
 
 
 # ── OpenLegi / Legifrance ─────────────────────────────────────────────────────

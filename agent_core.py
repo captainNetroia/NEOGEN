@@ -144,9 +144,10 @@ def outil_creer_application(intention: str = "", persistance: bool = False,
             except Exception:
                 pass
         # Wiring cohérence : une création réussie cristallise une compétence réutilisable
-        # ("comment refaire ce type de produit") -> le savoir-faire s'accumule (auto).
+        # ("comment refaire ce type de produit") -> le savoir-faire s'accumule (auto,
+        # idempotent : pas de doublon pour des intentions du même type).
         try:
-            import competences
+            import competences, registre as _reg
             cap_txt = []
             if persistance:
                 cap_txt.append("persistance")
@@ -157,14 +158,16 @@ def outil_creer_application(intention: str = "", persistance: bool = False,
                 f"du genre \"{intention[:120]}\". Capacites typiques : {', '.join(cap_txt) or 'aucune'}. "
                 f"Reference : produit {produit_id}."
             )
-            s = competences.creer(
+            # Signature = type de produit (slug d'intention) -> dédoublonnage par famille.
+            sig = "creer:" + _reg._slug(intention)
+            s = competences.cristalliser_auto(
                 nom=f"creer {intention[:32]}",
                 description=f"Refaire un produit similaire a : {intention[:80]}",
                 instructions=instructions,
                 outils=["creer_application"],
-                auto=True,
+                signature=sig,
             )
-            skill_msg = f" Competence apprise automatiquement : '{s['nom']}'."
+            skill_msg = f" Competence apprise automatiquement : '{s['nom']}'." if s else ""
         except Exception:
             skill_msg = ""
     return nettoyer(
@@ -326,6 +329,8 @@ def outil_utiliser_skill(nom: str = "", contexte: str = "", **kw) -> str:
     s = competences.charger(nom)
     if not s:
         return f"Competence '{nom}' introuvable. Liste-les avec lister_skills."
+    # Usage tracé : pertinence + signal pour l'auto-amélioration.
+    competences.enregistrer_usage(nom)
     # On renvoie les instructions à l'agent appelant : il les applique dans son raisonnement.
     txt = (f"COMPETENCE '{s['nom']}' — {s.get('description','')}\n"
            f"Instructions a appliquer maintenant :\n{s.get('instructions','')}\n")
@@ -455,6 +460,38 @@ PROFILS: dict[str, dict] = {
 _DELEGABLES = ("createur", "genealogiste", "secretaire")
 
 MAX_ETAPES = 8
+
+# Outils "significatifs" : une trajectoire qui en enchaîne >=2 distincts et REUSSIT
+# constitue une procédure reproductible -> cristallisée automatiquement (par contexte).
+# On exclut l'introspection (lister_*, rappeler) et les méta-outils de skill (anti-bruit/récursion).
+_OUTILS_PROCEDURE = {
+    "creer_application", "controler_ecran", "ouvrir_url", "regarder_ecran",
+    "fermer_onglet", "rejouer_routine", "conseiller", "discerner", "memoriser",
+}
+
+
+def _cristalliser_trajectoire(role: str, message: str, outils_reussis: list[str]) -> None:
+    """Cristallise AUTOMATIQUEMENT une procédure si la trajectoire le justifie (par contexte).
+    Idempotent : une même séquence d'outils ne crée qu'une compétence. Déterministe (zéro coût LLM)."""
+    distincts = [o for i, o in enumerate(outils_reussis) if o not in outils_reussis[:i]]
+    pertinents = [o for o in distincts if o in _OUTILS_PROCEDURE]
+    if len(pertinents) < 2:
+        return  # pas une procédure : rien à cristalliser
+    try:
+        import competences
+        sequence = " -> ".join(o for o in outils_reussis if o in _OUTILS_PROCEDURE)
+        sig = "traj:" + "+".join(sorted(pertinents))
+        mots = " ".join((message or "").split()[:5])[:40] or "procedure"
+        competences.cristalliser_auto(
+            nom=f"proc {mots}",
+            description=f"Procédure réussie ({role}) : {', '.join(pertinents)}.",
+            instructions=(f"Pour une demande du type \"{(message or '')[:120]}\", enchaîne ces outils "
+                          f"dans cet ordre : {sequence}. Vérifie le résultat de chaque étape avant la suivante."),
+            outils=pertinents,
+            signature=sig,
+        )
+    except Exception:
+        pass
 
 # Bornes anti-derive du contexte envoye au modele (perf + cout) :
 MAX_TOURS_HIST = 8        # derniers messages de l'historique conserves
@@ -636,6 +673,8 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
 
     cl = _client or gateway.client(ctx, tier=tier)
 
+    _outils_reussis: list[str] = []   # trajectoire (pour cristallisation contextuelle)
+
     for _ in range(MAX_ETAPES):
         # Pendant la boucle, messages grossit (action/observation a chaque tour).
         # On borne en gardant le 1er message (la demande) + la queue recente.
@@ -655,6 +694,9 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if not step.outil:
             reponse = nettoyer(step.reponse or step.pensee or "")
             _emit({"type": "reponse", "agent": role, "texte": reponse})
+            # Cristallisation contextuelle : la trajectoire réussie devient une compétence (auto).
+            if _profondeur == 0 and _outils_reussis:
+                _cristalliser_trajectoire(role, message, _outils_reussis)
             return reponse
 
         outil = step.outil.strip()
@@ -697,6 +739,9 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         except Exception as e:
             obs = nettoyer(f"Erreur outil {outil} : {e}")
         obs = nettoyer(str(obs))[:2000]
+        # Trajectoire : on retient l'outil si l'observation n'est pas un échec manifeste.
+        if not obs.lower().startswith(("erreur", "[erreur", "limite atteinte", "aucun", "l'agent local n'est pas")):
+            _outils_reussis.append(outil)
         _emit({"type": "observation", "agent": role, "outil": outil, "texte": obs})
         _replay(outil)
         messages.append({"role": "user", "content": f"[Resultat {outil}] {obs}"})

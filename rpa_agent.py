@@ -180,7 +180,32 @@ def _titre_fenetre_active() -> str:
 def _fenetre_active_est_neogen() -> bool:
     """Vrai si la fenêtre active semble être NEOGEN (pour ne pas la fermer)."""
     t = _titre_fenetre_active().lower()
-    return ("neogen" in t) or ("localhost:8000" in t)
+    return ("neogen" in t) or ("localhost:8000" in t) or ("127.0.0.1:8000" in t)
+
+
+# Indices de titre de fenêtre des navigateurs courants (suffixes usuels).
+_NAVIGATEURS = ("google chrome", "microsoft​ edge", "microsoft edge", "mozilla firefox",
+                "brave", "opera", "vivaldi", "chromium", "edge")
+
+
+def _fenetre_active_est_navigateur() -> bool:
+    """Vrai si la fenêtre au premier plan est un navigateur (titre reconnu)."""
+    t = _titre_fenetre_active().lower()
+    return any(n in t for n in _NAVIGATEURS)
+
+
+def _verifier_close_tab() -> tuple[bool, str]:
+    """Décide si Ctrl+W est sûr et utile. Renvoie (autorise, message diagnostic).
+    - refuse si NEOGEN au premier plan (anti-suicide) ;
+    - refuse si la fenêtre active n'est pas un navigateur (évite le no-op silencieux) ;
+    - autorise sinon. Le message explique TOUJOURS la décision (un coup d'avance)."""
+    titre = _titre_fenetre_active() or "(titre inconnu)"
+    if _fenetre_active_est_neogen():
+        return False, f"Refuse : la fenetre active est NEOGEN ('{titre}'). Mets l'onglet a fermer au premier plan."
+    if platform.system() == "Windows" and not _fenetre_active_est_navigateur():
+        return False, (f"Refuse : la fenetre active n'est pas un navigateur ('{titre}'). "
+                       "Clique d'abord sur la fenetre du navigateur, puis reessaye.")
+    return True, f"Fermeture de l'onglet actif du navigateur ('{titre}')."
 
 
 def _capturer_et_envoyer() -> tuple[bool, str | None]:
@@ -215,10 +240,12 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
     interval = action.get("interval", 0.05)
     guard = action.get("guard", "")
 
-    # Garde anti-suicide : ne JAMAIS fermer l'onglet si NEOGEN est au premier plan.
-    if guard == "close_tab" and _fenetre_active_est_neogen():
-        return False, ("Fermeture annulee : la fenetre active est NEOGEN. "
-                       "Mets l'onglet a fermer au premier plan puis reessaye.")
+    # Garde close_tab : refus diagnostiqué si NEOGEN ou si pas un navigateur (plus de no-op muet).
+    if guard == "close_tab":
+        ok_close, diag = _verifier_close_tab()
+        logger.info("close_tab -> %s", diag)
+        if not ok_close:
+            return False, diag
 
     # Déplacement visible : la souris glisse (duration) au lieu de se téléporter,
     # pour que l'utilisateur voie concrètement l'agent agir.
