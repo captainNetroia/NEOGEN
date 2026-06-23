@@ -97,8 +97,24 @@ def recommander_tier(demande: str) -> dict:
         tier = "moyen"
     else:
         tier = "leger"
-    return {"tier": tier, "score": score,
-            "raison": ", ".join(raisons) or "demande simple"}
+    raison = ", ".join(raisons) or "demande simple"
+    source = "heuristique"
+
+    # Raffinement par le bandit (UCB1) : s'il a appris pour cette catégorie, il peut
+    # proposer un tier plus économe qui réussit. Sinon on garde l'heuristique.
+    try:
+        import routeur_bandit
+        categorie = routeur_bandit.categoriser(demande)
+        choix, src = routeur_bandit.choisir(categorie, defaut=tier)
+        if src in ("bandit", "exploration") and choix:
+            tier = choix
+            source = src
+            raison = f"{raison} | bandit[{categorie}]:{src}"
+        return {"tier": tier, "score": score, "raison": raison,
+                "categorie": categorie, "source": source}
+    except Exception:
+        return {"tier": tier, "score": score, "raison": raison,
+                "categorie": "conversation", "source": source}
 
 
 # Providers parlant l'API chat/completions compatible OpenAI.

@@ -664,14 +664,25 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
 
     # Choix du tier : figé par profil, ou recommandé selon la demande en mode éco.
     tier = profil.get("tier", "fort")
+    _bandit_cat = None      # catégorie pour récompenser le bandit en fin de dialogue
     if eco:
         reco = gateway.recommander_tier(message)
         # On ne descend jamais sous le tier requis par une vraie complexite, mais on
         # economise quand la demande est simple (ex: Cerveau "fort" -> "leger" pour "bonjour").
         tier = reco["tier"]
+        _bandit_cat = reco.get("categorie")
         _emit({"type": "eco", "tier": tier, "raison": reco["raison"]})
 
     cl = _client or gateway.client(ctx, tier=tier)
+
+    def _maj_bandit(succes: bool):
+        """Récompense le routeur bandit (boucle fermée d'apprentissage du tier optimal)."""
+        if _profondeur == 0 and eco and _bandit_cat:
+            try:
+                import routeur_bandit
+                routeur_bandit.recompenser(_bandit_cat, tier, succes)
+            except Exception:
+                pass
 
     _outils_reussis: list[str] = []   # trajectoire (pour cristallisation contextuelle)
 
@@ -686,6 +697,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         except Exception as e:
             msg = nettoyer(f"Le modele n'a pas pu repondre : {e}")
             _emit({"type": "erreur", "message": msg})
+            _maj_bandit(succes=False)
             return msg
         if step.pensee:
             _emit({"type": "pensee", "agent": role, "texte": nettoyer(step.pensee)})
@@ -697,6 +709,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             # Cristallisation contextuelle : la trajectoire réussie devient une compétence (auto).
             if _profondeur == 0 and _outils_reussis:
                 _cristalliser_trajectoire(role, message, _outils_reussis)
+            _maj_bandit(succes=bool(reponse))
             return reponse
 
         outil = step.outil.strip()
@@ -749,6 +762,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
     # Securite : trop d'etapes.
     msg = "J'ai atteint la limite d'etapes. Reformule ou precise ta demande."
     _emit({"type": "reponse", "agent": role, "texte": msg})
+    _maj_bandit(succes=False)
     return msg
 
 

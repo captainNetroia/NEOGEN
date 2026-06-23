@@ -351,6 +351,35 @@ def test_credentials_loader():
     print("  [OK] credentials_loader : env prioritaire + absent")
 
 
+def test_vecteurs():
+    import vecteurs
+    idf = vecteurs.construire_idf(["chat noir", "chien blanc"])
+    v = vecteurs.vectoriser("chat noir", idf)
+    assert abs(vecteurs.cosinus(v, v) - 1.0) < 1e-9          # identité = 1
+    assert vecteurs.cosinus(vecteurs.vectoriser("chat", idf),
+                            vecteurs.vectoriser("zzz", idf)) == 0.0  # disjoint = 0
+    docs = ["paiement stripe e-commerce", "threads isolation delegation", "mode juge strategies"]
+    r = vecteurs.classer("comment marche le paiement stripe", docs, limite=3)
+    assert r and r[0][0] == 0                                 # bon doc en tête
+    print("  [OK] vecteurs : cosinus + classement sémantique pertinent")
+
+
+def test_routeur_bandit():
+    import routeur_bandit as rb, tempfile as _tf
+    rb.BANDIT_FILE = os.path.join(_tf.mkdtemp(), "b.json")
+    assert rb.categoriser("cree une app") == "creation"
+    assert rb.categoriser("ferme le navigateur") == "rpa"
+    assert rb.recompense(True, "leger") > rb.recompense(True, "fort")   # coût
+    assert rb.choisir("creation")[1] == "heuristique"                    # démarrage
+    for _ in range(20):
+        rb.recompenser("creation", "leger", False)
+        rb.recompenser("creation", "moyen", True)
+        rb.recompenser("creation", "fort", True)
+    choix = [rb.choisir("creation")[0] for _ in range(20)]
+    assert max(set(choix), key=choix.count) == "moyen"                   # converge vers cheap-qui-marche
+    print("  [OK] routeur_bandit : UCB1 converge vers le tier économe qui réussit")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -376,6 +405,8 @@ if __name__ == "__main__":
         test_boosts,
         test_recompenses,
         test_credentials_loader,
+        test_vecteurs,
+        test_routeur_bandit,
     ]
     print("=" * 60)
     print("NEOGEN - TESTS AUTOMATISES (offline)")

@@ -181,6 +181,11 @@ def health():
         sortie["telegram"] = _tg.statut()
     except Exception:
         pass
+    try:
+        import routeur_bandit as _rb
+        sortie["routeur_bandit"] = _rb.etat()
+    except Exception:
+        pass
     return sortie
 
 

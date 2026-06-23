@@ -81,17 +81,27 @@ def memoriser(contenu: str, type_: str = "fait") -> dict:
 
 
 def rappeler(requete: str = "", limite: int = 8) -> list[dict]:
-    """Rappelle les souvenirs pertinents. Sans requête : les plus récents.
-    Avec requête : ceux qui partagent le plus de mots avec la requête."""
+    """Rappelle les souvenirs pertinents par SIMILARITE SEMANTIQUE (TF-IDF + cosinus,
+    cf. vecteurs.py) au lieu d'un simple comptage de mots. Sans requête : les plus récents.
+    Repli sur le comptage de mots si le module vecteurs est indisponible (robustesse)."""
     memoires = _lire()
     if not requete.strip():
         return memoires[-limite:][::-1]
-    mots = {w for w in requete.lower().split() if len(w) > 2}
-    def score(m):
-        txt = m.get("contenu", "").lower()
-        return sum(1 for w in mots if w in txt)
-    classes = sorted(memoires, key=score, reverse=True)
-    return [m for m in classes if score(m) > 0][:limite]
+    try:
+        import vecteurs
+        docs = [m.get("contenu", "") for m in memoires]
+        classement = vecteurs.classer(requete, docs, limite=limite, seuil=0.0)
+        if classement:
+            return [memoires[i] for i, _score in classement]
+        return []
+    except Exception:
+        # Repli : comptage de mots communs (ancien comportement, jamais de plantage).
+        mots = {w for w in requete.lower().split() if len(w) > 2}
+        def score(m):
+            txt = m.get("contenu", "").lower()
+            return sum(1 for w in mots if w in txt)
+        classes = sorted(memoires, key=score, reverse=True)
+        return [m for m in classes if score(m) > 0][:limite]
 
 
 def lister() -> list[dict]:
