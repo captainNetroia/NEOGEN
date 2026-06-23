@@ -22,6 +22,11 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - NEOGEN_BASE_URL=${NEOGEN_BASE_URL:-http://localhost:8000}
+      # === INSTANCE PROPRIETAIRE (Jordan) : version ULTIME, toutes capacites debloquees ===
+      # NE JAMAIS mettre a 1 sur le deploiement PUBLIC : le paywall y reste pour les utilisateurs.
+      # Sur le public, definir NEOGEN_OWNER_UNLIMITED=0 (et retirer NEOGEN_ALLOW_DEFAULT_KEY).
+      - NEOGEN_OWNER_UNLIMITED=${NEOGEN_OWNER_UNLIMITED:-1}
+      - NEOGEN_ALLOW_DEFAULT_KEY=${NEOGEN_ALLOW_DEFAULT_KEY:-1}
     volumes:
       # socket Docker : permet de lancer les conteneurs durcis du code genere
       - /var/run/docker.sock:/var/run/docker.sock

@@ -27,21 +27,9 @@ _API = "https://api.telegram.org/bot{token}/{method}"
 
 
 def _token() -> str:
-    """Token du bot : env d'abord, puis credentials/telegram.env."""
-    t = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    if t:
-        return t
-    for p in ("/app/credentials/telegram.env",
-              os.path.join(os.path.dirname(os.path.abspath(__file__)), "credentials", "telegram.env"),
-              os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "credentials", "telegram.env")):
-        try:
-            if os.path.exists(p):
-                for ligne in open(p, encoding="utf-8"):
-                    if ligne.strip().startswith("TELEGRAM_BOT_TOKEN"):
-                        return ligne.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            continue
-    return ""
+    """Token du bot : env d'abord, puis credentials/telegram.env (chargeur unique, dette F003)."""
+    from credentials_loader import lire_cred
+    return lire_cred("telegram.env", "TELEGRAM_BOT_TOKEN").strip()
 
 
 def _autorises() -> set:
@@ -74,6 +62,11 @@ def _boucle(token: str) -> None:
     offset = 0
     while True:
         try:
+            try:
+                import robustesse as _rob
+                _rob.battement("telegram", liste_blanche=bool(autorises))
+            except Exception:
+                pass
             res = _appel(token, "getUpdates", offset=offset, timeout=60)
             for upd in res.get("result", []):
                 offset = upd["update_id"] + 1

@@ -290,6 +290,67 @@ def test_auto_amelioration():
     print("  [OK] auto-amelioration : analyse multi-sources structuree")
 
 
+def test_anonymizer():
+    import anonymizer
+    assert "[REDACTED_EMAIL]" in anonymizer.nettoyer_texte("contact@netroia.com")
+    assert "[REDACTED_KEY]" in anonymizer.nettoyer_texte("sk_live_abcdef0123456789xyz")
+    d = anonymizer.nettoyer_dict({"token": "sk_live_xxx", "msg": "ok"})
+    assert d["token"] == "[REDACTED]" and d["msg"] == "ok"
+    print("  [OK] anonymizer : emails/cles/champs sensibles redactes")
+
+
+def test_telemetrie():
+    import telemetrie as tele
+    t = tempfile.mkdtemp()
+    tele.CONSENT_FILE = os.path.join(t, "c.json")
+    tele.DATA_FILE = os.path.join(t, "d.jsonl")
+    uid = "u_tele"
+    assert tele.get_consentement(uid) == "aucun"
+    assert not tele.enregistrer(uid, "erreur", {"x": 1})       # pas de consentement
+    tele.set_consentement(uid, "erreurs")
+    assert tele.enregistrer(uid, "erreur", {"x": 1})
+    assert not tele.enregistrer(uid, "usage", {"x": 1})        # niveau insuffisant
+    r = tele.effacer(uid)                                       # RGPD
+    assert r["supprime_consent"] and r["supprime_lignes"] == 1
+    print("  [OK] telemetrie : consentement gradue + effacement RGPD")
+
+
+def test_boosts():
+    import boosts, credits, tempfile as _tf
+    t = _tf.mkdtemp()
+    boosts.BOOSTS_FILE = os.path.join(t, "b.json")
+    credits.SOLDES_FILE = os.path.join(t, "s.json")
+    credits.TXNS_FILE = os.path.join(t, "tx.jsonl")
+    uid = "u_boost"
+    credits.crediter(uid, 200, "earn", "test")
+    r = boosts.activer(uid, "flash_24h", "gratuit")
+    assert r["ok"] and boosts.est_actif(uid, "flash_24h")
+    assert not boosts.est_actif(uid, "flash_7j")
+    print("  [OK] boosts : activation Flash + etat actif")
+
+
+def test_recompenses():
+    import recompenses, tempfile as _tf, sys as _sys, types as _types
+    # Isole credits (pas d'effet de bord solde) + log temporaire
+    _sys.modules["credits"] = _types.SimpleNamespace(crediter=lambda *a, **k: None)
+    recompenses._credits = _sys.modules["credits"]
+    recompenses.LOG_FILE = os.path.join(_tf.mkdtemp(), "r.json")
+    uid = "u_reco"
+    r1 = recompenses.declencher(uid, "premiere_creation")
+    assert r1["ok"] and r1["gen_gagnes"] == 20
+    assert not recompenses.declencher(uid, "premiere_creation")["ok"]  # one-shot
+    print("  [OK] recompenses : gain + anti-rejeu (one-shot)")
+
+
+def test_credentials_loader():
+    import credentials_loader as cl
+    os.environ["TEST_CL_KEY"] = "v"
+    assert cl.lire_cred("x.env", "TEST_CL_KEY") == "v"
+    del os.environ["TEST_CL_KEY"]
+    assert cl.lire_cred("absent.env", "ABSENTE") == ""
+    print("  [OK] credentials_loader : env prioritaire + absent")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -310,6 +371,11 @@ if __name__ == "__main__":
         test_competences_socle,
         test_orchestrateur_vagues,
         test_auto_amelioration,
+        test_anonymizer,
+        test_telemetrie,
+        test_boosts,
+        test_recompenses,
+        test_credentials_loader,
     ]
     print("=" * 60)
     print("NEOGEN - TESTS AUTOMATISES (offline)")

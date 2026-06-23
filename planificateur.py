@@ -39,16 +39,7 @@ MAX_ECHECS_AVANT_PAUSE = 3      # après N échecs consécutifs -> tâche auto-p
 PROVIDERS_VALIDES = ("local", "anthropic", "openai", "gemini", "deepseek", "mistral")
 AGENTS_VALIDES = ("cerveau", "createur", "genealogiste", "secretaire")
 
-# provider -> (fichier credentials, nom de la clé) pour résoudre une clé SYSTEME.
-# Tout provider ajouté ici (ou un futur) devient utilisable en tâche autonome,
-# si l'instance possède la clé. 'local' n'a besoin d'aucune clé.
-_CRED_PROVIDER = {
-    "anthropic": ("anthropic-api.env", "ANTHROPIC_API_KEY"),
-    "openai":    ("openai-api.env",    "OPENAI_API_KEY"),
-    "gemini":    ("gemini-api.env",    "GEMINI_API_KEY"),
-    "deepseek":  ("deepseek-api.env",  "DEEPSEEK_API_KEY"),
-    "mistral":   ("mistral-api.env",   "MISTRAL_API_KEY"),
-}
+# Résolution des clés système : centralisée dans credentials_loader.PROVIDER_CRED (dette F003).
 
 
 # ── I/O ─────────────────────────────────────────────────────────────────────
@@ -158,29 +149,9 @@ def _maj_tache(tache_id: str, **champs) -> None:
 
 def _cle_systeme(provider: str) -> str:
     """Clé SYSTEME de l'instance pour ce provider (jamais celle d'un utilisateur).
-    Cherche env puis credentials/. Vide si non configurée."""
-    info = _CRED_PROVIDER.get(provider)
-    if not info:
-        return ""
-    fichier, cle_nom = info
-    val = os.environ.get(cle_nom, "")
-    if val:
-        return val
-    from pathlib import Path
-    candidats = [
-        Path("/app/credentials") / fichier,
-        Path(__file__).parent / "credentials" / fichier,
-        Path(__file__).parent.parent / "credentials" / fichier,
-    ]
-    for p in candidats:
-        try:
-            if p.exists():
-                for ligne in p.read_text(encoding="utf-8").splitlines():
-                    if ligne.strip().startswith(cle_nom + "="):
-                        return ligne.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            continue
-    return ""
+    Délègue au chargeur unique (dette F003). Vide si non configurée."""
+    from credentials_loader import cle_provider
+    return cle_provider(provider)
 
 
 def _resoudre_ctx(tache: dict):

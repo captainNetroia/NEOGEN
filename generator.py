@@ -113,9 +113,18 @@ def _cred_files() -> list[Path]:
 
 
 def _load_api_key() -> str:
+    # Chemin standard via le chargeur unique (dette F003) : env puis credentials/anthropic-api.env.
+    try:
+        from credentials_loader import lire_cred
+        k = lire_cred("anthropic-api.env", "ANTHROPIC_API_KEY")
+        if k:
+            return k
+    except Exception:
+        pass
     key = os.environ.get("ANTHROPIC_API_KEY")
     if key:
         return key
+    # Fallback compat : scan large (toute clé sk-ant- dans n'importe quel fichier credentials).
     for cred in _cred_files():
         if cred.exists():
             for line in cred.read_text(encoding="utf-8").splitlines():

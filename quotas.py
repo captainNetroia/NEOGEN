@@ -56,8 +56,21 @@ LIBELLES = {
 }
 
 
+def _owner_unlimited() -> bool:
+    """Instance PRIVEE du proprietaire : tout debloque (version ultime). A ne JAMAIS
+    activer sur le deploiement public (le paywall y reste pour les utilisateurs)."""
+    return os.environ.get("NEOGEN_OWNER_UNLIMITED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def palier(user: dict | None) -> str:
-    """Retourne le palier effectif de l'utilisateur."""
+    """Retourne le palier effectif de l'utilisateur.
+    PROPRIETAIRE : instance perso (NEOGEN_OWNER_UNLIMITED) ou email = NEOGEN_OWNER_EMAIL
+    -> palier 'enterprise' = TOUTES les capacites et fonctions, sans limite."""
+    if _owner_unlimited():
+        return "enterprise"
+    owner = os.environ.get("NEOGEN_OWNER_EMAIL", "").strip().lower()
+    if owner and user and (user.get("email", "").strip().lower() == owner):
+        return "enterprise"
     if not user:
         return "gratuit"
     p = user.get("palier", "")

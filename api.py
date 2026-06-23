@@ -30,6 +30,8 @@ import uuid as _uid
 from datetime import datetime as _dt, timedelta as _td
 from pathlib import Path
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,10 +44,25 @@ from executeur_conteneur import docker_disponible
 from pipeline import fabriquer_reel
 from ui import PAGE
 
+
+@asynccontextmanager
+async def _lifespan(app):
+    """Démarrage : lance cron + Telegram + auto-amélioration + socle compétences.
+    Chaque démarrage est protégé (jamais bloquant). Remplace on_event (déprécié, dette F005)."""
+    import robustesse as _rob
+    _rob.protege(lambda: __import__("planificateur").demarrer(), operation="start cron", source="startup")
+    _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
+    _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
+    _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")
+    _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
+    yield
+
+
 app = FastAPI(
     title="NEOGEN",
     description="Une intention parlee devient une application gouvernee, generee et executee en conteneur durci.",
     version="5.0",
+    lifespan=_lifespan,
 )
 
 # CORS resserre : par defaut localhost uniquement. En prod, definir NEOGEN_CORS_ORIGINS
@@ -61,18 +78,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def _demarrer_services_autonomes():
-    """Lance le planificateur (cron) + Telegram + l'auto-amélioration (boucle fermée)
-    + matérialise le socle de compétences. Chaque démarrage est protégé (jamais bloquant)."""
-    import robustesse as _rob
-    _rob.protege(lambda: __import__("planificateur").demarrer(), operation="start cron", source="startup")
-    _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
-    _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
-    _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")
-    _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
 
 
 @app.get("/telegram/statut")
@@ -1188,23 +1193,9 @@ def admin_feedbacks(authorization: str = Header(None)):
 # ── Don Stripe ────────────────────────────────────────────────────────────────
 
 def _load_cred(filename: str, key: str) -> str:
-    """Lit une valeur depuis credentials/{filename} si absent de l'env.
-    Cherche dans /app/credentials (Docker) puis ../credentials (dev local)."""
-    val = _os.environ.get(key, "")
-    if val:
-        return val
-    from pathlib import Path
-    candidates = [
-        Path("/app/credentials") / filename,          # Docker (volume monté)
-        Path(__file__).parent / "credentials" / filename,  # même dossier
-        Path(__file__).parent.parent / "credentials" / filename,  # dev local
-    ]
-    for p in candidates:
-        if p.exists():
-            for line in p.read_text(encoding="utf-8").splitlines():
-                if line.startswith(key + "="):
-                    return line.split("=", 1)[1].strip()
-    return ""
+    """Délègue au chargeur unique (credentials_loader). Conservé comme alias (dette F003)."""
+    from credentials_loader import lire_cred
+    return lire_cred(filename, key)
 
 
 def _set_premium(user_id: str, premium: bool, palier: str = "essential") -> bool:
