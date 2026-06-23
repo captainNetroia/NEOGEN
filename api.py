@@ -789,6 +789,8 @@ class MessageChat(BaseModel):
 class DemandeChat(BaseModel):
     message: str
     historique: list[MessageChat] = Field(default_factory=list)
+    image_b64: str | None = None
+    image_mime: str = "image/png"
 
 
 @app.get("/agents")
@@ -961,7 +963,18 @@ def agent_chat_stream(role: str, demande: DemandeChat,
 
     def travailler():
         try:
-            dialoguer(role, demande.message, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user)
+            msg = demande.message
+            if demande.image_b64:
+                emit({"type": "pensee", "texte": "Analyse de l'image en cours..."})
+                try:
+                    import gateway as _gw
+                    desc = _gw.voir(_ctx, demande.image_b64,
+                        "Décris précisément cette image : textes visibles, éléments visuels, structure, contenu.",
+                        mime=demande.image_mime)
+                    msg = f"[Image jointe]\n{desc}\n\n{msg}".strip() if msg.strip() else f"[Image jointe]\n{desc}"
+                except Exception as _e_img:
+                    msg = f"[Image jointe — analyse indisponible : {_e_img}]\n\n{msg}".strip()
+            dialoguer(role, msg, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user)
         except Exception as e:
             file_evts.put({"type": "erreur", "message": nettoyer(str(e))})
         finally:

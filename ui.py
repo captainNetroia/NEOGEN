@@ -798,6 +798,9 @@ body.in-section #breadcrumb{display:none !important;}
 .eco-toggle input:checked{background:var(--ok)}
 .eco-toggle input::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s}
 .eco-toggle input:checked::after{left:16px}
+.eco-toggle:has(input:checked){color:var(--ok)}
+.ac-img-prev{display:none;align-items:center;gap:6px;padding:3px 8px 6px;font-size:11px;color:var(--mut)}
+.ac-img-prev img{max-height:52px;max-width:68px;border-radius:6px;object-fit:contain;border:1px solid rgba(15,23,42,.12)}
 .ac-md table{border-collapse:collapse;margin:8px 0;font-size:12px;width:100%}
 .ac-md td,.ac-md th{border:1px solid rgba(15,23,42,.15);padding:5px 9px;text-align:left}
 .ac-md th{background:rgba(15,23,42,.06);font-weight:700}
@@ -1641,6 +1644,7 @@ function showSection(name){
   if(name==='production')loadProduits();
   if(name==='compte')loadCompte();
   if(name==='analyse')loadAnalyse();
+  if(name==='cerveau'){loadMemoire();loadSkills();}
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -3333,13 +3337,44 @@ function buildChat(mount){
     +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
-    +'<div class="agent-chat-input"><textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'..."></textarea>'
-    +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button></div>';
+    +'<div class="agent-chat-input" style="flex-direction:column;align-items:stretch">'
+    +'<div class="ac-img-prev" id="acimgprev-'+role+'"></div>'
+    +'<div style="display:flex;gap:8px;align-items:flex-end">'
+    +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller image)"></textarea>'
+    +'<input type="file" id="acfile-'+role+'" accept="image/*" style="display:none">'
+    +'<button class="ghost" id="acattach-'+role+'" title="Joindre une image" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
+    +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button>'
+    +'</div></div>';
   const log=mount.querySelector('#aclog-'+role);
   const inp=mount.querySelector('#acin-'+role);
   const btn=mount.querySelector('#acsend-'+role);
   const clr=mount.querySelector('#acclr-'+role);
   const ecocb=mount.querySelector('#ececb-'+role);
+  const fileIn=mount.querySelector('#acfile-'+role);
+  const attachBtn=mount.querySelector('#acattach-'+role);
+  const imgPrev=mount.querySelector('#acimgprev-'+role);
+  let _imgB64=null,_imgMime='image/png';
+  function _clearImg(){_imgB64=null;_imgMime='image/png';if(imgPrev){imgPrev.style.display='none';imgPrev.innerHTML='';}if(fileIn)fileIn.value='';}
+  function _setImg(file){
+    if(!file||!file.type.startsWith('image/'))return;
+    _imgMime=file.type||'image/png';
+    const fr=new FileReader();
+    fr.onload=function(e){
+      _imgB64=e.target.result.split(',')[1];
+      if(imgPrev){
+        imgPrev.style.display='flex';
+        imgPrev.innerHTML='<img src="'+e.target.result+'" alt="img"><span style="margin-left:auto;cursor:pointer;padding:0 4px;font-weight:700;color:var(--ko)">×</span>';
+        const x=imgPrev.querySelector('span');if(x)x.onclick=_clearImg;
+      }
+    };
+    fr.readAsDataURL(file);
+  }
+  if(attachBtn)attachBtn.onclick=function(){if(fileIn)fileIn.click();};
+  if(fileIn)fileIn.onchange=function(e){_setImg(e.target.files&&e.target.files[0]);};
+  inp.addEventListener('paste',function(e){
+    var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
+    for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){_setImg(items[i].getAsFile());break;}}
+  });
   if(ecocb){
     ecocb.checked=localStorage.getItem('neogen_eco')!=='0';   /* actif par defaut */
     ecocb.onchange=function(){localStorage.setItem('neogen_eco',this.checked?'1':'0');
@@ -3357,7 +3392,8 @@ function buildChat(mount){
     add('ac-msg user',esc(msg));
     let derniereReponse='';let forgeLine=null;
     try{
-      const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify({message:msg,historique:hist})});
+      const body={message:msg,historique:hist};if(_imgB64){body.image_b64=_imgB64;body.image_mime=_imgMime;}_clearImg();
+      const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)});
       if(!resp.ok||!resp.body){var dd='';try{dd=(await resp.json()).detail||'';}catch(e){}add('ac-trace action','&#9888; '+esc(dd||('erreur '+resp.status)));btn.disabled=false;return;}
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
       while(true){
@@ -3686,7 +3722,7 @@ window.deleteSkill=async function(nom){
 };
 (function(){
   const btn=document.getElementById('skills-refresh');
-  if(btn)btn.onclick=loadSkills;
+  if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='Rafraichir';});};
   loadSkills();
 })();
 
@@ -3713,7 +3749,7 @@ window.deleteMemoire=async function(id){
 };
 (function(){
   const btn=document.getElementById('mem-refresh');
-  if(btn)btn.onclick=loadMemoire;
+  if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='Rafraichir';});};
   loadMemoire();
 })();
 
