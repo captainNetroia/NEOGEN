@@ -3335,7 +3335,7 @@ function _mdLite(t){
   s=s.replace(/<\/ul><br>/g,'</ul>').replace(/<br>(<h3>)/g,'$1').replace(/(<\/h3>)<br>/g,'$1');
   // Nettoyer les <br> parasites autour des tableaux
   s=s.replace(/<\/table><br>/g,'</table>').replace(/<br>(<table)/g,'$1');
-  s=s.replace(/\/fichiers\/rapports\/(rapport_[a-f0-9]{8}\.docx)/g,'<a href="/fichiers/rapports/$1" download="$1" style="color:var(--acc);font-weight:600">&#128196; Télécharger $1</a>');
+  s=s.replace(/\/fichiers\/rapports\/(rapport_[a-f0-9]{8}\.(docx|pdf|xlsx|csv))/g,function(_,fn){var icons={'docx':'📄','pdf':'📕','xlsx':'📊','csv':'📋'};var ext=fn.split('.').pop();var ic=icons[ext]||'📎';return '<a href="/fichiers/rapports/'+fn+'" download="'+fn+'" style="color:var(--acc);font-weight:600">'+ic+' Télécharger '+fn+'</a>';});
   return s;
 }
 function buildChat(mount){

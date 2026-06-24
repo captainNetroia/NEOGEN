@@ -90,6 +90,74 @@ def _lire_docx(data: bytes) -> str:
         return f"[Erreur lecture DOCX : {e}]"
 
 
+def creer_rapport_pdf(titre: str, contenu: str) -> str | None:
+    """Crée un rapport PDF structuré. Retourne le nom de fichier ou None si fpdf2 absent."""
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return None
+    os.makedirs(RAPPORTS_DIR, exist_ok=True)
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.multi_cell(0, 10, (titre or "Rapport NEOGEN").encode("latin-1", "replace").decode("latin-1"))
+    pdf.ln(4)
+    pdf.set_font("Helvetica", size=11)
+    for ligne in contenu.splitlines():
+        if ligne.startswith("## ") or ligne.startswith("### "):
+            pdf.set_font("Helvetica", "B", 12)
+            texte = ligne.lstrip("#").strip()
+            pdf.multi_cell(0, 8, texte.encode("latin-1", "replace").decode("latin-1"))
+            pdf.set_font("Helvetica", size=11)
+        elif ligne.strip():
+            pdf.multi_cell(0, 7, ligne.encode("latin-1", "replace").decode("latin-1"))
+        else:
+            pdf.ln(3)
+    nom = f"rapport_{uuid.uuid4().hex[:8]}.pdf"
+    pdf.output(os.path.join(RAPPORTS_DIR, nom))
+    return nom
+
+
+def creer_rapport_excel(titre: str, contenu: str) -> str | None:
+    """Crée un fichier Excel à partir de contenu tabulaire (CSV ou lignes séparées par |).
+    Retourne le nom de fichier ou None si openpyxl absent."""
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        return None
+    os.makedirs(RAPPORTS_DIR, exist_ok=True)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (titre or "Données")[:31]
+    lignes = [l for l in contenu.splitlines() if l.strip()]
+    for row_idx, ligne in enumerate(lignes, 1):
+        if "|" in ligne:
+            cellules = [c.strip() for c in ligne.split("|") if c.strip()]
+        elif "," in ligne:
+            import csv as _csv
+            import io as _io
+            cellules = next(_csv.reader(_io.StringIO(ligne)))
+        else:
+            cellules = [ligne.strip()]
+        for col_idx, val in enumerate(cellules, 1):
+            ws.cell(row=row_idx, column=col_idx, value=val)
+    nom = f"rapport_{uuid.uuid4().hex[:8]}.xlsx"
+    wb.save(os.path.join(RAPPORTS_DIR, nom))
+    return nom
+
+
+def creer_rapport_csv(titre: str, contenu: str) -> str | None:
+    """Crée un fichier CSV. Retourne le nom de fichier."""
+    os.makedirs(RAPPORTS_DIR, exist_ok=True)
+    nom = f"rapport_{uuid.uuid4().hex[:8]}.csv"
+    with open(os.path.join(RAPPORTS_DIR, nom), "w", encoding="utf-8-sig", newline="") as f:
+        if titre:
+            f.write(f"# {titre}\n")
+        f.write(contenu)
+    return nom
+
+
 def creer_rapport_docx(titre: str, contenu: str) -> str | None:
     """Crée un rapport DOCX structuré. Retourne le nom de fichier ou None si erreur."""
     try:

@@ -22,9 +22,9 @@
     {
       "nom": "rechercher_et_synthetiser",
       "titre": "Rechercher et synthétiser",
-      "description": "Effectue une recherche web sur un sujet et produit une synthèse structurée.",
-      "instructions": "1. Utilise rechercher_web avec des mots-clés précis tirés de la demande de l'utilisateur.\n2. Lis les résultats et identifie les sources les plus fiables.\n3. Synthétise en : contexte (2 phrases), points clés (bullets), sources citées, conclusion.\n4. Si disponible, propose de créer un rapport DOCX via creer_rapport.",
-      "outils": ["rechercher_web", "creer_rapport"],
+      "description": "Analyse un sujet en profondeur et produit une synthèse structurée avec rapport DOCX.",
+      "instructions": "1. Analyse la demande de l'utilisateur et décompose le sujet en sous-questions clés.\n2. Mobilise tes connaissances sur le sujet : contexte, enjeux, acteurs, tendances récentes.\n3. Structure la synthèse en : contexte (2 phrases), points clés (bullets), analyse critique, conclusion.\n4. Utilise creer_rapport pour générer un DOCX téléchargeable avec des sections ## claires.\n5. Fournis le lien de téléchargement à l'utilisateur.",
+      "outils": ["creer_rapport"],
       "auteur": "NetroIA"
     },
     {

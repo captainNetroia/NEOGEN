@@ -370,13 +370,23 @@ def outil_lire_fichier(chemin: str = "", **kw) -> str:
     return nettoyer(outils_fichiers.lire_fichier_chemin(chemin))[:8000]
 
 
-def outil_creer_rapport(titre: str = "Rapport", contenu: str = "", **kw) -> str:
-    """Crée un rapport DOCX téléchargeable. Retourne l'URL de téléchargement."""
-    import outils_fichiers
-    nom = outils_fichiers.creer_rapport_docx(titre, contenu)
+def outil_creer_rapport(titre: str = "Rapport", contenu: str = "",
+                        format: str = "docx", **kw) -> str:
+    """Crée un rapport téléchargeable. format : docx (défaut), pdf, excel, csv."""
+    import outils_fichiers as _of
+    fmt = (format or "docx").strip().lower()
+    if fmt == "pdf":
+        nom = _of.creer_rapport_pdf(titre, contenu)
+    elif fmt in ("excel", "xlsx", "xls"):
+        nom = _of.creer_rapport_excel(titre, contenu)
+    elif fmt == "csv":
+        nom = _of.creer_rapport_csv(titre, contenu)
+    else:
+        nom = _of.creer_rapport_docx(titre, contenu)
+        fmt = "docx"
     if not nom:
-        return "[python-docx non disponible — rebuild Docker requis]"
-    return nettoyer(f"Rapport créé : /fichiers/rapports/{nom}")
+        return f"[format {fmt} non disponible — rebuild Docker requis (fpdf2/openpyxl)]"
+    return nettoyer(f"Rapport {fmt.upper()} créé : /fichiers/rapports/{nom}")
 
 
 # nom outil -> (fonction, description courte pour le prompt)
@@ -398,7 +408,7 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "memoriser":         (outil_memoriser,         "Memorise un fait DURABLE sur l'utilisateur/ses preferences/ses projets (se souvenir entre sessions). params: {contenu, type?: user|preference|projet|fait}"),
     "rappeler":          (outil_rappeler,          "Rappelle ce que tu sais deja (souvenirs des sessions precedentes). params: {requete?}"),
     "lire_fichier":      (outil_lire_fichier,      "Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local. params: {chemin}"),
-    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport DOCX telechargeable. params: {titre, contenu} — le contenu peut utiliser # ## ### pour les titres."),
+    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport telechargeable. params: {titre, contenu, format?} — format: docx (defaut), pdf, excel, csv. Le contenu peut utiliser ## ### pour les titres/sections."),
 }
 
 
@@ -421,10 +431,12 @@ PROFILS: dict[str, dict] = {
             "de creation, de gestion des creations, ou d'assistance quotidienne, tu DELEGUES a l'agent "
             "adapte via l'outil 'deleguer' (agents: createur, genealogiste, secretaire). Tu synthetises "
             "les resultats en une reponse claire. Tu vises l'efficacite et le resultat concret.\n"
-            "TU APPRENDS : quand tu accomplis une tache utile et reproductible (une suite d'etapes "
-            "qui pourrait resservir), CRISTALLISE-la en competence via 'creer_skill' (nom court, "
-            "description du 'quand l'utiliser', instructions claires). Avant d'agir, regarde si une "
-            "competence existante (lister_skills) correspond deja : si oui, utilise-la (utiliser_skill). "
+            "REGLE SKILLS (priorite maximale) : Avant d'accomplir TOUTE tache concrete "
+            "(resumer, analyser, automatiser, extraire, rediger un rapport, remplir un formulaire...), "
+            "tu DOIS d'abord invoquer utiliser_skill avec le nom du skill si un skill correspond. "
+            "Tu n'attends PAS que l'utilisateur le demande — tu juges toi-meme si un skill s'applique. "
+            "Si aucun skill ne correspond : accomplis la tache, puis PROPOSE de cristalliser un nouveau "
+            "skill via creer_skill pour que cette competence soit disponible pour la prochaine fois. "
             "C'est ainsi que tu deviens plus puissant a chaque session."
         ),
     },

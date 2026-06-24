@@ -155,17 +155,26 @@ def info():
     }
 
 
+_MIME_RAPPORTS = {
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pdf":  "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "csv":  "text/csv; charset=utf-8",
+}
+
+
 @app.get("/fichiers/rapports/{nom}")
 def telecharger_rapport(nom: str):
-    """Télécharge un rapport DOCX généré par l'agent."""
+    """Télécharge un rapport généré par l'agent (DOCX, PDF, Excel, CSV)."""
     import pathlib, re
-    if not re.fullmatch(r"rapport_[a-f0-9]{8}\.docx", nom):
+    if not re.fullmatch(r"rapport_[a-f0-9]{8}\.(docx|pdf|xlsx|csv)", nom):
         raise HTTPException(status_code=400, detail="nom invalide")
     p = pathlib.Path(_DATA) / "rapports" / nom
     if not p.exists():
         raise HTTPException(status_code=404, detail="rapport introuvable")
-    return FileResponse(str(p), filename=nom,
-                        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    ext = nom.rsplit(".", 1)[-1]
+    media = _MIME_RAPPORTS.get(ext, "application/octet-stream")
+    return FileResponse(str(p), filename=nom, media_type=media)
 
 
 @app.get("/health")
@@ -850,9 +859,6 @@ _REGISTRY_TTL = 3600.0
 _REGISTRY_URL = (
     "https://raw.githubusercontent.com/captainNetroia/VIVARIUM/main/registry/skills-community.json"
 )
-_LOCAL_REGISTRY = _os.path.join(_DATA, "..", "registry", "skills-community.json")
-
-
 def _charger_registry_local() -> list[dict]:
     """Fallback : lit le fichier registry local (embarqué dans le repo)."""
     import pathlib

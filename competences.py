@@ -117,8 +117,21 @@ def creer(nom: str, description: str, instructions: str,
 
 def assurer_socle() -> int:
     """Matérialise les compétences du socle si absentes/obsolètes. Idempotent.
+    Supprime aussi les anciens slugs orphelins (socle=True, signature="", nom hors canonique).
     Renvoie le nombre de compétences socle (re)posées. Le slug = le 'nom' canonique."""
     os.makedirs(SKILLS_DIR, exist_ok=True)
+    # Nettoyage : vieux slugs de génération précédente (signature vide, socle, nom non-canonique).
+    for fn in os.listdir(SKILLS_DIR):
+        if not fn.endswith(".json"):
+            continue
+        p = os.path.join(SKILLS_DIR, fn)
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("socle") and not data.get("signature") and data.get("nom") not in _SOCLE_NOMS:
+                os.remove(p)
+        except Exception:
+            pass
     n = 0
     for s in SOCLE:
         existant = charger(s["nom"])
@@ -273,8 +286,14 @@ def resume_pour_prompt(limite: int = 12) -> str:
     if apprises:
         lignes.append("  [apprises]")
         lignes += [f"    - {s['nom']} : {s.get('description','')}" for s in apprises]
-    return ("\nCOMPETENCES (invoque-les via utiliser_skill {\"nom\": \"...\"}) :\n"
-            + "\n".join(lignes))
+    header = (
+        "\nCOMPETENCES DISPONIBLES — RÈGLE ABSOLUE :\n"
+        "Avant TOUTE tâche concrète (résumer, analyser, créer un rapport, automatiser, extraire...),\n"
+        "appelle d'abord utiliser_skill avec le nom du skill correspondant SI un skill correspond.\n"
+        "Si aucun skill ne correspond exactement, accomplis la tâche normalement,\n"
+        "puis propose à l'utilisateur de cristalliser un nouveau skill via creer_skill.\n"
+    )
+    return header + "\n".join(lignes)
 
 
 if __name__ == "__main__":
