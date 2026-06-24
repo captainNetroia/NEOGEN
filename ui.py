@@ -3323,6 +3323,7 @@ function _mdLite(t){
   s=s.replace(/<\/ul><br>/g,'</ul>').replace(/<br>(<h3>)/g,'$1').replace(/(<\/h3>)<br>/g,'$1');
   // Nettoyer les <br> parasites autour des tableaux
   s=s.replace(/<\/table><br>/g,'</table>').replace(/<br>(<table)/g,'$1');
+  s=s.replace(/\/fichiers\/rapports\/(rapport_[a-f0-9]{8}\.docx)/g,'<a href="/fichiers/rapports/$1" download="$1" style="color:var(--acc);font-weight:600">&#128196; Télécharger $1</a>');
   return s;
 }
 function buildChat(mount){
@@ -3341,8 +3342,8 @@ function buildChat(mount){
     +'<div class="ac-img-prev" id="acimgprev-'+role+'"></div>'
     +'<div style="display:flex;gap:8px;align-items:flex-end">'
     +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller image)"></textarea>'
-    +'<input type="file" id="acfile-'+role+'" accept="image/*" style="display:none">'
-    +'<button class="ghost" id="acattach-'+role+'" title="Joindre une image" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
+    +'<input type="file" id="acfile-'+role+'" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.txt,.md,.csv" style="display:none">'
+    +'<button class="ghost" id="acattach-'+role+'" title="Joindre image ou fichier (PDF, PPTX, DOCX...)" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
     +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button>'
     +'</div></div>';
   const log=mount.querySelector('#aclog-'+role);
@@ -3354,7 +3355,25 @@ function buildChat(mount){
   const attachBtn=mount.querySelector('#acattach-'+role);
   const imgPrev=mount.querySelector('#acimgprev-'+role);
   let _imgB64=null,_imgMime='image/png';
+  let _fichierB64=null,_fichierNom='';
   function _clearImg(){_imgB64=null;_imgMime='image/png';if(imgPrev){imgPrev.style.display='none';imgPrev.innerHTML='';}if(fileIn)fileIn.value='';}
+  function _clearDoc(){_fichierB64=null;_fichierNom='';if(imgPrev){imgPrev.style.display='none';imgPrev.innerHTML='';}if(fileIn)fileIn.value='';}
+  function _setDoc(file){
+    if(!file)return;
+    _fichierNom=file.name;
+    const fr=new FileReader();
+    fr.onload=function(e){
+      _fichierB64=e.target.result.split(',')[1];
+      if(imgPrev){
+        const ext=file.name.split('.').pop().toLowerCase();
+        const ico=ext==='pdf'?'📄':ext==='pptx'||ext==='ppt'?'📊':ext==='docx'||ext==='doc'?'📝':'📎';
+        imgPrev.style.display='flex';
+        imgPrev.innerHTML=ico+' <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px">'+esc(file.name)+'</span><span style="cursor:pointer;padding:0 4px;font-weight:700;color:var(--ko)">×</span>';
+        const x=imgPrev.querySelector('span:last-child');if(x)x.onclick=_clearDoc;
+      }
+    };
+    fr.readAsDataURL(file);
+  }
   function _setImg(file){
     if(!file||!file.type.startsWith('image/'))return;
     _imgMime=file.type||'image/png';
@@ -3370,7 +3389,10 @@ function buildChat(mount){
     fr.readAsDataURL(file);
   }
   if(attachBtn)attachBtn.onclick=function(){if(fileIn)fileIn.click();};
-  if(fileIn)fileIn.onchange=function(e){_setImg(e.target.files&&e.target.files[0]);};
+  if(fileIn)fileIn.onchange=function(e){
+    const f=e.target.files&&e.target.files[0];if(!f)return;
+    if(f.type.startsWith('image/')){_setImg(f);}else{_setDoc(f);}
+  };
   inp.addEventListener('paste',function(e){
     var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
     for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){_setImg(items[i].getAsFile());break;}}
@@ -3392,7 +3414,9 @@ function buildChat(mount){
     add('ac-msg user',esc(msg));
     let derniereReponse='';let forgeLine=null;
     try{
-      const body={message:msg,historique:hist};if(_imgB64){body.image_b64=_imgB64;body.image_mime=_imgMime;}_clearImg();
+      const body={message:msg,historique:hist};
+      if(_imgB64){body.image_b64=_imgB64;body.image_mime=_imgMime;}_clearImg();
+      if(_fichierB64){body.fichier_b64=_fichierB64;body.fichier_nom=_fichierNom;}_clearDoc();
       const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)});
       if(!resp.ok||!resp.body){var dd='';try{dd=(await resp.json()).detail||'';}catch(e){}add('ac-trace action','&#9888; '+esc(dd||('erreur '+resp.status)));btn.disabled=false;return;}
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
@@ -3408,7 +3432,7 @@ function buildChat(mount){
           else if(evt.type==='pensee'){add('ac-trace','&#128173; '+esc(evt.texte||''));}
           else if(evt.type==='action'){add('ac-trace action','&#128295; '+esc(evt.outil||'')+' '+esc(JSON.stringify(evt.parametres||{})));}
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
-          else if(evt.type==='delegation'){add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+' : '+esc(evt.mission||''));}
+          else if(evt.type==='delegation'){var _tm=evt.tier?(' <span class="tag ok">'+esc(evt.tier)+'</span>'):'';add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+_tm+' : '+esc(evt.mission||''));}
           else if(evt.type==='forge'){var ft='&#9881; forge : '+esc(((evt.stade||'')+' '+(evt.msg||evt.message||'')).trim()).slice(0,180);if(!forgeLine){forgeLine=add('ac-trace action',ft);}else{forgeLine.innerHTML=ft;log.scrollTop=log.scrollHeight;}}
           else if(evt.type==='reponse'){var _rt=evt.texte||'';var _isStep=_rt.trimStart().startsWith('{')&&['"outil"','"pensee"','"arguments"'].filter(function(k){return _rt.includes(k);}).length>=2;if(_isStep){add('ac-trace action','&#9888; Reponse illisible (petit modele). Reformule ta demande.');}else{derniereReponse=_rt;if(_rt)add('ac-msg agent','<div class="ac-md">'+_mdLite(_rt)+'</div>');}}
 
@@ -3722,7 +3746,7 @@ window.deleteSkill=async function(nom){
 };
 (function(){
   const btn=document.getElementById('skills-refresh');
-  if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='Rafraichir';});};
+  if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
   loadSkills();
 })();
 
@@ -3749,7 +3773,7 @@ window.deleteMemoire=async function(id){
 };
 (function(){
   const btn=document.getElementById('mem-refresh');
-  if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='Rafraichir';});};
+  if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
   loadMemoire();
 })();
 

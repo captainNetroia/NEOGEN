@@ -33,7 +33,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -153,6 +153,19 @@ def info():
         "version": "5.0",
         "endpoints": ["/ (UI)", "/fabriquer (POST)", "/produits", "/produits/{id}", "/health", "/info"],
     }
+
+
+@app.get("/fichiers/rapports/{nom}")
+def telecharger_rapport(nom: str):
+    """Télécharge un rapport DOCX généré par l'agent."""
+    import pathlib, re
+    if not re.fullmatch(r"rapport_[a-f0-9]{8}\.docx", nom):
+        raise HTTPException(status_code=400, detail="nom invalide")
+    p = pathlib.Path(_DATA) / "rapports" / nom
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="rapport introuvable")
+    return FileResponse(str(p), filename=nom,
+                        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 @app.get("/health")
@@ -791,6 +804,8 @@ class DemandeChat(BaseModel):
     historique: list[MessageChat] = Field(default_factory=list)
     image_b64: str | None = None
     image_mime: str = "image/png"
+    fichier_b64: str | None = None
+    fichier_nom: str = ""
 
 
 @app.get("/agents")
@@ -974,6 +989,15 @@ def agent_chat_stream(role: str, demande: DemandeChat,
                     msg = f"[Image jointe]\n{desc}\n\n{msg}".strip() if msg.strip() else f"[Image jointe]\n{desc}"
                 except Exception as _e_img:
                     msg = f"[Image jointe — analyse indisponible : {_e_img}]\n\n{msg}".strip()
+            if demande.fichier_b64 and demande.fichier_nom:
+                emit({"type": "pensee", "texte": f"Lecture de {demande.fichier_nom}..."})
+                try:
+                    import outils_fichiers as _of
+                    contenu = _of.extraire_texte_b64(demande.fichier_b64, demande.fichier_nom)
+                    prefix = f"[Fichier joint : {demande.fichier_nom}]\n{contenu}"
+                    msg = f"{prefix}\n\n{msg}".strip() if msg.strip() else prefix
+                except Exception as _e_fic:
+                    msg = f"[Fichier joint : {demande.fichier_nom} — lecture échouée : {_e_fic}]\n\n{msg}".strip()
             dialoguer(role, msg, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user)
         except Exception as e:
             file_evts.put({"type": "erreur", "message": nettoyer(str(e))})

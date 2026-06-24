@@ -364,6 +364,21 @@ def outil_rappeler(requete: str = "", **kw) -> str:
         f"- [{m.get('type','fait')}] {m.get('contenu','')}" for m in souvenirs))
 
 
+def outil_lire_fichier(chemin: str = "", **kw) -> str:
+    """Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local et retourne son contenu."""
+    import outils_fichiers
+    return nettoyer(outils_fichiers.lire_fichier_chemin(chemin))[:8000]
+
+
+def outil_creer_rapport(titre: str = "Rapport", contenu: str = "", **kw) -> str:
+    """Crée un rapport DOCX téléchargeable. Retourne l'URL de téléchargement."""
+    import outils_fichiers
+    nom = outils_fichiers.creer_rapport_docx(titre, contenu)
+    if not nom:
+        return "[python-docx non disponible — rebuild Docker requis]"
+    return nettoyer(f"Rapport créé : /fichiers/rapports/{nom}")
+
+
 # nom outil -> (fonction, description courte pour le prompt)
 OUTILS: dict[str, tuple[Callable, str]] = {
     "discerner":         (outil_discerner,         "Analyse une intention (valeur/faisabilite/clarte). params: {intention}"),
@@ -382,6 +397,8 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire. params: {nom, contexte?}"),
     "memoriser":         (outil_memoriser,         "Memorise un fait DURABLE sur l'utilisateur/ses preferences/ses projets (se souvenir entre sessions). params: {contenu, type?: user|preference|projet|fait}"),
     "rappeler":          (outil_rappeler,          "Rappelle ce que tu sais deja (souvenirs des sessions precedentes). params: {requete?}"),
+    "lire_fichier":      (outil_lire_fichier,      "Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local. params: {chemin}"),
+    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport DOCX telechargeable. params: {titre, contenu} — le contenu peut utiliser # ## ### pour les titres."),
 }
 
 
@@ -396,7 +413,8 @@ PROFILS: dict[str, dict] = {
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
-                   "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler"],
+                   "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler",
+                   "lire_fichier", "creer_rapport"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
@@ -438,7 +456,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler", "lire_fichier", "creer_rapport"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
@@ -731,8 +749,19 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
                 obs = ("Delegation en cascade reservee au premium. " if not _premium
                        else "Profondeur de delegation maximale atteinte.")
             else:
-                _emit({"type": "delegation", "de": role, "vers": cible, "mission": nettoyer(mission)})
-                obs = dialoguer(cible, mission, ctx=ctx, emit=emit,
+                reco_del = gateway.recommander_tier(mission)
+                tier_del = reco_del["tier"]
+                _prov_del = (ctx.provider if ctx else None) or "anthropic"
+                _model_del = gateway.TIERS.get(_prov_del, gateway.TIERS["anthropic"]).get(tier_del)
+                ctx_adapte = gateway.LLMContext(
+                    provider=_prov_del,
+                    model=_model_del,
+                    api_key=ctx.api_key if ctx else None,
+                    base_url=ctx.base_url if ctx else None,
+                )
+                _emit({"type": "delegation", "de": role, "vers": cible,
+                       "mission": nettoyer(mission), "tier": tier_del, "modele": _model_del or ""})
+                obs = dialoguer(cible, mission, ctx=ctx_adapte, emit=emit,
                                 _client=_client, _profondeur=_profondeur + 1, eco=eco, user=user)
             _replay("deleguer")
             messages.append({"role": "user", "content": f"[Resultat delegation a {cible}] {obs}"})
