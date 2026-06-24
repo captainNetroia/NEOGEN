@@ -1,4 +1,4 @@
-﻿"""
+"""
 NEOGEN - UI : Bento 3D interactif + shader WebGL
 
 Fond  : fragment shader GLSL (domain-warped fBm, pastels fluides), fallback gradient.
@@ -13,7 +13,9 @@ Nav   : clic carte -> showSection(). Sections en Liquid Glass (.glass, panels 2D
 Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-19.
 """
 
-PAGE = r"""<!doctype html>
+
+def _head() -> str:
+    return r"""<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -35,8 +37,11 @@ PAGE = r"""<!doctype html>
   <span style="font-size:16px">←</span>
   <span id="bc-label">Accueil</span>
 </div>
+"""
 
-<!-- SIDEBAR (flottant, visible en mode section) -->
+
+def _sidebar() -> str:
+    return r"""<!-- SIDEBAR (flottant, visible en mode section) -->
 <nav class="sidebar" id="sidebar">
   <div class="side-home" onclick="showLanding()">
     <span class="side-back">←</span>
@@ -72,8 +77,11 @@ PAGE = r"""<!doctype html>
     <span class="side-badge live">live</span>
   </div>
 </nav>
+"""
 
-<!-- LANDING -->
+
+def _landing() -> str:
+    return r"""<!-- LANDING -->
 <div id="landing">
   <div class="landing-title">
     <h2>NEO<b>GEN</b></h2>
@@ -135,8 +143,11 @@ PAGE = r"""<!doctype html>
     </div>
   </div>
 </div>
+"""
 
-<!-- CREATION : Studio A->Z -->
+
+def _section_creation() -> str:
+    return r"""<!-- CREATION : Studio A->Z -->
 <div id="section-creation" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-creation)"></span>Creation</h2>
@@ -285,8 +296,11 @@ PAGE = r"""<!doctype html>
     </div>
   </div>
 </div>
+"""
 
-<!-- CERVEAUX : super-agent orchestrateur -->
+
+def _section_cerveau() -> str:
+    return r"""<!-- CERVEAUX : super-agent orchestrateur -->
 <div id="section-cerveau" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:#a855f7"></span>Cerveaux</h2>
@@ -348,8 +362,11 @@ PAGE = r"""<!doctype html>
     <div id="tache-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
   </div>
 </div>
+"""
 
-<!-- PRODUCTION -->
+
+def _section_production() -> str:
+    return r"""<!-- PRODUCTION -->
 <div id="section-production" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-production)"></span>Production</h2>
@@ -359,8 +376,11 @@ PAGE = r"""<!doctype html>
   <div id="produit-grid" class="produit-grid"></div>
   <pre id="code-view" class="hidden"></pre>
 </div>
+"""
 
-<!-- COMPTE -->
+
+def _section_compte() -> str:
+    return r"""<!-- COMPTE -->
 <div id="section-compte" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
@@ -408,7 +428,7 @@ PAGE = r"""<!doctype html>
     </div>
   </div>
 
-  <!-- Télémétrie RGPD -->
+  <!-- Telemetrie RGPD -->
   <div class="panel glass" style="margin-bottom:18px" id="telemetrie-panel">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Amelioration communautaire (opt-in)</div>
     <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Contribue a rendre NEOGEN plus intelligent. Donnees anonymisees. <b style="color:#f59e0b">+5 GEN/mois</b> si tu participes.</div>
@@ -439,7 +459,6 @@ PAGE = r"""<!doctype html>
         <button class="consent-btn" data-level="sequence" data-dur="7200">2 h</button>
         <button class="consent-btn" data-level="sequence" data-dur="18000">5 h</button>
         <button class="consent-btn" data-level="sequence" data-dur="43200">12 h</button>
-        <button class="consent-btn" data-level="sequence" data-dur="86400">24 h</button>
         <button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, auto-approuve tout">Auto</button>
       </div>
     </div>
@@ -451,8 +470,11 @@ PAGE = r"""<!doctype html>
   <div class="agent-chat-mount" data-agent="secretaire" data-titre="📋 Le Secretaire" data-sub="Ton conseiller, administrateur et assistant au quotidien."></div>
   <div id="compte-root"></div>
 </div>
+"""
 
-<!-- ANALYSE -->
+
+def _section_analyse() -> str:
+    return r"""<!-- ANALYSE -->
 <div id="section-analyse" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-analyse)"></span>Analyse</h2>
@@ -472,8 +494,11 @@ PAGE = r"""<!doctype html>
     <div id="analyse-tentatives"></div>
   </div>
 </div>
+"""
 
-<!-- INTEGRATIONS -->
+
+def _section_integrations() -> str:
+    return r"""<!-- INTEGRATIONS -->
 <div id="section-integrations" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-integration)"></span>Integrations</h2>
@@ -540,8 +565,11 @@ PAGE = r"""<!doctype html>
     </div>
   </div>
 </div>
+"""
 
-<!-- Modal Deploiement Hostinger -->
+
+def _modals() -> str:
+    return r"""<!-- Modal Deploiement Hostinger -->
 <div id="modal-deploy" style="display:none">
   <div class="deploy-modal-backdrop" onclick="if(event.target===this)fermerModalDeploy()">
     <div class="deploy-modal">
@@ -556,8 +584,11 @@ PAGE = r"""<!doctype html>
     </div>
   </div>
 </div>
+"""
 
-<!-- DON -->
+
+def _section_don() -> str:
+    return r"""<!-- DON -->
 <div id="section-don" class="section">
   <div class="sec-header">
     <h2><span class="sec-dot" style="background:var(--c-don)"></span>Soutenir NEOGEN</h2>
@@ -633,8 +664,27 @@ PAGE = r"""<!doctype html>
     <div id="don-modal-st" style="font-size:12px;color:var(--mut);text-align:center;margin-top:10px;min-height:16px"></div>
   </div>
 </div>
+"""
 
-<script src="/static/app.js"></script>
+
+def _foot() -> str:
+    return r"""<script src="/static/app.js"></script>
 </body>
 </html>
 """
+
+
+PAGE = (
+    _head()
+    + _sidebar()
+    + _landing()
+    + _section_creation()
+    + _section_cerveau()
+    + _section_production()
+    + _section_compte()
+    + _section_analyse()
+    + _section_integrations()
+    + _modals()
+    + _section_don()
+    + _foot()
+)

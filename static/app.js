@@ -676,6 +676,26 @@ async function loadProduits(){
       };
       actions.appendChild(btnDeploy);
     }
+    // Bouton cristalliser en skill
+    const btnCrist=document.createElement('button');btnCrist.className='ghost';
+    btnCrist.title='Cristalliser ce produit en skill reutilisable';
+    btnCrist.textContent='Cristalliser';
+    btnCrist.onclick=async(e)=>{
+      e.stopPropagation();btnCrist.disabled=true;btnCrist.textContent='...';
+      try{
+        const r=await(await fetch('/produits/'+encodeURIComponent(p.id)+'/cristalliser',
+          {method:'POST',headers:_llmHdrs()})).json();
+        if(r.ok&&r.skill){
+          btnCrist.textContent='Skill cree !';
+          btnCrist.style.color='var(--ok)';
+          setTimeout(()=>{btnCrist.textContent='Cristalliser';btnCrist.style.color='';btnCrist.disabled=false;},3000);
+        } else {
+          alert(r.detail||'Erreur cristallisation');
+          btnCrist.disabled=false;btnCrist.textContent='Cristalliser';
+        }
+      }catch(err){alert(errMsg(err));btnCrist.disabled=false;btnCrist.textContent='Cristalliser';}
+    };
+    actions.appendChild(btnCrist);
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */

@@ -526,3 +526,65 @@ def orchestrer_stream(demande: DemandeFabrication,
 
     return StreamingResponse(flux(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ── Cristallisation de skill (ajout wow post-production) ────────────────────
+
+from pydantic import BaseModel, Field as _Field
+
+class _SkillExtrait(BaseModel):
+    nom: str = _Field(description="nom court en kebab-case, ex: scraper-prix")
+    titre: str = _Field(description="titre lisible, ex: Scraper de prix")
+    description: str = _Field(description="ce que fait ce skill, une phrase")
+    instructions: str = _Field(description="comment l utiliser / le reproduire, 3-5 lignes")
+    outils: list[str] = _Field(default_factory=list,
+                               description="outils agent utiles pour ce skill")
+
+
+@router.post("/produits/{produit_id}/cristalliser")
+def cristalliser_produit(produit_id: str,
+                         x_llm_provider: str | None = Header(default=None),
+                         x_llm_model: str | None = Header(default=None),
+                         x_llm_key: str | None = Header(default=None),
+                         x_llm_base: str | None = Header(default=None)):
+    from gateway import contexte_depuis_headers, client as _gw
+    from sanitizer import nettoyer
+    import competences
+
+    code = registre.charger(produit_id)
+    if not code:
+        raise HTTPException(status_code=404, detail="Produit introuvable")
+
+    entrees = registre.lister()
+    entree = next((e for e in entrees if e["id"] == produit_id), {})
+    intention = entree.get("intention", produit_id)
+
+    ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    cl = _gw(ctx, tier="moyen")
+
+    systeme = (
+        "Tu es un expert en capitalisation de patterns logiciels. "
+        "Analyse ce code Python produit par NEOGEN et extrais un SKILL REUTILISABLE : "
+        "un pattern qui pourrait servir dans d autres projets similaires. "
+        "Sois concis et actionnable."
+    )
+    messages = [{"role": "user", "content":
+        f"Intention originale : {intention}\n\nCode :\n```python\n{code[:3000]}\n```\n\n"
+        "Extrais le skill reutilisable (nom kebab-case, titre lisible, description courte, "
+        "instructions 3-5 lignes, outils agent pertinents)."}]
+
+    try:
+        resp = cl.messages.parse(system=systeme, messages=messages,
+                                 max_tokens=1500, output_format=_SkillExtrait)
+        s = resp.parsed_output
+        if s is None:
+            raise RuntimeError("extraction vide")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=nettoyer(f"Extraction echouee : {e}"))
+
+    skill = competences.creer(
+        nom=s.nom, description=s.description,
+        instructions=s.instructions, outils=s.outils, auto=True
+    )
+    skill["titre"] = nettoyer(s.titre)
+    return {"ok": True, "skill": skill, "produit_id": produit_id}
