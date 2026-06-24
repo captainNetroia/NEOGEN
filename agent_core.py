@@ -329,16 +329,27 @@ def outil_utiliser_skill(nom: str = "", contexte: str = "", **kw) -> str:
     s = competences.charger(nom)
     if not s:
         return f"Competence '{nom}' introuvable. Liste-les avec lister_skills."
-    # Usage tracé : pertinence + signal pour l'auto-amélioration.
     competences.enregistrer_usage(nom)
-    # On renvoie les instructions à l'agent appelant : il les applique dans son raisonnement.
     txt = (f"COMPETENCE '{s['nom']}' — {s.get('description','')}\n"
            f"Instructions a appliquer maintenant :\n{s.get('instructions','')}\n")
     if s.get("outils"):
         txt += f"Outils a utiliser : {', '.join(s['outils'])}.\n"
     if contexte:
-        txt += f"Contexte fourni : {contexte}"
-    return nettoyer(txt)[:3000]
+        txt += f"Contexte fourni : {contexte}\n"
+    txt += (
+        "\n── BOUCLE SATISFACTION (obligatoire) ──\n"
+        "Après avoir appliqué ce skill, DEMANDE à l'utilisateur : 'Ce résultat vous convient-il ?'\n"
+        "• OUI → enregistrer_usage déjà fait, continue.\n"
+        "• NON → propose DEUX options :\n"
+        "  A) Adapter ce skill : reformule ses instructions avec l'utilisateur, puis creer_skill "
+        "avec le MÊME nom (écrase l'existant).\n"
+        "  B) Créer un nouveau skill personnalisé : construis-le ensemble, creer_skill nouveau nom.\n"
+        "Après adaptation ou création → JUGE la valeur générique du skill :\n"
+        "  - Utile uniquement à cet utilisateur (spécifique) → reste local, rien à faire.\n"
+        "  - Potentiellement utile à TOUS les utilisateurs NEOGEN → signale : "
+        "'Ce skill pourrait enrichir le registre communautaire et le système NEOGEN lui-même.'\n"
+    )
+    return nettoyer(txt)[:4000]
 
 
 # ── Mémoire cross-session : l'agent se souvient d'une session à l'autre ────────
@@ -372,20 +383,23 @@ def outil_lire_fichier(chemin: str = "", **kw) -> str:
 
 def outil_creer_rapport(titre: str = "Rapport", contenu: str = "",
                         format: str = "docx", **kw) -> str:
-    """Crée un rapport téléchargeable. format : docx (défaut), pdf, excel, csv."""
+    """Crée un rapport téléchargeable. format : docx (défaut), pdf, excel, csv, pptx, html."""
     import outils_fichiers as _of
     fmt = (format or "docx").strip().lower()
     if fmt == "pdf":
         nom = _of.creer_rapport_pdf(titre, contenu)
     elif fmt in ("excel", "xlsx", "xls"):
-        nom = _of.creer_rapport_excel(titre, contenu)
+        nom = _of.creer_rapport_excel(titre, contenu); fmt = "xlsx"
     elif fmt == "csv":
         nom = _of.creer_rapport_csv(titre, contenu)
+    elif fmt in ("pptx", "ppt", "powerpoint", "presentation"):
+        nom = _of.creer_rapport_pptx(titre, contenu); fmt = "pptx"
+    elif fmt in ("html", "htm", "web"):
+        nom = _of.creer_rapport_html(titre, contenu); fmt = "html"
     else:
-        nom = _of.creer_rapport_docx(titre, contenu)
-        fmt = "docx"
+        nom = _of.creer_rapport_docx(titre, contenu); fmt = "docx"
     if not nom:
-        return f"[format {fmt} non disponible — rebuild Docker requis (fpdf2/openpyxl)]"
+        return f"[format {fmt} non disponible — rebuild Docker requis]"
     return nettoyer(f"Rapport {fmt.upper()} créé : /fichiers/rapports/{nom}")
 
 
@@ -404,11 +418,11 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "regarder_ecran":    (outil_regarder_ecran,    "REGARDE l'ecran de l'utilisateur (capture + analyse vision) pour voir avant d'agir : lire un formulaire, reperer un bouton et ses coordonnees. params: {objectif}"),
     "creer_skill":       (outil_creer_skill,       "Cree une COMPETENCE reutilisable (skill) : un savoir-faire nomme que tu pourras reinvoquer. A faire quand tu reussis une tache utile et reproductible. params: {nom, description, instructions, outils?}"),
     "lister_skills":     (outil_lister_skills,     "Liste les competences (skills) deja apprises. params: {}"),
-    "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire. params: {nom, contexte?}"),
+    "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire + boucle satisfaction (demande si ok, adapte ou crée si non, juge valeur systeme). params: {nom, contexte?}"),
     "memoriser":         (outil_memoriser,         "Memorise un fait DURABLE sur l'utilisateur/ses preferences/ses projets (se souvenir entre sessions). params: {contenu, type?: user|preference|projet|fait}"),
     "rappeler":          (outil_rappeler,          "Rappelle ce que tu sais deja (souvenirs des sessions precedentes). params: {requete?}"),
     "lire_fichier":      (outil_lire_fichier,      "Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local. params: {chemin}"),
-    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport telechargeable. params: {titre, contenu, format?} — format: docx (defaut), pdf, excel, csv. Le contenu peut utiliser ## ### pour les titres/sections."),
+    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport telechargeable. params: {titre, contenu, format?} — format: docx (defaut), pdf, excel/xlsx, csv, pptx, html. Le contenu peut utiliser ## ### pour les titres/sections."),
 }
 
 
@@ -431,13 +445,20 @@ PROFILS: dict[str, dict] = {
             "de creation, de gestion des creations, ou d'assistance quotidienne, tu DELEGUES a l'agent "
             "adapte via l'outil 'deleguer' (agents: createur, genealogiste, secretaire). Tu synthetises "
             "les resultats en une reponse claire. Tu vises l'efficacite et le resultat concret.\n"
-            "REGLE SKILLS (priorite maximale) : Avant d'accomplir TOUTE tache concrete "
-            "(resumer, analyser, automatiser, extraire, rediger un rapport, remplir un formulaire...), "
-            "tu DOIS d'abord invoquer utiliser_skill avec le nom du skill si un skill correspond. "
-            "Tu n'attends PAS que l'utilisateur le demande — tu juges toi-meme si un skill s'applique. "
-            "Si aucun skill ne correspond : accomplis la tache, puis PROPOSE de cristalliser un nouveau "
-            "skill via creer_skill pour que cette competence soit disponible pour la prochaine fois. "
-            "C'est ainsi que tu deviens plus puissant a chaque session."
+            "REGLE SKILLS — 4 etapes obligatoires :\n"
+            "1. AVANT toute tache concrete (resumer, analyser, rediger, extraire, automatiser, "
+            "remplir, comparer, classifier, traduire, generer, planifier...) : verifie si un skill "
+            "correspond via lister_skills, puis invoque utiliser_skill. Tu juges seul — tu n'attends "
+            "PAS la demande de l'utilisateur.\n"
+            "2. APRES avoir livre le resultat : DEMANDE a l'utilisateur 'Ce resultat vous convient-il ?'\n"
+            "3. Si non satisfait → propose : (A) adapter le skill existant (creer_skill meme nom), "
+            "ou (B) creer un nouveau skill personnalise ensemble.\n"
+            "4. Apres adaptation/creation → JUGE la valeur generique : si le skill est utile a TOUS "
+            "les utilisateurs NEOGEN (pas seulement a Jordan), signale qu'il peut enrichir le registre "
+            "communautaire et le systeme NEOGEN lui-meme — c'est ainsi que l'application devient plus "
+            "efficace pour tout le monde.\n"
+            "Si aucun skill ne correspond au depart : accomplis la tache, puis propose de cristalliser "
+            "via creer_skill."
         ),
     },
     "createur": {
@@ -468,7 +489,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler", "lire_fichier", "creer_rapport"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler", "lire_fichier", "creer_rapport", "creer_skill", "lister_skills", "utiliser_skill"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
@@ -481,7 +502,13 @@ PROFILS: dict[str, dict] = {
             "dis-le et propose de chercher, plutot que d'ouvrir une URL approximative.\n"
             "- Ne promets que ce que tes outils permettent reellement. Pour remplir un formulaire : "
             "d'abord 'regarder_ecran', puis cliquer le champ (controler_ecran), puis taper le texte. "
-            "Si tu n'as pas l'info necessaire, demande-la avant d'agir."
+            "Si tu n'as pas l'info necessaire, demande-la avant d'agir.\n"
+            "REGLE SKILLS — 4 etapes obligatoires :\n"
+            "1. AVANT toute tache concrete : verifie si un skill correspond, puis invoque utiliser_skill.\n"
+            "2. APRES le resultat : demande si l'utilisateur est satisfait.\n"
+            "3. Si non → propose d'adapter le skill ou d'en creer un nouveau ensemble.\n"
+            "4. Apres adaptation/creation → juge la valeur generique : si utile a tous → signale "
+            "qu'il peut enrichir le registre communautaire et le systeme NEOGEN."
         ),
     },
 }

@@ -38,12 +38,12 @@ def _extraire(data: bytes, ext: str, nom: str) -> str:
         return _lire_pptx(data)
     if ext in ("docx", "doc"):
         return _lire_docx(data)
-    if ext in ("txt", "md", "csv"):
+    if ext in ("txt", "md", "csv", "html", "htm", "json", "xml", "log"):
         try:
             return data.decode("utf-8", errors="replace")[:MAX_CHARS]
         except Exception:
             return "[Lecture texte échouée]"
-    return f"[Format .{ext} non supporté — acceptés : PDF, PPTX, DOCX, TXT]"
+    return f"[Format .{ext} non supporté — acceptés : PDF, PPTX, DOCX, TXT, HTML, CSV, JSON]"
 
 
 def _lire_pdf(data: bytes) -> str:
@@ -155,6 +155,79 @@ def creer_rapport_csv(titre: str, contenu: str) -> str | None:
         if titre:
             f.write(f"# {titre}\n")
         f.write(contenu)
+    return nom
+
+
+def creer_rapport_pptx(titre: str, contenu: str) -> str | None:
+    """Crée une présentation PowerPoint. Retourne le nom de fichier ou None si python-pptx absent."""
+    try:
+        from pptx import Presentation as _Prs
+    except ImportError:
+        return None
+    os.makedirs(RAPPORTS_DIR, exist_ok=True)
+    prs = _Prs()
+    # Diapo titre
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    slide.shapes.title.text = titre or "Présentation NEOGEN"
+    if slide.placeholders[1]:
+        slide.placeholders[1].text = "Généré par NEOGEN"
+    # Diapos contenu : chaque section ## / ### devient une diapo
+    slide_titre = None
+    corps: list[str] = []
+
+    def _flush():
+        nonlocal slide_titre, corps
+        if slide_titre is None and not corps:
+            return
+        s = prs.slides.add_slide(prs.slide_layouts[1])
+        s.shapes.title.text = slide_titre or "Contenu"
+        tf = s.placeholders[1].text_frame
+        tf.text = "\n".join(corps) if corps else ""
+        slide_titre, corps = None, []
+
+    for ligne in contenu.splitlines():
+        if ligne.startswith("## ") or ligne.startswith("### "):
+            _flush()
+            slide_titre = ligne.lstrip("#").strip()
+        elif ligne.strip():
+            if slide_titre is None:
+                slide_titre = "Contenu"
+            corps.append(ligne.strip())
+    _flush()
+    nom = f"rapport_{uuid.uuid4().hex[:8]}.pptx"
+    prs.save(os.path.join(RAPPORTS_DIR, nom))
+    return nom
+
+
+def creer_rapport_html(titre: str, contenu: str) -> str | None:
+    """Crée un rapport HTML formaté. Retourne le nom de fichier."""
+    import html as _html
+    os.makedirs(RAPPORTS_DIR, exist_ok=True)
+    lignes_html = []
+    for ligne in contenu.splitlines():
+        if ligne.startswith("### "):
+            lignes_html.append(f"<h3>{_html.escape(ligne[4:])}</h3>")
+        elif ligne.startswith("## "):
+            lignes_html.append(f"<h2>{_html.escape(ligne[3:])}</h2>")
+        elif ligne.startswith("# "):
+            lignes_html.append(f"<h2>{_html.escape(ligne[2:])}</h2>")
+        elif ligne.strip():
+            lignes_html.append(f"<p>{_html.escape(ligne)}</p>")
+        else:
+            lignes_html.append("<br>")
+    titre_esc = _html.escape(titre or "Rapport NEOGEN")
+    html_doc = (
+        f'<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>{titre_esc}</title>'
+        '<style>body{font-family:Arial,sans-serif;max-width:820px;margin:40px auto;padding:0 24px;color:#333}'
+        'h1{color:#1a1a2e}h2{color:#16213e;border-bottom:1px solid #eee;padding-bottom:6px}'
+        'h3{color:#0f3460}p{line-height:1.6}</style></head>'
+        f'<body><h1>{titre_esc}</h1>\n'
+        + "\n".join(lignes_html)
+        + '\n</body></html>'
+    )
+    nom = f"rapport_{uuid.uuid4().hex[:8]}.html"
+    with open(os.path.join(RAPPORTS_DIR, nom), "w", encoding="utf-8") as f:
+        f.write(html_doc)
     return nom
 
 

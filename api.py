@@ -160,6 +160,8 @@ _MIME_RAPPORTS = {
     "pdf":  "application/pdf",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "csv":  "text/csv; charset=utf-8",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "html": "text/html; charset=utf-8",
 }
 
 
@@ -167,7 +169,7 @@ _MIME_RAPPORTS = {
 def telecharger_rapport(nom: str):
     """Télécharge un rapport généré par l'agent (DOCX, PDF, Excel, CSV)."""
     import pathlib, re
-    if not re.fullmatch(r"rapport_[a-f0-9]{8}\.(docx|pdf|xlsx|csv)", nom):
+    if not re.fullmatch(r"rapport_[a-f0-9]{8}\.(docx|pdf|xlsx|csv|pptx|html)", nom):
         raise HTTPException(status_code=400, detail="nom invalide")
     p = pathlib.Path(_DATA) / "rapports" / nom
     if not p.exists():
