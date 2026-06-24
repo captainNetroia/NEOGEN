@@ -18,11 +18,11 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-22.
 
 from __future__ import annotations
 
-import json
 import os
 import time
 import uuid
 
+import robustesse as _rob
 from sanitizer import nettoyer
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,29 +33,11 @@ MAX_MEMOIRES = 200  # garde-fou : on ne garde que les N plus récentes
 
 
 def _lire() -> list[dict]:
-    if not os.path.exists(MEM_FILE):
-        return []
-    out = []
-    try:
-        with open(MEM_FILE, encoding="utf-8") as f:
-            for ligne in f:
-                ligne = ligne.strip()
-                if ligne:
-                    try:
-                        out.append(json.loads(ligne))
-                    except Exception:
-                        continue
-    except Exception:
-        return []
-    return out
+    return _rob.lire_jsonl(MEM_FILE)
 
 
 def _ecrire(memoires: list[dict]) -> None:
-    os.makedirs(os.path.dirname(MEM_FILE), exist_ok=True)
-    memoires = memoires[-MAX_MEMOIRES:]
-    with open(MEM_FILE, "w", encoding="utf-8") as f:
-        for m in memoires:
-            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+    _rob.ecrire_jsonl(MEM_FILE, memoires[-MAX_MEMOIRES:])
 
 
 def memoriser(contenu: str, type_: str = "fait") -> dict:

@@ -353,6 +353,47 @@ def sante(seuil_silence_s: float = 300.0) -> dict:
     return {"composants": composants, "ts": now}
 
 
+# ── Helpers JSONL centralisés (dette F004) ──────────────────────────────────────
+# SOURCE UNIQUE de vérité pour lire/écrire des fichiers .jsonl dans NEOGEN.
+# Remplace les copies privées dans api.py (_rjsonl/_ajsonl/_wjsonl) et memoire_agent.py.
+
+def lire_jsonl(path: str) -> list:
+    """Lit un fichier JSONL ligne par ligne. Ignore les lignes malformées. Retourne [] si absent."""
+    if not os.path.exists(path):
+        return []
+    out = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        import json as _j
+                        out.append(_j.loads(line))
+                    except Exception:
+                        pass
+    except Exception:
+        return []
+    return out
+
+
+def ajout_jsonl(path: str, obj: dict) -> None:
+    """Ajoute un objet JSON à la fin d'un fichier JSONL (crée le répertoire si nécessaire)."""
+    import json as _j
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(_j.dumps(obj, ensure_ascii=False) + "\n")
+
+
+def ecrire_jsonl(path: str, items: list) -> None:
+    """Réécrit entièrement un fichier JSONL (remplace le contenu existant)."""
+    import json as _j
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for it in items:
+            f.write(_j.dumps(it, ensure_ascii=False) + "\n")
+
+
 # ── Auto-verification ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

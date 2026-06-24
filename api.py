@@ -38,6 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import registre
+import robustesse as _rob
 import rpa
 from capacites import Capacites
 from executeur_conteneur import docker_disponible
@@ -1103,32 +1104,15 @@ def _est_admin(user) -> bool:
     return (user.get("email") or "").strip().lower() == _ADMIN_EMAIL
 
 
+# Helpers JSONL : délèguent à robustesse (source unique — dette F004 résolue).
 def _rjsonl(path: str) -> list:
-    if not _os.path.exists(path):
-        return []
-    out = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    out.append(_json.loads(line))
-                except Exception:
-                    pass
-    return out
-
+    return _rob.lire_jsonl(path)
 
 def _ajsonl(path: str, obj: dict) -> None:
-    _os.makedirs(_os.path.dirname(path), exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(_json.dumps(obj, ensure_ascii=False) + "\n")
-
+    _rob.ajout_jsonl(path, obj)
 
 def _wjsonl(path: str, items: list) -> None:
-    _os.makedirs(_os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for it in items:
-            f.write(_json.dumps(it, ensure_ascii=False) + "\n")
+    _rob.ecrire_jsonl(path, items)
 
 
 def _hashpw(pw: str) -> str:
