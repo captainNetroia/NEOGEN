@@ -158,6 +158,33 @@ def purger_anciens() -> int:
     return supprimees
 
 
+def transmettre_agregees(endpoint_url: str, instance_id: str = "") -> dict:
+    """Envoie les stats agrégées anonymisées vers un endpoint NetroIA (opt-in 'tout' requis).
+    N'envoie que des compteurs — aucune donnée individuelle ni identifiant direct.
+    Retourne {ok, statut_http} ou {ok:False, erreur}."""
+    import hashlib
+    import urllib.request
+    stats = stats_agregees()
+    if stats["total"] == 0:
+        return {"ok": True, "statut_http": 0, "detail": "rien a transmettre"}
+    payload = json.dumps({
+        "instance": hashlib.sha256((instance_id or "neogen").encode()).hexdigest()[:12],
+        "version": "1",
+        "stats": stats,
+        "ts": time.time(),
+    }, ensure_ascii=False).encode()
+    try:
+        req = urllib.request.Request(
+            endpoint_url, data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "NEOGEN/1"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            return {"ok": True, "statut_http": resp.status}
+    except Exception as e:
+        return {"ok": False, "erreur": str(e)[:200]}
+
+
 def stats_agregees() -> dict:
     """Stats anonymes agrégées pour le dashboard admin Jordan."""
     if not os.path.exists(DATA_FILE):

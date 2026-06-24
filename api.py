@@ -844,6 +844,64 @@ def supprimer_skill(nom: str):
     return {"ok": competences.supprimer(nom)}
 
 
+# Cache simple en mémoire pour le registry (1h pour ne pas surcharger GitHub).
+_registry_cache: dict = {"ts": 0.0, "data": None}
+_REGISTRY_TTL = 3600.0
+_REGISTRY_URL = (
+    "https://raw.githubusercontent.com/captainNetroia/VIVARIUM/main/registry/skills-community.json"
+)
+_LOCAL_REGISTRY = _os.path.join(_DATA, "..", "registry", "skills-community.json")
+
+
+def _charger_registry_local() -> list[dict]:
+    """Fallback : lit le fichier registry local (embarqué dans le repo)."""
+    import pathlib
+    p = pathlib.Path(__file__).parent / "registry" / "skills-community.json"
+    if p.exists():
+        import json as _json
+        with open(p, encoding="utf-8") as f:
+            return _json.load(f).get("skills", [])
+    return []
+
+
+@app.get("/skills/registry")
+def skills_registry():
+    """Proxy vers le registry communautaire NEOGEN (cache 1h). Fallback local si GitHub inaccessible."""
+    import time, httpx as _hx
+    now = time.time()
+    if _registry_cache["data"] and (now - _registry_cache["ts"]) < _REGISTRY_TTL:
+        return {"ok": True, "source": "cache", "skills": _registry_cache["data"]}
+    try:
+        resp = _hx.get(_REGISTRY_URL, timeout=10.0)
+        resp.raise_for_status()
+        skills = resp.json().get("skills", [])
+        _registry_cache["ts"] = now
+        _registry_cache["data"] = skills
+        return {"ok": True, "source": "registry", "skills": skills}
+    except Exception:
+        if _registry_cache["data"]:
+            return {"ok": True, "source": "cache_stale", "skills": _registry_cache["data"]}
+        # Fallback : registry embarqué dans le repo (toujours disponible)
+        skills = _charger_registry_local()
+        if skills:
+            _registry_cache["ts"] = now
+            _registry_cache["data"] = skills
+            return {"ok": True, "source": "local", "skills": skills}
+        raise HTTPException(status_code=503, detail="registry inaccessible et aucun fallback local")
+
+
+class ImportSkillBody(BaseModel):
+    skills: list[dict]
+
+
+@app.post("/skills/import")
+def importer_skills(body: ImportSkillBody):
+    """Importe un ou plusieurs skills depuis le registry ou un JSON collé manuellement."""
+    import competences
+    result = competences.importer_depuis_registry(body.skills)
+    return {"ok": True, **result}
+
+
 @app.get("/auto-amelioration")
 def auto_amelioration():
     """Analyse multi-sources (registre + erreurs + membrane + skills) -> signaux + points forts."""

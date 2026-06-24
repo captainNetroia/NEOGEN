@@ -1088,10 +1088,22 @@ body.dark .ac-md code{background:rgba(255,255,255,.1)}
   <div class="panel glass" style="margin-top:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Competences apprises (skills)</div>
-      <button class="ghost" id="skills-refresh" style="font-size:12px;padding:4px 10px">Rafraichir</button>
+      <div style="display:flex;gap:6px">
+        <button class="ghost" id="skills-library-btn" style="font-size:12px;padding:4px 10px">Bibliotheque</button>
+        <button class="ghost" id="skills-refresh" style="font-size:12px;padding:4px 10px">Rafraichir</button>
+      </div>
     </div>
     <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Le Cerveau forge ses propres competences quand il reussit une tache reproductible. Elles deviennent invocables tout de suite.</div>
     <div id="skills-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
+
+  <!-- Modal bibliotheque de skills -->
+  <div id="skills-lib-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
+    <div class="glass panel" style="width:min(540px,95vw);max-height:80vh;overflow-y:auto;padding:22px 24px;position:relative">
+      <button onclick="document.getElementById('skills-lib-modal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--mut)">&times;</button>
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);margin-bottom:14px">Bibliotheque communautaire</div>
+      <div id="skills-lib-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+    </div>
   </div>
 
   <!-- Memoire cross-session : ce que l'agent retient de toi -->
@@ -3748,7 +3760,51 @@ window.deleteSkill=async function(nom){
   const btn=document.getElementById('skills-refresh');
   if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
   loadSkills();
+  const libBtn=document.getElementById('skills-library-btn');
+  if(libBtn)libBtn.onclick=openSkillsLibrary;
 })();
+
+async function openSkillsLibrary(){
+  const modal=document.getElementById('skills-lib-modal');
+  const listEl=document.getElementById('skills-lib-list');
+  modal.style.display='flex';
+  listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Chargement du registry...</div>';
+  try{
+    const d=await(await fetch('/skills/registry')).json();
+    const list=d.skills||[];
+    if(!list.length){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Aucun skill disponible.</div>';return;}
+    // Charger les skills deja installes pour griser les boutons.
+    const installed=await(await fetch('/skills')).json();
+    const installedNames=new Set((installed.skills||[]).map(function(s){return s.nom;}));
+    listEl.innerHTML=list.map(function(s,i){
+      const already=installedNames.has(s.nom)||installedNames.has(s.nom.replace(/\s+/g,'_').toLowerCase());
+      return '<div class="hist-item" style="align-items:flex-start;margin-bottom:8px">'
+        +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
+        +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
+        +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
+        +'</span>'
+        +(already
+          ?'<span class="tag ok" style="font-size:11px;flex-shrink:0">installe</span>'
+          :'<button class="ghost" style="font-size:12px;padding:3px 10px;flex-shrink:0" onclick="installSkill('+i+')">Installer</button>')
+        +'</div>';
+    }).join('');
+    window._libSkills=list;
+  }catch(e){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur : '+esc(String(e))+'</div>';}
+}
+
+window.installSkill=async function(idx){
+  const s=window._libSkills&&window._libSkills[idx];if(!s)return;
+  try{
+    const r=await(await fetch('/skills/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({skills:[s]})})).json();
+    if(r.importes&&r.importes.length){
+      openSkillsLibrary();loadSkills();
+    }else if(r.ignores&&r.ignores.length){
+      alert('Deja installe.');
+    }else{
+      alert('Erreur : '+(r.erreurs||[]).join(', '));
+    }
+  }catch(e){alert('Erreur reseau.');}
+};
 
 // ===== MEMOIRE cross-session =====
 async function loadMemoire(){

@@ -201,6 +201,42 @@ def enregistrer_usage(nom: str) -> None:
         pass
 
 
+def importer_depuis_registry(skills_json: list[dict]) -> dict:
+    """Importe une liste de skills depuis un registry externe (JSON validé côté appelant).
+    Idempotent : un skill déjà présent (même slug) est ignoré. Socle non écrasable.
+    Retourne {importes, ignores, erreurs}."""
+    importes, ignores, erreurs = [], [], []
+    for item in skills_json:
+        try:
+            nom = str(item.get("nom", "")).strip()
+            if not nom:
+                erreurs.append("skill sans nom")
+                continue
+            slug = _slug(nom)
+            if slug in _SOCLE_NOMS:
+                ignores.append(slug)
+                continue
+            if charger(slug) is not None:
+                ignores.append(slug)
+                continue
+            titre = str(item.get("titre") or nom).strip()
+            s = creer(
+                nom=nom,
+                description=str(item.get("description", ""))[:300],
+                instructions=str(item.get("instructions", ""))[:4000],
+                outils=[str(o) for o in (item.get("outils") or [])],
+                signature=f"registry:{slug}",
+            )
+            # Rétablir le titre d'affichage (creer() l'écrase avec le slug).
+            s["titre"] = nettoyer(titre)[:80]
+            with open(os.path.join(SKILLS_DIR, f"{slug}.json"), "w", encoding="utf-8") as f:
+                json.dump(s, f, ensure_ascii=False, indent=2)
+            importes.append(s["nom"])
+        except Exception as e:
+            erreurs.append(str(e)[:120])
+    return {"importes": importes, "ignores": ignores, "erreurs": erreurs}
+
+
 def cristalliser_auto(nom: str, description: str, instructions: str,
                       outils: list[str] | None = None, signature: str = "") -> dict | None:
     """Cristallise une compétence AUTOMATIQUEMENT, de façon IDEMPOTENTE.

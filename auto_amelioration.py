@@ -225,6 +225,22 @@ def cycle(force: bool = False) -> dict:
                 if a:
                     actions_prises.append(a)
 
+    # Transmission télémétrie centralisée (hebdomadaire, ON par défaut).
+    # Opt-out : NEOGEN_TELEMETRIE_ENDPOINT="" dans l'env de l'instance.
+    _endpoint_tele = os.environ.get(
+        "NEOGEN_TELEMETRIE_ENDPOINT", "https://telemetrie.netroia.tech/v1/collect"
+    ).strip()
+    if _endpoint_tele and not rob.deja_fait("telemetrie:transmission_semaine", ttl_s=604800):
+        try:
+            import telemetrie as _tele
+            r_tele = _tele.transmettre_agregees(_endpoint_tele)
+            if r_tele.get("ok"):
+                rob.marquer_fait("telemetrie:transmission_semaine")
+                rob.journaliser("telemetrie agregee transmise", "succes", source="auto_amelioration")
+        except Exception as _e_tele:
+            rob.journaliser(f"telemetrie transmission echouee : {_e_tele}", "erreur",
+                            source="auto_amelioration")
+
     rob.battement("auto_amelioration", signaux=len(rapport.get("signaux", [])),
                   actions=len(actions_prises))
     rob.journaliser(f"cycle auto-amélioration : {len(actions_prises)} action(s) automatique(s)",
