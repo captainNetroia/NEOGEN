@@ -241,6 +241,22 @@ def cycle(force: bool = False) -> dict:
             rob.journaliser(f"telemetrie transmission echouee : {_e_tele}", "erreur",
                             source="auto_amelioration")
 
+    # Reseau du savoir — maillon MONTANT (hebdomadaire, selon l'environnement).
+    # Contribue les skills a haute valeur (decision == "partage") au pot commun,
+    # anonymises + sans secret + selon la politique d'env (auto serveur / consent local / off).
+    if not rob.deja_fait("reseau:contribution_semaine", ttl_s=604800):
+        try:
+            import reseau_savoir as _rs
+            r_contrib = _rs.cycle_contribution()
+            if r_contrib.get("contribution") != "off":
+                rob.marquer_fait("reseau:contribution_semaine")
+                rob.journaliser(
+                    f"reseau savoir (montant) : {r_contrib.get('files', 0)} skill(s) en file, "
+                    f"env={r_contrib.get('contexte')}", "info", source="auto_amelioration")
+        except Exception as _e_rs:
+            rob.journaliser(f"reseau savoir contribution echouee : {_e_rs}", "erreur",
+                            source="auto_amelioration")
+
     rob.battement("auto_amelioration", signaux=len(rapport.get("signaux", [])),
                   actions=len(actions_prises))
     rob.journaliser(f"cycle auto-amélioration : {len(actions_prises)} action(s) automatique(s)",

@@ -26,6 +26,22 @@ def hub_etat(authorization: str | None = Header(default=None)):
     return _savoir.HUB.etat()
 
 
+@router.get("/reseau")
+def reseau_etat(authorization: str | None = Header(default=None)):
+    """Etat du reseau d'intelligence distribuee : environnement + file de contribution."""
+    _gate_owner(authorization)
+    import reseau_savoir as _rs
+    return _rs.etat()
+
+
+@router.post("/reseau/contribuer")
+def reseau_contribuer(authorization: str | None = Header(default=None)):
+    """Declenche manuellement le cycle de contribution montante (proprietaire)."""
+    _gate_owner(authorization)
+    import reseau_savoir as _rs
+    return _rs.cycle_contribution()
+
+
 @router.post("/rafraichir")
 def hub_rafraichir(authorization: str | None = Header(default=None)):
     _gate_owner(authorization)

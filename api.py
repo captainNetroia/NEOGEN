@@ -165,4 +165,9 @@ def health():
         sortie["routeur_bandit"] = _rb.etat()
     except Exception:
         pass
+    try:
+        import environnement as _env
+        sortie["environnement"] = _env.resume()
+    except Exception:
+        pass
     return sortie
