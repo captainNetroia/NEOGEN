@@ -43,6 +43,29 @@ class PropositionADN(BaseModel):
     resume: str = Field(description="une phrase resumant l'ADN propose")
 
 
+def _savoir_pour_creation(intention: str, k: int = 5) -> str:
+    """Tire du Hub du savoir les skills/lecons/patterns pertinents pour CETTE intention.
+    Nourrit la proposition d'ADN avec l'experience accumulee. Tolerant : ne leve jamais."""
+    if not intention or not intention.strip():
+        return ""
+    try:
+        import savoir
+        resultats = savoir.HUB.chercher(intention, k=k)
+    except Exception:
+        return ""
+    lignes = []
+    for r in resultats:
+        g = r.get("grain", {})
+        contenu = (g.get("contenu", "") or "").strip()
+        if contenu:
+            lignes.append(f"- [{g.get('domaine', '?')}] {contenu[:200]}")
+    if not lignes:
+        return ""
+    return ("\n\nSAVOIR NEOGEN PERTINENT (skills, lecons et patterns deja accumules sur des "
+            "projets proches ; appuie-toi dessus pour proposer un ADN plus juste, ne le repete pas tel quel) :\n"
+            + "\n".join(lignes))
+
+
 def proposer(intention: str, client, contexte: str = "") -> PropositionADN:
     vocab_murs = "; ".join(f"{k} ({v})" for k, v in REGLES_MURS.items())
     systeme = (
@@ -68,6 +91,7 @@ def proposer(intention: str, client, contexte: str = "") -> PropositionADN:
     contenu = f"Intention : {intention}"
     if contexte:
         contenu += f"\n\nContexte connu sur l'utilisateur/ses projets (pour personnaliser, sans l'imposer) :\n{contexte}"
+    contenu += _savoir_pour_creation(intention, k=5)
     resp = parse_resilient(
         client, model=MODEL, max_tokens=4000, thinking={"type": "adaptive"},
         system=systeme,

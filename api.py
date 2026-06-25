@@ -43,6 +43,7 @@ async def _lifespan(app):
     _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
     _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
     _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")
+    _rob.protege(lambda: __import__("savoir").HUB.rafraichir(), operation="rafraichir hub savoir", source="startup")
     _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
     yield
 

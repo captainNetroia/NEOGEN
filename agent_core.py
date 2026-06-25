@@ -202,7 +202,32 @@ def _tronquer_historique(hist: list[dict] | None) -> list[dict]:
     return out
 
 
-def _systeme(role: str, profil: dict, eco: bool = False) -> str:
+def _savoir_pertinent(requete: str, k: int = 3) -> str:
+    """Interroge le Hub du savoir et renvoie un bloc 'SAVOIR PERTINENT' a injecter.
+    Tolerant : ne leve jamais (le Hub peut etre vide ou indisponible)."""
+    if not requete or not requete.strip():
+        return ""
+    try:
+        import savoir
+        resultats = savoir.HUB.chercher(requete, k=k)
+    except Exception:
+        return ""
+    if not resultats:
+        return ""
+    lignes = []
+    for r in resultats:
+        g = r.get("grain", {})
+        contenu = (g.get("contenu", "") or "").strip()
+        if not contenu:
+            continue
+        lignes.append(f"  - [{g.get('domaine', '?')}] {contenu[:200]}")
+    if not lignes:
+        return ""
+    return ("\n\nSAVOIR PERTINENT (tire de l'experience accumulee de NEOGEN, "
+            "utilise-le si c'est utile pour cette demande) :\n" + "\n".join(lignes))
+
+
+def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> str:
     """Construit le prompt systeme : role + protocole + liste d'outils autorises."""
     outils = list(profil.get("outils", []))
     desc = "\n".join(f"  - {n} : {OUTILS[n][1]}" for n in outils if n in OUTILS)
@@ -221,6 +246,7 @@ def _systeme(role: str, profil: dict, eco: bool = False) -> str:
         memoire_bloc = memoire_agent.resume_pour_prompt()
     except Exception:
         memoire_bloc = ""
+    savoir_bloc = _savoir_pertinent(requete, k=3)
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -234,7 +260,7 @@ def _systeme(role: str, profil: dict, eco: bool = False) -> str:
         + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
-        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc
+        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
     )
 
 
@@ -334,7 +360,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if emit:
             emit(evt)
 
-    systeme = _systeme(profil["role"], profil, eco=eco)
+    systeme = _systeme(profil["role"], profil, eco=eco, requete=message)
     messages: list[dict] = _tronquer_historique(historique)
     messages.append({"role": "user", "content": message})
 
