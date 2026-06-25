@@ -25,6 +25,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 IMITATIONS_DIR = os.path.join(DATA_DIR, "imitations")
 RPA_LOG_FILE = os.path.join(DATA_DIR, "rpa_logs.jsonl")
+CONTINU_STATE_FILE = os.path.join(DATA_DIR, "rpa_continuous.json")  # etat persiste du mode continu
 
 # File d'attente en mémoire pour l'agent RPA
 _QUEUE: list[dict] = []
@@ -211,8 +212,30 @@ def add_recorded_action(action: dict) -> None:
 
 # ── Apprentissage continu : observation + détection de routines récurrentes ────
 
+def _continu_charger_etat() -> bool:
+    """Restaure l'etat du mode continu depuis le disque (survit aux redemarrages)."""
+    try:
+        if os.path.exists(CONTINU_STATE_FILE):
+            with open(CONTINU_STATE_FILE, encoding="utf-8") as f:
+                return bool(json.load(f).get("enabled", False))
+    except Exception:
+        pass
+    return False
+
+
+def _continu_sauver_etat(enabled: bool) -> None:
+    """Persiste l'etat du mode continu. Tolerant : un echec disque ne casse rien."""
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(CONTINU_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"enabled": bool(enabled)}, f)
+    except Exception as e:
+        logger.warning(f"[APPRENTISSAGE] etat continu non persiste : {e}")
+
+
 def set_continuous(enabled: bool) -> bool:
-    """Active/désactive l'apprentissage continu. À l'arrêt, finalise le segment."""
+    """Active/désactive l'apprentissage continu. À l'arrêt, finalise le segment.
+    L'etat est persiste : il survit aux redemarrages du conteneur (ne se coupe plus seul)."""
     global _CONTINUOUS, _SEGMENT
     if enabled:
         _CONTINUOUS = True
@@ -221,6 +244,7 @@ def set_continuous(enabled: bool) -> bool:
         _continu_finaliser_segment()
         _CONTINUOUS = False
         logger.info("[APPRENTISSAGE] Mode continu désactivé.")
+    _continu_sauver_etat(_CONTINUOUS)
     return _CONTINUOUS
 
 
@@ -289,6 +313,13 @@ def continuous_status() -> dict:
         "signatures": len(_SEEN_SIGNATURES),
         "learned": _AUTO_LEARNED[-10:],
     }
+
+
+# Restaure l'etat persiste au chargement du module : si l'utilisateur avait active
+# l'apprentissage continu, il le reste apres un redemarrage du conteneur.
+_CONTINUOUS = _continu_charger_etat()
+if _CONTINUOUS:
+    logger.info("[APPRENTISSAGE] Mode continu restaure depuis l'etat persiste.")
 
 def stop_recording(name: str) -> dict | None:
     """Arrête l'enregistrement et le persiste dans data/imitations/{name}.json."""
