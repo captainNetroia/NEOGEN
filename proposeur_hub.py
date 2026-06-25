@@ -156,6 +156,40 @@ def generer() -> list[dict]:
     return nouvelles
 
 
+# ── Pensee (intelligence collective) -> proposition ─────────────────────────────
+
+def proposer_depuis_pensee(pensee: dict) -> dict:
+    """Une pensee a haut score devient une proposition d'evolution (flux existant).
+    C'est la retro-action « la boucle nourrit le systeme » : la pensee remonte dans
+    le meme onglet ou Jordan approuve/refuse. Idempotente via _prop_id('pensee', id)."""
+    pid_src = pensee.get("id") or _prop_id("pensee_src", pensee.get("titre", ""))
+    pid = _prop_id("pensee", pid_src)
+    if _prop_existe(pid):
+        return {"ok": True, "id": pid, "deja": True}
+    titre = (pensee.get("titre") or "Pensee").strip()[:80]
+    synthese = (pensee.get("synthese") or "").strip()
+    score = float(pensee.get("score", 0.0))
+    prop = {
+        "id": pid,
+        "type": "pensee_creative",
+        "titre": f"Pensee a explorer : {titre}",
+        "justification": (
+            f"Pensee autonome (ambiance {pensee.get('ambiance', '?')}, "
+            f"type {pensee.get('type', '?')}) de score {score:.2f}. {synthese}"
+        ),
+        "grain_ids": [],
+        "impact_estime": "Piste creative issue de l'intelligence collective de NEOGEN.",
+        "ts": time.time(),
+        "statut": "en_attente",
+        "skill_actuel": None,
+        "skill_propose": None,
+        "pensee_id": pensee.get("id", ""),
+        "pensee_synthese": synthese[:400],
+    }
+    _persister_proposition(prop)
+    return {"ok": True, "id": pid, "deja": False}
+
+
 # ── Actions d'approbation ──────────────────────────────────────────────────────
 
 def approuver(prop_id: str) -> dict:
@@ -204,5 +238,16 @@ def _executer(prop: dict) -> str:
     if type_ == "skill_inutilise":
         # Pour l'instant : loguer — une suppression ne se fait jamais automatiquement
         return "Archivage manuel recommandé (suppression non automatique par sécurité)."
+
+    if type_ == "pensee_creative":
+        # Approuver une pensée = la mémoriser -> elle redevient un grain du silo
+        # mémoire -> re-nourrit le Hub du savoir (la boucle se referme).
+        try:
+            import memoire_agent
+            txt = prop.get("pensee_synthese", "") or prop.get("titre", "")
+            m = memoire_agent.memoriser(f"[Pensée retenue] {txt}", "fait")
+            return f"Pensée mémorisée (souvenir {m.get('id', '?')}) — nourrit le savoir."
+        except Exception as e:
+            return f"Pensée notée (mémorisation échouée : {e})."
 
     return "Action notée, aucune opération automatique pour ce type."

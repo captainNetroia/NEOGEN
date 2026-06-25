@@ -743,6 +743,41 @@ def _section_evolution() -> str:
       <div style="text-align:center;padding:30px;opacity:.4;font-size:13px">Cliquer sur Rafraichir pour analyser les silos</div>
     </div>
   </div>
+
+  <!-- La Pensee : intelligence collective autonome -->
+  <div class="panel glass" style="margin-top:20px">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0;font-size:15px">La Pensee <span style="font-size:11px;opacity:.5;font-weight:400">&mdash; intelligence collective</span></h3>
+      <span id="pensee-count" style="font-size:12px;opacity:.5">chargement...</span>
+    </div>
+    <p style="font-size:12px;opacity:.55;margin:0 0 14px;line-height:1.5">Les agents conversent seuls en puisant dans le savoir des silos. Idees, reflexions, reves : tout est archive ; les pensees a haut score s'affichent en bulle et deviennent des propositions.</p>
+
+    <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <label style="font-size:12px;opacity:.7">Modele</label>
+      <select id="pensee-mode" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+        <option value="eco">Eco / local (gratuit)</option>
+        <option value="fort">Fort (provider configure)</option>
+        <option value="mixte">Mixte (equilibre)</option>
+      </select>
+      <label style="font-size:12px;opacity:.7;margin-left:6px">Intervalle</label>
+      <select id="pensee-intervalle" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+        <option value="30">30 min</option>
+        <option value="60">1 h</option>
+        <option value="120">2 h</option>
+        <option value="240">4 h</option>
+        <option value="480">8 h</option>
+      </select>
+      <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px;margin-left:6px;cursor:pointer">
+        <input type="checkbox" id="pensee-actif" style="cursor:pointer"> Active
+      </label>
+      <button id="btn-pensee-cycle" class="ghost" style="font-size:12px;padding:7px 14px;margin-left:auto">Provoquer une pensee</button>
+    </div>
+    <div id="pensee-config-status" style="font-size:12px;opacity:.5;margin-bottom:10px;display:none"></div>
+
+    <div id="pensee-list">
+      <div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l'instant.</div>
+    </div>
+  </div>
 </div>
 """
 

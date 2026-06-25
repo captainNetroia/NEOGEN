@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Header, HTTPException, Query
 
 import quotas as _quotas
 import savoir as _savoir
@@ -86,3 +86,64 @@ def hub_refuser(prop_id: str, authorization: str | None = Header(default=None)):
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("erreur", "erreur"))
     return res
+
+
+# ── La Pensee : intelligence collective autonome ────────────────────────────────
+
+@router.get("/pensees")
+def pensees_lister(
+    limit: int = Query(default=50, ge=1, le=200),
+    authorization: str | None = Header(default=None),
+):
+    """Archive complete des pensees (tous scores), plus recentes d'abord."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return {"etat": _pensee.etat(), "pensees": _pensee.lister(limit=limit)}
+
+
+@router.get("/pensees/bulles")
+def pensees_bulles(authorization: str | None = Header(default=None)):
+    """Pensees a haut score non lues -> bulles de notification (polling UI)."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return {"bulles": _pensee.bulles_non_lues()}
+
+
+@router.post("/pensees/{pensee_id}/lue")
+def pensees_marquer_lue(pensee_id: str, authorization: str | None = Header(default=None)):
+    _gate_owner(authorization)
+    import pensee as _pensee
+    res = _pensee.marquer_lue(pensee_id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=404, detail="pensee introuvable")
+    return res
+
+
+@router.get("/pensees/config")
+def pensees_config(authorization: str | None = Header(default=None)):
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return _pensee._config()
+
+
+@router.post("/pensees/config")
+def pensees_set_config(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Met a jour mode (eco/fort/mixte), actif (bool), intervalle_min (int)."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return _pensee._set_config(
+        mode=corps.get("mode"),
+        actif=corps.get("actif"),
+        intervalle_min=corps.get("intervalle_min"),
+    )
+
+
+@router.post("/pensees/cycle")
+def pensees_cycle(authorization: str | None = Header(default=None)):
+    """Provoque immediatement une session de pensee (proprietaire)."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return _pensee.cycle_pensee(force=True)

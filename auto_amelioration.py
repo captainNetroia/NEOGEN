@@ -257,6 +257,24 @@ def cycle(force: bool = False) -> dict:
             rob.journaliser(f"reseau savoir contribution echouee : {_e_rs}", "erreur",
                             source="auto_amelioration")
 
+    # La Pensee — intelligence collective autonome (regulier, selon l'intervalle config).
+    # Les agents conversent en piochant dans le savoir -> une boite a pensee archivee ;
+    # haut score -> bulle de notification + proposition d'evolution. Eco/local par defaut.
+    try:
+        import pensee as _pensee
+        cfg_p = _pensee._config()
+        if cfg_p.get("actif", True) and not rob.deja_fait(
+                "pensee:session", ttl_s=cfg_p.get("intervalle_min", 120) * 60):
+            r_p = _pensee.cycle_pensee()
+            if r_p.get("execute"):
+                rob.marquer_fait("pensee:session")
+                rob.journaliser(
+                    f"pensee generee : [{r_p.get('ambiance')}/{r_p.get('type')}] "
+                    f"score={r_p.get('score')} bulle={r_p.get('bulle')}",
+                    "info", source="auto_amelioration")
+    except Exception as _e_p:
+        rob.journaliser(f"pensee : cycle echoue : {_e_p}", "erreur", source="auto_amelioration")
+
     rob.battement("auto_amelioration", signaux=len(rapport.get("signaux", [])),
                   actions=len(actions_prises))
     rob.journaliser(f"cycle auto-amélioration : {len(actions_prises)} action(s) automatique(s)",

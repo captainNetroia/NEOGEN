@@ -230,7 +230,7 @@ function showSection(name){
   if(name==='compte')loadCompte();
   if(name==='analyse')loadAnalyse();
   if(name==='cerveau'){loadMemoire();loadSkills();}
-  if(name==='evolution'){loadHubEtat();loadHubPropositions();}
+  if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();}
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -2621,4 +2621,115 @@ function _renderProp(p){
     }catch(e){if(res)res.innerHTML='<div style="opacity:.4;font-size:12px">Erreur : '+esc(e.message)+'</div>';}
   };
   if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&btnS)btnS.click();});
+})();
+
+/* ===== LA PENSEE — intelligence collective autonome ===== */
+let _penseeWired=false;
+async function loadPenseesConfig(){
+  try{
+    const r=await fetch('/savoir/pensees/config');
+    if(!r.ok)return;
+    const c=await r.json();
+    const m=document.getElementById('pensee-mode');
+    const iv=document.getElementById('pensee-intervalle');
+    const ac=document.getElementById('pensee-actif');
+    if(m)m.value=c.mode||'eco';
+    if(iv)iv.value=String(c.intervalle_min||120);
+    if(ac)ac.checked=c.actif!==false;
+  }catch(e){}
+  if(_penseeWired)return; _penseeWired=true;
+  async function saveCfg(){
+    const m=document.getElementById('pensee-mode'),iv=document.getElementById('pensee-intervalle'),ac=document.getElementById('pensee-actif');
+    const st=document.getElementById('pensee-config-status');
+    const body={mode:m?m.value:'eco',intervalle_min:iv?parseInt(iv.value,10):120,actif:ac?ac.checked:true};
+    try{
+      const r=await fetch('/savoir/pensees/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const c=await r.json();
+      if(st){st.style.display='';st.textContent='Configuration enregistree'+(c.mode!==body.mode?' (repli '+c.mode+')':'')+'.';setTimeout(function(){st.style.display='none';},2500);}
+    }catch(e){if(st){st.style.display='';st.textContent='Erreur : '+esc(e.message);}}
+  }
+  ['pensee-mode','pensee-intervalle','pensee-actif'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('change',saveCfg);});
+  const bc=document.getElementById('btn-pensee-cycle');
+  if(bc)bc.onclick=async function(){
+    bc.disabled=true;bc.textContent='Pensee en cours...';
+    try{
+      const r=await fetch('/savoir/pensees/cycle',{method:'POST'});
+      const d=await r.json();
+      if(d&&d.execute){loadPensees();if(d.proposition)loadHubPropositions();}
+      else{const st=document.getElementById('pensee-config-status');if(st){st.style.display='';st.textContent='Aucune pensee : '+esc((d&&d.raison)||'indisponible')+'.';}}
+    }catch(e){}
+    finally{bc.disabled=false;bc.textContent='Provoquer une pensee';}
+  };
+}
+
+async function loadPensees(){
+  const container=document.getElementById('pensee-list');
+  const counter=document.getElementById('pensee-count');
+  if(!container)return;
+  try{
+    const r=await fetch('/savoir/pensees?limit=50');
+    if(!r.ok)return;
+    const d=await r.json();
+    const list=(d&&d.pensees)||[];
+    if(counter)counter.textContent=list.length+' pensee'+(list.length>1?'s':'')+' archivee'+(list.length>1?'s':'');
+    if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l\'instant. Provoquez-en une.</div>';return;}
+    container.innerHTML='';
+    for(const p of list){container.appendChild(_renderPensee(p));}
+  }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
+}
+
+function _renderPensee(p){
+  const tcol={idee:'#10b981',suggestion:'#3b82f6',obsession:'#ef4444',sujet:'#a855f7',reflexion:'#06b6d4',reve:'#f59e0b',desir:'#ec4899'};
+  const col=tcol[p.type]||'#888';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
+  const sc=(typeof p.score==='number')?p.score.toFixed(2):'--';
+  let badges='<span style="font-size:11px;font-weight:700;color:'+col+';background:rgba(255,255,255,.06);border-radius:6px;padding:2px 8px">'+esc(p.type||'')+'</span>'
+    +'<span style="font-size:11px;opacity:.5">'+esc(p.ambiance_label||p.ambiance||'')+'</span>'
+    +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
+  if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
+  if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
+  let tr='';
+  if(Array.isArray(p.transcript)&&p.transcript.length){
+    tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.55;cursor:pointer">Conversation ('+p.transcript.length+')</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">';
+    for(const t of p.transcript){tr+='<div style="font-size:12px;line-height:1.45"><span style="font-weight:600;color:'+col+'">'+esc(t.agent||'')+'</span> : <span style="opacity:.8">'+esc(t.texte||'')+'</span></div>';}
+    tr+='</div></details>';
+  }
+  const parts=Array.isArray(p.participants)?p.participants.join(', '):'';
+  wrap.innerHTML='<div class="row" style="gap:8px;align-items:center;margin-bottom:6px">'+badges+'</div>'
+    +'<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+esc(p.titre||'')+'</div>'
+    +'<div style="font-size:12px;opacity:.7;line-height:1.5">'+esc(p.synthese||'')+'</div>'
+    +(parts?'<div style="font-size:11px;opacity:.4;margin-top:6px">'+esc(parts)+'</div>':'')
+    +tr;
+  return wrap;
+}
+
+/* Bulles de notification : poll des pensees a haut score non lues. */
+(function(){
+  function showBubble(b){
+    if(document.getElementById('pensee-bubble-'+b.id))return;
+    const el=document.createElement('div');
+    el.id='pensee-bubble-'+b.id;
+    el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:300px;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px)';
+    el.innerHTML='<div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:4px">&#128173; Une pensee a emerge</div>'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+esc(b.titre||'')+'</div>'
+      +'<div style="font-size:11px;opacity:.6;line-height:1.4">'+esc((b.synthese||'').slice(0,110))+'</div>';
+    el.onclick=async function(){
+      try{await fetch('/savoir/pensees/'+encodeURIComponent(b.id)+'/lue',{method:'POST'});}catch(e){}
+      el.remove();
+      if(typeof showSection==='function')showSection('evolution');
+    };
+    document.body.appendChild(el);
+    setTimeout(function(){if(el.parentNode)el.style.opacity='.85';},8000);
+  }
+  async function poll(){
+    try{
+      const r=await fetch('/savoir/pensees/bulles');
+      if(!r.ok)return; // 403 si non-proprietaire -> on ignore
+      const d=await r.json();
+      (d.bulles||[]).slice(0,3).forEach(showBubble);
+    }catch(e){}
+  }
+  setTimeout(poll,5000);
+  setInterval(poll,60000);
 })();
