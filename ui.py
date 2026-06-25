@@ -68,6 +68,11 @@ def _sidebar() -> str:
     <span class="side-dot"></span>Analyse
     <span class="side-badge live">live</span>
   </div>
+  <div class="side-item" style="--lc:#10b981" onclick="showSection('evolution')" id="side-evolution">
+    <span class="side-dot"></span>Evolution
+    <span class="side-badge live">live</span>
+    <span id="evo-badge-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);border-radius:99px;padding:1px 8px">0</span>
+  </div>
   <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
     <span class="side-dot"></span>Integrations
     <span class="side-badge live">live</span>
@@ -122,6 +127,13 @@ def _landing() -> str:
     <div class="layer" onclick="showSection('analyse')">
       <span class="layer-marker" style="--lc:var(--c-analyse)"></span>
       <div class="layer-label"><h3>Analyse</h3><p>Metriques de production et capacites utilisees</p></div>
+      <span class="badge live">live</span>
+      <span class="layer-arrow">›</span>
+    </div>
+
+    <div class="layer" onclick="showSection('evolution')">
+      <span class="layer-marker" style="--lc:#10b981"></span>
+      <div class="layer-label"><h3>Evolution</h3><p>Hub du savoir : 5 silos unifies, propositions d'amelioration</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
@@ -674,6 +686,67 @@ def _foot() -> str:
 """
 
 
+def _section_evolution() -> str:
+    return r"""<!-- EVOLUTION : Hub du savoir unifie -->
+<div id="section-evolution" class="section">
+  <div class="sec-header">
+    <h2><span class="sec-dot" style="background:#10b981"></span>Evolution</h2>
+    <p>Hub du savoir : 5 silos unifies. Le systeme apprend, propose, tu approuves.</p>
+  </div>
+
+  <!-- Stats Hub -->
+  <div class="panel glass" style="margin-bottom:20px">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0;font-size:15px">Etat du Hub</h3>
+      <button id="btn-hub-refresh" class="ghost" style="font-size:12px;padding:6px 14px">&#8635; Rafraichir</button>
+    </div>
+    <div id="hub-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px">
+      <div class="hub-stat-card" style="text-align:center;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:22px;font-weight:700;color:#10b981" id="hub-total-grains">--</div>
+        <div style="font-size:11px;opacity:.6;margin-top:2px">grains total</div>
+      </div>
+      <div class="hub-stat-card" style="text-align:center;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:22px;font-weight:700;color:#f59e0b" id="hub-props-en-attente">--</div>
+        <div style="font-size:11px;opacity:.6;margin-top:2px">propositions</div>
+      </div>
+      <div id="hub-silos-grid" style="display:contents"></div>
+    </div>
+    <div id="hub-refresh-status" style="margin-top:10px;font-size:12px;opacity:.5;display:none"></div>
+  </div>
+
+  <!-- Recherche semantique -->
+  <div class="panel glass" style="margin-bottom:20px">
+    <h3 style="font-size:14px;margin-bottom:12px">Recherche semantique (TF-IDF)</h3>
+    <div class="row" style="gap:10px;align-items:center">
+      <input id="hub-search-input" type="text" placeholder="Ex : erreur de memoire, skill python..." style="flex:1;padding:9px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:13px">
+      <select id="hub-search-domaine" style="padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+        <option value="">Tous les silos</option>
+        <option value="skill">Skills</option>
+        <option value="memoire">Memoire</option>
+        <option value="erreur">Erreurs</option>
+        <option value="amelioration">Amelioration</option>
+        <option value="ledger">Ledger</option>
+        <option value="telemetrie">Telemetrie</option>
+      </select>
+      <button id="btn-hub-search" style="padding:9px 18px">Chercher</button>
+    </div>
+    <div id="hub-search-results" style="margin-top:14px"></div>
+  </div>
+
+  <!-- Propositions -->
+  <div class="panel glass">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 style="margin:0;font-size:15px">Propositions d'evolution</h3>
+      <span id="hub-props-count" style="font-size:12px;opacity:.5">chargement...</span>
+    </div>
+    <div id="hub-props-list">
+      <div style="text-align:center;padding:30px;opacity:.4;font-size:13px">Cliquer sur Rafraichir pour analyser les silos</div>
+    </div>
+  </div>
+</div>
+"""
+
+
 PAGE = (
     _head()
     + _sidebar()
@@ -683,6 +756,7 @@ PAGE = (
     + _section_production()
     + _section_compte()
     + _section_analyse()
+    + _section_evolution()
     + _section_integrations()
     + _modals()
     + _section_don()

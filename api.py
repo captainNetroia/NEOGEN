@@ -76,6 +76,7 @@ from routes.premium import router as _r_premium
 from routes.telemetrie import router as _r_telemetrie
 from routes.integrations import router as _r_integrations
 from routes.rpa import router as _r_rpa
+from routes.savoir import router as _r_savoir
 
 app.include_router(_r_auth)
 app.include_router(_r_produits)
@@ -84,6 +85,7 @@ app.include_router(_r_premium)
 app.include_router(_r_telemetrie)
 app.include_router(_r_integrations)
 app.include_router(_r_rpa)
+app.include_router(_r_savoir)
 
 # ── Chemins data ───────────────────────────────────────────────────────────────
 _BASE = _os.path.dirname(_os.path.abspath(__file__))

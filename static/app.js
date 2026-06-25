@@ -214,7 +214,7 @@ const _breath=(function(){
 const $=s=>document.querySelector(s);
 const errMsg=x=>{if(x==null)return'';if(typeof x==='string')return x;if(x.message)return x.message;try{return JSON.stringify(x);}catch(e){return String(x);}};
 const esc=s=>(s||'').replace(/[<>]/g,'');
-const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Analyse',integrations:'Integrations',don:'Soutenir'};
+const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Analyse',evolution:'Evolution',integrations:'Integrations',don:'Soutenir'};
 
 function showSection(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -230,6 +230,7 @@ function showSection(name){
   if(name==='compte')loadCompte();
   if(name==='analyse')loadAnalyse();
   if(name==='cerveau'){loadMemoire();loadSkills();}
+  if(name==='evolution'){loadHubEtat();loadHubPropositions();}
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -2324,6 +2325,8 @@ function _initPreferences(){
 // Lancer au chargement + quand on arrive sur Compte
 document.addEventListener('DOMContentLoaded',_initPreferences);
 _initPreferences();
+// Vérification silencieuse owner au démarrage — masque Evolution si non-propriétaire
+fetch('/savoir/etat').then(function(r){if(r.status===403){var si=document.getElementById('side-evolution');if(si)si.style.display='none';}}).catch(function(){});
 
 // ===== COMPETENCES (skills) auto-creees =====
 async function loadSkills(){
@@ -2474,4 +2477,148 @@ window.deleteTache=async function(id){
     form.classList.add('hidden');loadTaches();
   };
   loadTaches();
+})();
+/* ===== HUB DU SAVOIR — section Evolution ===== */
+async function loadHubEtat(){
+  try{
+    const r=await fetch('/savoir/etat');
+    if(r.status===403){
+      const si=document.getElementById('side-evolution');if(si)si.style.display='none';
+      const lc=document.querySelector('[onclick*="showSection(\'evolution\')"]');if(lc)lc.style.display='none';
+      return;
+    }
+    const d=await r.json();
+    const tg=document.getElementById('hub-total-grains');
+    const pe=document.getElementById('hub-props-en-attente');
+    const nav=document.getElementById('evo-badge-nav');
+    if(tg)tg.textContent=d.total_grains||0;
+    const att=d.propositions_en_attente||0;
+    if(pe)pe.textContent=att;
+    if(nav){nav.textContent=att;nav.style.display=att>0?'':'none';}
+    const sg=document.getElementById('hub-silos-grid');
+    if(sg&&d.grains){
+      sg.innerHTML='';
+      const colors={skill:'#a855f7',memoire:'#3b82f6',erreur:'#ef4444',amelioration:'#f59e0b',ledger:'#6366f1',telemetrie:'#06b6d4'};
+      for(const[k,v] of Object.entries(d.grains)){
+        const c=colors[k]||'#888';
+        const el=document.createElement('div');
+        el.style.cssText='text-align:center;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)';
+        el.innerHTML='<div style="font-size:18px;font-weight:700;color:'+c+'">'+v+'</div>'
+          +'<div style="font-size:10px;opacity:.5;margin-top:2px">'+k+'</div>';
+        sg.appendChild(el);
+      }
+    }
+  }catch(e){console.error('loadHubEtat',e);}
+}
+
+async function loadHubPropositions(){
+  const container=document.getElementById('hub-props-list');
+  const counter=document.getElementById('hub-props-count');
+  if(!container)return;
+  try{
+    const r=await fetch('/savoir/propositions?statut=en_attente');
+    const props=await r.json();
+    if(counter)counter.textContent=props.length+' en attente';
+    if(!props.length){
+      container.innerHTML='<div style="text-align:center;padding:30px;opacity:.4;font-size:13px">Aucune proposition en attente. Rafraichir pour analyser.</div>';
+      return;
+    }
+    container.innerHTML='';
+    for(const p of props){container.appendChild(_renderProp(p));}
+  }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
+}
+
+function _renderProp(p){
+  const colors={lecon_recurrente:'#ef4444',pattern_critique:'#f59e0b',skill_inutilise:'#6366f1',evolution_skill:'#10b981'};
+  const col=colors[p.type]||'#888';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
+  const typLabel={lecon_recurrente:'Lecon recurrente',pattern_critique:'Pattern critique',skill_inutilise:'Skill inutilise',evolution_skill:'Evolution skill'};
+  let skillHtml='';
+  if(p.skill_propose){
+    const sk=p.skill_propose;
+    skillHtml='<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:8px;font-size:12px">'
+      +'<div style="font-weight:600;color:#10b981;margin-bottom:4px">Skill propose : '+esc(sk.nom||'')+'</div>'
+      +'<div style="opacity:.7">'+esc((sk.description||'').slice(0,120))+'</div>'
+      +'</div>';
+  }
+  wrap.innerHTML='<div class="row" style="align-items:flex-start;gap:10px">'
+    +'<span style="font-size:11px;font-weight:700;color:'+col+';background:rgba(255,255,255,.06);border-radius:6px;padding:2px 8px;white-space:nowrap">'+esc(typLabel[p.type]||p.type)+'</span>'
+    +'<div style="flex:1"><div style="font-weight:600;font-size:13px;margin-bottom:4px">'+esc(p.titre||'')+'</div>'
+    +'<div style="font-size:12px;opacity:.6;line-height:1.5">'+esc(p.justification||'')+'</div>'
+    +(p.impact_estime?'<div style="font-size:11px;color:#10b981;margin-top:4px">Impact : '+esc(p.impact_estime)+'</div>':'')
+    +skillHtml+'</div></div>'
+    +'<div class="row" style="margin-top:12px;gap:8px;justify-content:flex-end">'
+    +'<button class="ghost" style="font-size:12px;padding:5px 14px;color:#ef4444;border-color:rgba(239,68,68,.3)" data-refuse="'+p.id+'">Refuser</button>'
+    +'<button style="font-size:12px;padding:5px 14px;background:#10b981" data-approve="'+p.id+'">Approuver</button>'
+    +'</div>';
+  wrap.querySelector('[data-approve]').onclick=async function(){
+    this.disabled=true;this.textContent='...';
+    try{
+      const r=await fetch('/savoir/propositions/'+encodeURIComponent(p.id)+'/approuver',{method:'POST'});
+      const d=await r.json();
+      wrap.style.opacity='.4';
+      wrap.querySelector('[data-refuse]').style.display='none';
+      this.textContent=d.ok?'Approuve !':'Erreur';
+    }catch(e){this.textContent='Erreur';}
+    setTimeout(function(){loadHubPropositions();loadHubEtat();},1200);
+  };
+  wrap.querySelector('[data-refuse]').onclick=async function(){
+    this.disabled=true;this.textContent='...';
+    try{
+      await fetch('/savoir/propositions/'+encodeURIComponent(p.id)+'/refuser',{method:'POST'});
+      wrap.style.opacity='.4';
+      wrap.querySelector('[data-approve]').style.display='none';
+      this.textContent='Refuse';
+    }catch(e){this.textContent='Erreur';}
+    setTimeout(function(){loadHubPropositions();loadHubEtat();},1200);
+  };
+  return wrap;
+}
+
+(function(){
+  const btnR=document.getElementById('btn-hub-refresh');
+  const status=document.getElementById('hub-refresh-status');
+  if(btnR)btnR.onclick=async function(){
+    btnR.disabled=true;btnR.textContent='Analyse...';
+    if(status){status.style.display='';status.textContent='Rafraichissement en cours...';}
+    try{
+      const r=await fetch('/savoir/rafraichir',{method:'POST'});
+      const d=await r.json();
+      const nb=Object.values(d.grains_par_silo||{}).reduce(function(a,b){return a+b;},0);
+      if(status)status.textContent=nb+' grains analyses, '+d.nouvelles_propositions+' nouvelles propositions.';
+      loadHubEtat();loadHubPropositions();
+    }catch(e){if(status)status.textContent='Erreur : '+e.message;}
+    finally{btnR.disabled=false;btnR.textContent='&#8635; Rafraichir';}
+  };
+
+  const btnS=document.getElementById('btn-hub-search');
+  const inp=document.getElementById('hub-search-input');
+  if(btnS)btnS.onclick=async function(){
+    const q=(inp&&inp.value||'').trim();
+    if(!q)return;
+    const dom=(document.getElementById('hub-search-domaine')||{}).value||'';
+    const url='/savoir/chercher?q='+encodeURIComponent(q)+(dom?'&domaine='+dom:'');
+    const res=document.getElementById('hub-search-results');
+    if(res)res.innerHTML='<div style="opacity:.4;font-size:12px">Recherche...</div>';
+    try{
+      const r=await fetch(url);
+      const data=await r.json();
+      if(!res)return;
+      if(!data.length){res.innerHTML='<div style="opacity:.4;font-size:12px;padding:10px">Aucun resultat.</div>';return;}
+      res.innerHTML='';
+      for(const item of data){
+        const g=item.grain||{};
+        const el=document.createElement('div');
+        el.style.cssText='padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(255,255,255,.07)';
+        el.innerHTML='<div class="row" style="gap:8px;align-items:center;margin-bottom:4px">'
+          +'<span style="font-weight:600;color:#10b981">'+esc(g.domaine||'')+'</span>'
+          +'<span style="opacity:.4">'+esc(g.type||'')+'</span>'
+          +'<span style="margin-left:auto;opacity:.5">cos '+item.score_cosinus+'</span></div>'
+          +'<div style="opacity:.75;line-height:1.5">'+esc((g.contenu||'').slice(0,180))+'</div>';
+        res.appendChild(el);
+      }
+    }catch(e){if(res)res.innerHTML='<div style="opacity:.4;font-size:12px">Erreur : '+esc(e.message)+'</div>';}
+  };
+  if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&btnS)btnS.click();});
 })();
