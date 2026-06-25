@@ -37,6 +37,21 @@ _ENDPOINT_DEFAUT = "https://telemetrie.netroia.tech/v1/contribute"
 
 # ── Evaluation : un skill merite-t-il d'etre partage ? ──────────────────────────
 
+def _ts(valeur) -> float:
+    """Coerce une date (float epoch OU chaine ISO 'YYYY-MM-DD HH:MM:SS') en epoch float.
+    Tolerant : sur echec, renvoie maintenant (le grain reste recent, jamais penalisant)."""
+    if isinstance(valeur, (int, float)):
+        return float(valeur)
+    if isinstance(valeur, str) and valeur.strip():
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(valeur.strip()[:19], fmt).timestamp()
+            except Exception:
+                continue
+    return time.time()
+
+
 def _grain_skill(skill: dict) -> dict:
     contenu = " ".join(filter(None, [
         skill.get("titre", ""),
@@ -49,7 +64,7 @@ def _grain_skill(skill: dict) -> dict:
         "type": "competence",
         "contenu": contenu,
         "score": 0.0,
-        "ts": skill.get("cree_le", time.time()),
+        "ts": _ts(skill.get("cree_le", time.time())),
         "usages": int(skill.get("usages", 0)),
         "meta": {"nom": skill.get("nom", "")},
     }
@@ -278,6 +293,16 @@ if __name__ == "__main__":
     gfaible = {"score": 0.2, "domaine": "skill", "meta": {}}
     assert candidat(gfaible) is False
     print("  score sous le seuil : non candidat -> OK")
+
+    # _ts : float, chaine ISO, vide -> tous des float, aucune exception
+    assert isinstance(_ts(1782420318.0), float)
+    assert isinstance(_ts("2026-06-24 10:55:59"), float)
+    assert isinstance(_ts(""), float) and isinstance(_ts(None), float)
+    print("  _ts coerce float/ISO/vide sans planter -> OK")
+
+    # scan reel des skills : ne doit JAMAIS lever (bug 'could not convert string to float')
+    g2 = _skills_evalues()
+    print(f"  scan reel : {len(g2)} skill(s) score(s) sans exception -> OK")
 
     # nettoyage
     if os.path.exists(_QUEUE):
