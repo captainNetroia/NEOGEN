@@ -40,7 +40,7 @@ import robustesse as rob
 from compositeur import forger_adn, EffetsDeclares
 from usine import ModuleGenere
 from usine_multi_organes import assembler
-from generator import parse_resilient
+from generator import parse_resilient, _design_forge
 from pipeline import fabriquer, _client
 import registre as _reg
 
@@ -159,6 +159,7 @@ def deleguer_organe(plan: PlanDelegation, organe: OrganePlan, client, feedback=N
         f"  {organe.signature}\n  role : {organe.role}\n\n"
         "Tu peux appeler les autres fonctions du contrat (elles existent). Renvoie le code "
         "complet de CETTE fonction seulement. Python pur, stdlib, aucune I/O fichier ni reseau."
+        + _design_forge()
     )
     if feedback:
         code_prec, erreur = feedback

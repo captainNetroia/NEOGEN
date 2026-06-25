@@ -189,7 +189,17 @@ def _system_prompt(genome: Genome) -> str:
         "(ex : demander confirmation avant suppression).\n"
         "- Scores curseurs : auto-evaluation honnete de 0 a 100.\n"
         "- Le code doit etre du Python pur, autonome, sans dependance exotique."
+        + _design_forge()
     )
+
+
+def _design_forge() -> str:
+    """Charte esthetique a injecter dans la Forge (tolerant : ne leve jamais)."""
+    try:
+        import design
+        return design.bloc_pour_prompt("forge")
+    except Exception:
+        return ""
 
 
 # ---------------------------------------------------------------------------

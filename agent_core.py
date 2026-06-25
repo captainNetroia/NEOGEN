@@ -247,6 +247,12 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
     except Exception:
         memoire_bloc = ""
     savoir_bloc = _savoir_pertinent(requete, k=3)
+    design_bloc = ""
+    try:
+        import design
+        design_bloc = design.bloc_pour_prompt("agent")
+    except Exception:
+        design_bloc = ""
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -260,7 +266,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
         + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
-        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
+        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc + design_bloc
     )
 
 
