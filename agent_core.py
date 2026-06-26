@@ -283,6 +283,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
         design_bloc = design.bloc_pour_prompt("agent")
     except Exception:
         design_bloc = ""
+    directives_bloc = _directives_actives()
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -296,8 +297,36 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
         + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
-        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc + design_bloc
+        + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
+        + design_bloc + directives_bloc
     )
+
+
+def _directives_actives() -> str:
+    """Le TRADUCTEUR comportemental : injecte les regles / lois / idees validees (evolution
+    gouvernee) dans le prompt systeme. C'est ce qui rend une idee 'donnee-vie' de nature
+    comportementale REELLEMENT active sur le comportement des agents, au lieu de rester une
+    note morte dans un JSON que personne ne lit. Tolerant : ne leve jamais."""
+    try:
+        import evolution_gouvernee
+        store = evolution_gouvernee.regles_actives()
+    except Exception:
+        return ""
+    lignes = []
+    for cle, val in (store.get("regles") or {}).items():
+        if isinstance(val, str):
+            lignes.append(f"- {cle.replace('_', ' ')} : {val[:160]}")
+        elif isinstance(val, dict):
+            intention = val.get("action") or val.get("texte") or val.get("nom") or cle
+            lignes.append(f"- {cle.replace('_', ' ')} : {str(intention)[:160]}")
+    for loi in (store.get("lois") or []):
+        lignes.append(f"- (loi a respecter) {str(loi)[:160]}")
+    for idee in (store.get("idees") or []):
+        lignes.append(f"- (intention directrice) {str(idee)[:160]}")
+    if not lignes:
+        return ""
+    return ("\n\nDIRECTIVES ACTIVES (regles et intentions que ton createur a validees ; "
+            "respecte-les dans ton comportement et tes reponses) :\n" + "\n".join(lignes[:25]))
 
 
 def _texte_de(res) -> str:

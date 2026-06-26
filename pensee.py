@@ -551,12 +551,14 @@ def marquer_forge(pensee_id: str, etat: str) -> dict:
       'refusee' -> la forge a rejete (mur / test / generation)
       'notee'   -> note data-driven SANS consommateur (idee, regle generique) : pas d'effet reel.
     Remplace le 'vie_donnee' binaire par un etat precis (fin du faux vert)."""
+    import time as _time
     etat = etat if etat in ("generee", "actif", "refusee", "notee") else "notee"
     pensees = _lire()
     trouve = False
     for p in pensees:
         if p.get("id") == pensee_id:
             p["forge_etat"] = etat
+            p["forge_etat_ts"] = _time.time()
             trouve = True
     if trouve:
         os.makedirs(_DATA, exist_ok=True)
@@ -564,6 +566,45 @@ def marquer_forge(pensee_id: str, etat: str) -> dict:
             for p in pensees:
                 f.write(json.dumps(p, ensure_ascii=False) + "\n")
     return {"ok": trouve, "id": pensee_id, "forge_etat": etat}
+
+
+def marquer_archive(pensee_id: str) -> dict:
+    """Archive une pensee (masquee par defaut dans la liste, visible via filtre 'archivee')."""
+    import time as _time
+    pensees = _lire()
+    trouve = False
+    for p in pensees:
+        if p.get("id") == pensee_id:
+            p["forge_etat"] = "archivee"
+            p["archive_ts"] = _time.time()
+            trouve = True
+    if trouve:
+        os.makedirs(_DATA, exist_ok=True)
+        with open(_PENSEES_PATH, "w", encoding="utf-8") as f:
+            for p in pensees:
+                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    return {"ok": trouve, "id": pensee_id}
+
+
+def archiver_anciens(semaines: int = 1) -> dict:
+    """Archive automatiquement les pensees en etat actif/generee depuis plus de N semaines."""
+    import time as _time
+    seuil = _time.time() - semaines * 7 * 86400
+    pensees = _lire()
+    compteur = 0
+    for p in pensees:
+        fe = p.get("forge_etat", "")
+        ts = p.get("forge_etat_ts") or 0
+        if fe in ("actif", "generee") and ts and ts < seuil:
+            p["forge_etat"] = "archivee"
+            p["archive_ts"] = _time.time()
+            compteur += 1
+    if compteur:
+        os.makedirs(_DATA, exist_ok=True)
+        with open(_PENSEES_PATH, "w", encoding="utf-8") as f:
+            for p in pensees:
+                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    return {"ok": True, "archives": compteur}
 
 
 def marquer_lue(pensee_id: str) -> dict:

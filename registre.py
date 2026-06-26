@@ -24,6 +24,7 @@ DIR_PRODUITS = os.path.join(BASE, "data", "produits")
 INDEX = os.path.join(BASE, "data", "registre_produits.jsonl")
 PROMOTIONS = os.path.join(BASE, "data", "promotions.jsonl")
 ACTIFS = os.path.join(BASE, "data", "lineage_actif.jsonl")
+ARCHIVES = os.path.join(BASE, "data", "archives_produits.jsonl")
 
 
 def _slug(texte: str) -> str:
@@ -122,6 +123,27 @@ def promouvoir(produit_id: str) -> dict:
     return entree
 
 
+def archiver(produit_id: str) -> dict:
+    """Archive un produit (masque par defaut dans le catalogue, reversible)."""
+    from datetime import datetime as _dt
+    entree = {"id": produit_id, "timestamp": _dt.now().isoformat(timespec="seconds")}
+    os.makedirs(os.path.dirname(ARCHIVES), exist_ok=True)
+    with open(ARCHIVES, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+    return entree
+
+
+def est_archive(produit_id: str) -> bool:
+    if not os.path.exists(ARCHIVES):
+        return False
+    with open(ARCHIVES, encoding="utf-8") as f:
+        for ligne in f:
+            ligne = ligne.strip()
+            if ligne and json.loads(ligne).get("id") == produit_id:
+                return True
+    return False
+
+
 def est_promu(produit_id: str) -> bool:
     if not os.path.exists(PROMOTIONS):
         return False
@@ -134,15 +156,26 @@ def est_promu(produit_id: str) -> bool:
 
 
 def lister() -> list[dict]:
-    """Toutes les entrees du registre, plus recentes en dernier (normalisees genealogie)."""
+    """Toutes les entrees du registre, plus recentes en dernier (normalisees genealogie).
+    Chaque entree inclut un flag 'archive' (bool)."""
     if not os.path.exists(INDEX):
         return []
+    # Charger les IDs archives une seule fois pour eviter N lectures
+    archives = set()
+    if os.path.exists(ARCHIVES):
+        with open(ARCHIVES, encoding="utf-8") as f:
+            for ligne in f:
+                ligne = ligne.strip()
+                if ligne:
+                    archives.add(json.loads(ligne).get("id", ""))
     out = []
     with open(INDEX, encoding="utf-8") as f:
         for ligne in f:
             ligne = ligne.strip()
             if ligne:
-                out.append(_norm(json.loads(ligne)))
+                e = _norm(json.loads(ligne))
+                e["archive"] = e["id"] in archives
+                out.append(e)
     return out
 
 

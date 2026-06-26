@@ -617,9 +617,14 @@ async function loadProduits(){
     grid.innerHTML='<div class="placeholder glass"><div class="ph-icon">◻</div><h3>Aucun produit</h3><p>Va dans Creation pour fabriquer ton premier produit.</p></div>';
     return;
   }
+  // Cacher les archivees par defaut (filtre courant 'actifs')
+  const filtreProd=window._filtreProduitsCourant||'actifs';
   list.forEach(p=>{
     const card=document.createElement('div');card.className='produit-card glass';
     card.dataset.id=p.id;
+    card.dataset.archive=p.archive?'1':'0';
+    if(filtreProd==='actifs'&&p.archive)return;
+    if(filtreProd==='archivees'&&!p.archive)return;
     const genBadge=(p.generation&&p.generation>1)?' <span class="gen-badge">gen '+p.generation+'</span>':'';
     // Badge 3 etats : deploye (promu) > appli (promouvable) > code (basique)
     const statusBadge=p.promu
@@ -697,6 +702,21 @@ async function loadProduits(){
       }catch(err){alert(errMsg(err));btnCrist.disabled=false;btnCrist.textContent='Cristalliser';}
     };
     actions.appendChild(btnCrist);
+    // Bouton archiver (si non deja archive)
+    if(!p.archive){
+      const btnArc=document.createElement('button');btnArc.className='ghost';
+      btnArc.title='Archiver cette creation (masquee du catalogue)';
+      btnArc.textContent='Archiver';
+      btnArc.style.cssText='color:var(--mut);opacity:.7';
+      btnArc.onclick=(e)=>{
+        e.stopPropagation();btnArc.disabled=true;
+        fetch('/produits/'+encodeURIComponent(p.id)+'/archiver',{method:'POST'})
+          .then(r=>r.json())
+          .then(d=>{if(d.ok)card.remove();else{btnArc.disabled=false;}})
+          .catch(()=>{btnArc.disabled=false;});
+      };
+      actions.appendChild(btnArc);
+    }
     card.appendChild(actions);grid.appendChild(card);
   });
   _breath.scan(); /* active le float sur les cartes venant d'etre injectees */
@@ -2683,10 +2703,13 @@ async function loadPensees(){
     if(!r.ok)return;
     const d=await r.json();
     const list=(d&&d.pensees)||[];
-    if(counter)counter.textContent=list.length+' pensee'+(list.length>1?'s':'')+' archivee'+(list.length>1?'s':'');
+    const total=list.length;
+    const visibles=list.filter(function(p){return p.forge_etat!=='archivee';});
+    if(counter)counter.textContent=visibles.length+' pensee'+(visibles.length>1?'s':'')+' ('+list.length+' total)';
     if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l\'instant. Provoquez-en une.</div>';return;}
     container.innerHTML='';
     for(const p of list){container.appendChild(_renderPensee(p));}
+    if(_filtrePenseesCourant&&_filtrePenseesCourant!=='tous')filtrerPensees(_filtrePenseesCourant);
   }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
 }
 
@@ -2694,20 +2717,20 @@ function _renderPensee(p){
   const tcol={idee:'#10b981',suggestion:'#3b82f6',obsession:'#ef4444',sujet:'#a855f7',reflexion:'#06b6d4',reve:'#f59e0b',desir:'#ec4899'};
   const col=tcol[p.type]||'#888';
   const wrap=document.createElement('div');
+  const etatAttr=p.forge_etat||(p.vie_donnee?'notee':'');
   wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
+  wrap.dataset.etat=etatAttr;
+  wrap.dataset.bulle=p.bulle?'1':'0';
   const sc=(typeof p.score==='number')?p.score.toFixed(2):'--';
   let badges='<span style="font-size:11px;font-weight:700;color:'+col+';background:rgba(255,255,255,.06);border-radius:6px;padding:2px 8px">'+esc(p.type||'')+'</span>'
     +'<span style="font-size:11px;opacity:.5">'+esc(p.ambiance_label||p.ambiance||'')+'</span>'
     +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
   if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
-  // Statut HONNETE : etat reel de la mise en oeuvre (fin du faux vert).
-  // On n'affiche QUE l'etat verifie (forge_etat) ; le legacy 'vie_donnee' n'etait pas fiable
-  // (marquait 'Actif' des idees sans aucun consommateur) -> on le degrade en 'note'.
-  var fe=p.forge_etat||(p.vie_donnee?'notee':'');
-  if(fe==='generee')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.12);border-radius:6px;padding:2px 8px">&#9889; Code genere &amp; teste</span>';
-  else if(fe==='actif')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.1);border-radius:6px;padding:2px 8px">&#10003; Actif</span>';
-  else if(fe==='refusee')badges+='<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);border-radius:6px;padding:2px 8px">&#10007; Refuse</span>';
-  else if(fe==='notee')badges+='<span style="font-size:11px;color:#9ca3af;font-weight:600;background:rgba(255,255,255,.05);border-radius:6px;padding:2px 8px">note (pas encore branche)</span>';
+  if(etatAttr==='generee')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.12);border-radius:6px;padding:2px 8px">&#9889; Code genere &amp; teste</span>';
+  else if(etatAttr==='actif')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.1);border-radius:6px;padding:2px 8px">&#10003; Actif</span>';
+  else if(etatAttr==='refusee')badges+='<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);border-radius:6px;padding:2px 8px">&#10007; Refuse</span>';
+  else if(etatAttr==='notee')badges+='<span style="font-size:11px;color:#9ca3af;font-weight:600;background:rgba(255,255,255,.05);border-radius:6px;padding:2px 8px">note</span>';
+  else if(etatAttr==='archivee')badges+='<span style="font-size:11px;color:#6b7280;background:rgba(255,255,255,.04);border-radius:6px;padding:2px 8px">archive</span>';
   else if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
   if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
@@ -2718,16 +2741,72 @@ function _renderPensee(p){
   }
   const parts=Array.isArray(p.participants)?p.participants.join(', '):'';
   const btnVieId='btn-vie-'+esc(p.id||Math.random().toString(36).slice(2));
+  const btnArchiveHtml=(etatAttr!=='archivee')
+    ?'<button onclick="archiverPensee(\''+esc(p.id||'')+'\',this)" style="font-size:11px;padding:4px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#6b7280;border-radius:6px;cursor:pointer;margin-right:6px">Archiver</button>'
+    :'';
   wrap.innerHTML='<div class="row" style="gap:8px;align-items:center;margin-bottom:6px">'+badges+'</div>'
     +'<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+esc(p.titre||'')+'</div>'
     +'<div style="font-size:12px;opacity:.7;line-height:1.5">'+esc(p.synthese||'')+'</div>'
     +(parts?'<div style="font-size:11px;opacity:.4;margin-top:6px">'+esc(parts)+'</div>':'')
     +tr
     +'<div style="margin-top:10px;text-align:right">'
+    +btnArchiveHtml
     +'<button id="'+btnVieId+'" onclick="donnerVie(\''+esc(p.id||'')+'\',this)" '
     +'style="font-size:11px;padding:4px 12px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);color:#a855f7;border-radius:6px;cursor:pointer">&#9889; Donner vie a cette idee</button>'
     +'</div>';
   return wrap;
+}
+
+/* ── Filtres pensees ──────────────────────────────────────────── */
+var _filtrePenseesCourant='tous';
+
+function filtrerPensees(filtre){
+  _filtrePenseesCourant=filtre;
+  document.querySelectorAll('#pensee-filtres .filtre-btn').forEach(function(b){
+    var actif=(b.dataset.filtre===filtre);
+    b.style.background=actif?'rgba(168,85,247,.2)':'rgba(255,255,255,.04)';
+    b.style.borderColor=actif?'rgba(168,85,247,.5)':'rgba(255,255,255,.1)';
+    b.style.color=actif?'#a855f7':'#9ca3af';
+  });
+  var container=document.getElementById('pensee-list');
+  if(!container)return;
+  var cartes=container.querySelectorAll('[data-etat]');
+  var nb=0;
+  cartes.forEach(function(c){
+    var vis=false;
+    if(filtre==='tous')vis=(c.dataset.etat!=='archivee');
+    else if(filtre==='bulle')vis=(c.dataset.bulle==='1'&&c.dataset.etat!=='archivee');
+    else vis=(c.dataset.etat===filtre);
+    c.style.display=vis?'':'none';
+    if(vis)nb++;
+  });
+  var counter=document.getElementById('pensee-count');
+  if(counter&&filtre!=='tous')counter.textContent=nb+' pensee'+(nb>1?'s':'')+' ('+filtre+')';
+}
+
+function filtrerProduits(filtre){
+  window._filtreProduitsCourant=filtre;
+  document.querySelectorAll('#produit-filtres .filtre-btn-prod').forEach(function(b){
+    var actif=(b.dataset.filtre===filtre);
+    b.style.background=actif?'rgba(168,85,247,.2)':'rgba(255,255,255,.04)';
+    b.style.borderColor=actif?'rgba(168,85,247,.5)':'rgba(255,255,255,.1)';
+    b.style.color=actif?'#a855f7':'#9ca3af';
+  });
+  loadProduits();
+}
+
+function archiverPensee(id,btn){
+  if(!id)return;
+  if(btn)btn.disabled=true;
+  fetch('/savoir/pensees/'+id+'/archiver',{method:'POST',headers:_authHdrs()})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){
+        var carte=btn?btn.closest('[data-etat]'):null;
+        if(carte){carte.dataset.etat='archivee';carte.style.display='none';}
+      }else if(btn){btn.disabled=false;}
+    })
+    .catch(function(){if(btn)btn.disabled=false;});
 }
 
 function _bulleVieDonnee(titre){

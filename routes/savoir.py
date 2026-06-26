@@ -119,6 +119,25 @@ def pensees_marquer_lue(pensee_id: str, authorization: str | None = Header(defau
     return res
 
 
+@router.post("/pensees/{pensee_id}/archiver")
+def pensees_archiver(pensee_id: str, authorization: str | None = Header(default=None)):
+    """Archive une pensee (masquee par defaut, visible via filtre 'archivee' dans l'UI)."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    res = _pensee.marquer_archive(pensee_id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=404, detail="pensee introuvable")
+    return res
+
+
+@router.post("/pensees/archiver-anciens")
+def pensees_archiver_anciens(semaines: int = 1, authorization: str | None = Header(default=None)):
+    """Archive les pensees en etat actif/generee depuis plus de N semaines (1 par defaut)."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    return _pensee.archiver_anciens(semaines)
+
+
 # Types/indices qui demandent du VRAI code (passent par la forge), pas du data-driven.
 _TYPES_FORGE = {"fonction", "capacite"}
 _INDICES_TECHNIQUES = ("etapes", "code", "action", "scanner", "valider", "reparer",

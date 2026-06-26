@@ -385,6 +385,11 @@ def _section_production() -> str:
     <p>Produits generes, valides, prets a l'emploi.</p>
   </div>
   <div class="agent-chat-mount" data-agent="genealogiste" data-titre="🧬 Le Genealogiste" data-sub="Je gere, classe et explique la genetique de tes creations."></div>
+  <div id="produit-filtres" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    <button onclick="filtrerProduits('actifs')" class="filtre-btn-prod" data-filtre="actifs" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:#a855f7;cursor:pointer">Actives</button>
+    <button onclick="filtrerProduits('tous')" class="filtre-btn-prod" data-filtre="tous" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Toutes</button>
+    <button onclick="filtrerProduits('archivees')" class="filtre-btn-prod" data-filtre="archivees" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Archivees</button>
+  </div>
   <div id="produit-grid" class="produit-grid"></div>
   <pre id="code-view" class="hidden"></pre>
 </div>
@@ -778,6 +783,16 @@ def _section_evolution() -> str:
       <button id="btn-pensee-discuter" style="padding:8px 16px;font-size:12px">Discuter</button>
     </div>
     <div id="pensee-config-status" style="font-size:12px;opacity:.5;margin-bottom:10px;display:none"></div>
+
+    <div id="pensee-filtres" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button onclick="filtrerPensees('tous')" class="filtre-btn" data-filtre="tous" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:#a855f7;cursor:pointer">Toutes</button>
+      <button onclick="filtrerPensees('actif')" class="filtre-btn" data-filtre="actif" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#10003; Actif</button>
+      <button onclick="filtrerPensees('generee')" class="filtre-btn" data-filtre="generee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#9889; Forge</button>
+      <button onclick="filtrerPensees('notee')" class="filtre-btn" data-filtre="notee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Note</button>
+      <button onclick="filtrerPensees('refusee')" class="filtre-btn" data-filtre="refusee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#10007; Refuse</button>
+      <button onclick="filtrerPensees('bulle')" class="filtre-btn" data-filtre="bulle" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#9679; Bulle</button>
+      <button onclick="filtrerPensees('archivee')" class="filtre-btn" data-filtre="archivee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Archivees</button>
+    </div>
 
     <div id="pensee-list">
       <div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l'instant.</div>

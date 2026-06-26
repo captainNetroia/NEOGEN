@@ -255,21 +255,17 @@ def approuver(prop_id: str) -> dict:
 
 
 # Types data-driven REELLEMENT lus par du code (verifie 2026-06-26) :
-#   agent -> agent_core | modele -> gateway | savoir -> Hub | regle 'rappel_contextuel' -> pensee.
-_TYPES_CONSOMMES = {"agent", "modele", "savoir"}
+#   agent -> agent_core | modele -> gateway | savoir -> Hub
+#   regle/loi/idee -> _directives_actives() dans agent_core (injectees dans TOUS les prompts agents)
+_TYPES_CONSOMMES = {"agent", "modele", "savoir", "regle", "loi", "idee"}
 
 
 def _etat_consommation(changement: dict) -> str:
-    """'actif' si le changement est lu par du code en prod, 'notee' sinon (honnetete)."""
+    """'actif' si le changement est consomme par du code en prod, 'notee' sinon.
+    Depuis 2026-06-26 : regle/loi/idee sont injectees dans les prompts agents via
+    _directives_actives() -> elles sont REELLEMENT consommees."""
     type_ = (changement.get("type") or "").lower()
-    if type_ in _TYPES_CONSOMMES:
-        return "actif"
-    if type_ in ("regle", "loi"):
-        # Seul un consommateur reel existe aujourd'hui : la regle 'rappel_contextuel'.
-        payload = changement.get("payload", {}) if isinstance(changement.get("payload"), dict) else {}
-        blob = (str(payload) + " " + changement.get("titre", "")).lower()
-        return "actif" if "rappel_contextuel" in blob else "notee"
-    return "notee"
+    return "actif" if type_ in _TYPES_CONSOMMES else "notee"
 
 
 def refuser(prop_id: str) -> dict:

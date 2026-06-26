@@ -234,6 +234,15 @@ def diff_produit(produit_id: str, vs: str | None = None):
     return registre.diff_codes(base, produit_id)
 
 
+@router.post("/produits/{produit_id}/archiver")
+def archiver_produit(produit_id: str):
+    """Archive un produit (masque dans le catalogue par defaut). Reversible via filtre 'Archivees'."""
+    if not any(e["id"] == produit_id for e in registre.lister()):
+        raise HTTPException(status_code=404, detail="produit introuvable")
+    registre.archiver(produit_id)
+    return {"ok": True, "id": produit_id}
+
+
 @router.post("/produits/{produit_id}/revert")
 def revert_produit(produit_id: str):
     lignee = registre.lignee_produit(produit_id)
