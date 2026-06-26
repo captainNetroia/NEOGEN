@@ -147,3 +147,70 @@ def pensees_cycle(authorization: str | None = Header(default=None)):
     _gate_owner(authorization)
     import pensee as _pensee
     return _pensee.cycle_pensee(force=True)
+
+
+# ── Evolution gouvernee : la super-capacite (s'auto-modifier sans toucher au noyau) ──
+
+def _user_courant(authorization: str | None):
+    try:
+        from routes.deps import _auth
+        return _auth(authorization)
+    except Exception:
+        return None
+
+
+@router.get("/evolution/etat")
+def evolution_etat(authorization: str | None = Header(default=None)):
+    """Noyau (ADN+murs), generation courante, stores forgeables actifs."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    return _evo.etat()
+
+
+@router.get("/evolution/generation")
+def evolution_generation(authorization: str | None = Header(default=None)):
+    """Generation NEOGEN courante (1 an) + changelog des changements de l'annee."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    return {"generation": _evo.generation_courante(), "changelog": _evo.changelog_generation()}
+
+
+@router.get("/evolution/types")
+def evolution_types(authorization: str | None = Header(default=None)):
+    """Types forgeables (perso / systeme) et frontiere du noyau."""
+    _gate_owner(authorization)
+    import noyau as _noyau
+    return _noyau.resume()
+
+
+@router.post("/evolution/proposer")
+def evolution_proposer(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Soumet un changement : gardien noyau -> proposition (consentement via /propositions)."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    res = _evo.proposer(
+        corps.get("type", ""), corps.get("payload", {}) or {},
+        titre=corps.get("titre", ""), raison=corps.get("raison", ""),
+        cible=corps.get("cible"), user=_user_courant(authorization),
+    )
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "refuse"))
+    return res
+
+
+@router.post("/evolution/appliquer")
+def evolution_appliquer(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Applique directement un changement (admin : le consentement est l'acte d'appel).
+    Re-garde par le noyau ; un changement systeme reste refuse pour un non-admin."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    res = _evo.appliquer(corps or {}, user=_user_courant(authorization))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "refuse"))
+    return res

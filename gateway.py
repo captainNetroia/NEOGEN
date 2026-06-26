@@ -361,12 +361,29 @@ class _GeminiAdapter(_BaseAdapter):
 # ---------------------------------------------------------------------------
 # Fabrique : resout (provider, modele, cle) et renvoie l'adaptateur adequat.
 # ---------------------------------------------------------------------------
+def _tiers_provider(provider: str) -> dict:
+    """Tiers d'un provider : TIERS du noyau, sinon modeles ajoutes par evolution gouvernee
+    (data-driven). Les modeles custom n'ECRASENT jamais un provider du noyau."""
+    base = TIERS.get(provider, {})
+    if base:
+        return base
+    try:
+        import evolution_gouvernee
+        return evolution_gouvernee.modeles_custom().get(provider, {})
+    except Exception:
+        return {}
+
+
 def client(ctx: LLMContext | None = None, tier: str = "fort"):
     """Renvoie un client expose .messages.parse / .messages.create pour le provider du ctx.
-    ctx None ou provider anthropic sans cle => Anthropic par defaut (cle credentials)."""
+    ctx None ou provider anthropic sans cle => Anthropic par defaut (cle credentials).
+    Un provider AJOUTE par evolution gouvernee (OpenAI-compatible + base_url) est route
+    via l'adaptateur OpenAI-compat."""
     ctx = ctx or LLMContext()
     provider = (ctx.provider or "anthropic").lower()
-    model = ctx.model or TIERS.get(provider, {}).get(tier) or TIERS["anthropic"]["fort"]
+    tiers = _tiers_provider(provider)
+    model = ctx.model or tiers.get(tier) or TIERS["anthropic"]["fort"]
+    base_url = ctx.base_url or (tiers.get("base_url") if isinstance(tiers, dict) else None)
 
     if provider == "anthropic":
         import anthropic
@@ -374,15 +391,17 @@ def client(ctx: LLMContext | None = None, tier: str = "fort"):
         key = ctx.api_key or _load_api_key()
         return _AnthropicAdapter(anthropic.Anthropic(api_key=key), model)
 
-    if provider in _OPENAI_COMPAT:
-        if not ctx.api_key and provider != "local":
-            raise RuntimeError(f"cle API requise pour le provider '{provider}'")
-        return _OpenAICompatAdapter(provider, model, ctx.api_key, ctx.base_url)
-
     if provider == "gemini":
         if not ctx.api_key:
             raise RuntimeError("cle API requise pour le provider 'gemini'")
-        return _GeminiAdapter(model, ctx.api_key, ctx.base_url)
+        return _GeminiAdapter(model, ctx.api_key, base_url)
+
+    # openai / deepseek / mistral / local (noyau) OU provider custom OpenAI-compatible
+    # ajoute par evolution (reconnu par son base_url custom).
+    if provider in _OPENAI_COMPAT or base_url:
+        if not ctx.api_key and provider != "local":
+            raise RuntimeError(f"cle API requise pour le provider '{provider}'")
+        return _OpenAICompatAdapter(provider, model, ctx.api_key, base_url)
 
     raise RuntimeError(f"provider inconnu : '{provider}'")
 

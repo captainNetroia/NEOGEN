@@ -208,6 +208,10 @@ def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict
         f"une pensee de type parmi : {types}. Le but : une idee creative, une piste pour rendre "
         "NEOGEN plus efficace, une obsession utile, un reve directeur... quelque chose qui NOURRIT "
         "le systeme.\n"
+        "Si la pensee debouche sur un changement CONCRET et utile pour NEOGEN, ajoute un champ "
+        '"evolution" : {"type": "<regle|idee|skill|savoir|agent|modele>", "payload": {...}, '
+        '"raison": "<pourquoi>"}. Sinon, omets ce champ. Tu ne touches JAMAIS a la securite, '
+        "l'isolation, l'authentification ni aux murs : seulement des ameliorations forgeables.\n"
         "Reponds UNIQUEMENT par un objet JSON valide, sans aucun texte autour, de la forme :\n"
         '{"transcript": [{"agent": "<titre>", "texte": "<replique>"}, ...], '
         '"type": "<un des types>", "titre": "<titre court de la pensee>", '
@@ -257,6 +261,10 @@ def converser(ambiance: dict | None = None, mode: str | None = None, *, _client=
     except Exception:
         interet = 0.5
 
+    evolution = data.get("evolution") if isinstance(data.get("evolution"), dict) else None
+    if evolution and not (evolution.get("type") and isinstance(evolution.get("payload"), dict)):
+        evolution = None
+
     return {
         "ambiance": ambiance["cle"],
         "ambiance_label": ambiance["label"],
@@ -268,6 +276,7 @@ def converser(ambiance: dict | None = None, mode: str | None = None, *, _client=
         "interet": round(interet, 3),
         "mode": mode_eff,
         "graines": [g["domaine"] for g in graines],
+        "evolution": evolution,
     }
 
 
@@ -411,11 +420,23 @@ def cycle_pensee(force: bool = False, *, _client=None) -> dict:
 
         proposition = None
         if score >= SEUIL_PROPOSITION:
-            try:
-                import proposeur_hub
-                proposition = proposeur_hub.proposer_depuis_pensee(record)
-            except Exception as e:
-                rob.journaliser(f"pensee : proposition non creee : {e}", "erreur", source="pensee")
+            evo = record.get("evolution")
+            if isinstance(evo, dict) and evo.get("type"):
+                # La pensee actionne le levier d'auto-evolution (garde par le noyau).
+                try:
+                    import evolution_gouvernee
+                    proposition = evolution_gouvernee.proposer(
+                        evo.get("type"), evo.get("payload", {}),
+                        titre=record.get("titre", ""),
+                        raison=evo.get("raison", "") or record.get("synthese", ""))
+                except Exception as e:
+                    rob.journaliser(f"pensee : evolution non proposee : {e}", "erreur", source="pensee")
+            if not proposition:
+                try:
+                    import proposeur_hub
+                    proposition = proposeur_hub.proposer_depuis_pensee(record)
+                except Exception as e:
+                    rob.journaliser(f"pensee : proposition non creee : {e}", "erreur", source="pensee")
 
         rob.battement("pensee", score=score, bulle=record["bulle"],
                       proposition=bool(proposition))

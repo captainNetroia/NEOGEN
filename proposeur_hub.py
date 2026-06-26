@@ -190,6 +190,40 @@ def proposer_depuis_pensee(pensee: dict) -> dict:
     return {"ok": True, "id": pid, "deja": False}
 
 
+# ── Evolution gouvernee -> proposition (le levier que la Pensee actionne) ────────
+
+def proposer_depuis_evolution(changement: dict) -> dict:
+    """Un changement autorise par le noyau devient une proposition d'evolution SYSTEME.
+    L'approbation = le consentement humain qui declenche l'application reelle. Idempotent."""
+    cle = hashlib.sha256(json.dumps(changement, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
+    pid = _prop_id("evolution", cle)
+    if _prop_existe(pid):
+        return {"ok": True, "id": pid, "deja": True}
+    type_ = changement.get("type", "?")
+    portee = changement.get("portee", "?")
+    titre = (changement.get("titre") or f"Evolution {type_}").strip()[:80]
+    prop = {
+        "id": pid,
+        "type": "evolution_systeme",
+        "titre": f"Evolution [{type_}] : {titre}",
+        "justification": (
+            f"{changement.get('raison', '') or 'Changement propose par le systeme.'} "
+            f"(portee {portee}). Applique uniquement apres ton consentement ; "
+            f"le noyau (ADN + murs) reste intouche."
+        ),
+        "grain_ids": [],
+        "impact_estime": f"Modifie l'application ({type_}) de facon gouvernee et reversible.",
+        "ts": time.time(),
+        "statut": "en_attente",
+        "skill_actuel": None,
+        "skill_propose": None,
+        "changement": changement,
+        "portee_evo": portee,
+    }
+    _persister_proposition(prop)
+    return {"ok": True, "id": pid, "deja": False}
+
+
 # ── Actions d'approbation ──────────────────────────────────────────────────────
 
 def approuver(prop_id: str) -> dict:
@@ -238,6 +272,19 @@ def _executer(prop: dict) -> str:
     if type_ == "skill_inutilise":
         # Pour l'instant : loguer — une suppression ne se fait jamais automatiquement
         return "Archivage manuel recommandé (suppression non automatique par sécurité)."
+
+    if type_ == "evolution_systeme":
+        # Consentement donne -> on actionne le levier d'auto-evolution (data-driven, garde
+        # par le noyau a l'application). Reformat l'app sans jamais toucher au noyau.
+        try:
+            import evolution_gouvernee
+            ch = prop.get("changement") or {}
+            r = evolution_gouvernee.appliquer(ch, user=None)
+            if r.get("ok"):
+                return f"Evolution appliquee [{ch.get('type')}] : {r.get('detail', '')} (gen {r.get('generation')})."
+            return f"Evolution refusee : {r.get('raison', 'inconnue')}."
+        except Exception as e:
+            return f"Evolution echouee : {e}"
 
     if type_ == "pensee_creative":
         # Approuver une pensée = la mémoriser -> elle redevient un grain du silo

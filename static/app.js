@@ -230,7 +230,7 @@ function showSection(name){
   if(name==='compte')loadCompte();
   if(name==='analyse')loadAnalyse();
   if(name==='cerveau'){loadMemoire();loadSkills();}
-  if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();}
+  if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -2529,11 +2529,11 @@ async function loadHubPropositions(){
 }
 
 function _renderProp(p){
-  const colors={lecon_recurrente:'#ef4444',pattern_critique:'#f59e0b',skill_inutilise:'#6366f1',evolution_skill:'#10b981'};
+  const colors={lecon_recurrente:'#ef4444',pattern_critique:'#f59e0b',skill_inutilise:'#6366f1',evolution_skill:'#10b981',evolution_systeme:'#a855f7',pensee_creative:'#06b6d4'};
   const col=colors[p.type]||'#888';
   const wrap=document.createElement('div');
   wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
-  const typLabel={lecon_recurrente:'Lecon recurrente',pattern_critique:'Pattern critique',skill_inutilise:'Skill inutilise',evolution_skill:'Evolution skill'};
+  const typLabel={lecon_recurrente:'Lecon recurrente',pattern_critique:'Pattern critique',skill_inutilise:'Skill inutilise',evolution_skill:'Evolution skill',evolution_systeme:'Evolution systeme',pensee_creative:'Pensee creative'};
   let skillHtml='';
   if(p.skill_propose){
     const sk=p.skill_propose;
@@ -2733,3 +2733,76 @@ function _renderPensee(p){
   setTimeout(poll,5000);
   setInterval(poll,60000);
 })();
+
+/* ===== SUPER-CAPACITE — evolution gouvernee ===== */
+let _evoWired=false;
+async function loadEvolutionSysteme(){
+  try{
+    const r=await fetch('/savoir/evolution/etat');
+    if(!r.ok)return;
+    const d=await r.json();
+    const n=d.noyau||{};
+    const corps=document.getElementById('evo-noyau-corps');
+    if(corps){
+      corps.innerHTML='<b>Mission</b> : '+esc((n.adn&&n.adn.mission)||'')
+        +'<br><b>Murs</b> : '+esc(((n.murs)||[]).join(', '))
+        +'<br><b>Zones protegees</b> : '+((n.zones_protegees)||[]).length+' fichiers du noyau';
+    }
+    const gen=d.generation||{};
+    const gn=document.getElementById('evo-gen-num');if(gn)gn.textContent='v'+(gen.numero||1);
+    const gc=document.getElementById('evo-gen-chg');if(gc)gc.textContent=gen.changements_cette_annee||0;
+    const badge=document.getElementById('evo-portee-badge');
+    if(badge){
+      const admin=await fetch('/savoir/etat').then(function(x){return x.status!==403;}).catch(function(){return false;});
+      badge.textContent=admin?'ADMIN — capacite complete':'PUBLIC — bride';
+    }
+  }catch(e){}
+  loadEvolutionChangelog();
+  if(_evoWired)return; _evoWired=true;
+  const bp=document.getElementById('btn-evo-proposer');
+  if(bp)bp.onclick=async function(){
+    const st=document.getElementById('evo-proposer-status');
+    const type=(document.getElementById('evo-type')||{}).value||'regle';
+    const titre=(document.getElementById('evo-titre')||{}).value||'';
+    const raison=(document.getElementById('evo-raison')||{}).value||'';
+    let payload={};
+    const ptxt=((document.getElementById('evo-payload')||{}).value||'').trim();
+    if(ptxt){try{payload=JSON.parse(ptxt);}catch(e){if(st){st.style.display='';st.style.color='#ef4444';st.textContent='payload JSON invalide : '+esc(e.message);}return;}}
+    if(st){st.style.display='';st.style.color='';st.textContent='Envoi...';}
+    bp.disabled=true;
+    try{
+      const r=await fetch('/savoir/evolution/proposer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:type,payload:payload,titre:titre,raison:raison})});
+      const d=await r.json();
+      if(r.ok&&d.ok){
+        if(st){st.style.color='#10b981';st.textContent='Propose (portee '+esc(d.portee||'?')+'). A approuver dans Propositions.';}
+        loadHubPropositions();
+      }else{
+        if(st){st.style.color='#ef4444';st.textContent='Refuse par le noyau : '+esc((d&&d.detail)||(d&&d.raison)||'non autorise');}
+      }
+    }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
+    finally{bp.disabled=false;}
+  };
+}
+
+async function loadEvolutionChangelog(){
+  const c=document.getElementById('evo-changelog');
+  if(!c)return;
+  try{
+    const r=await fetch('/savoir/evolution/generation');
+    if(!r.ok)return;
+    const d=await r.json();
+    const log=(d.changelog)||[];
+    if(!log.length){c.innerHTML='<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>';return;}
+    c.innerHTML='';
+    for(const e of log){
+      const el=document.createElement('div');
+      el.style.cssText='padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(255,255,255,.07)';
+      const dt=e.ts?new Date(e.ts*1000).toLocaleDateString():'';
+      el.innerHTML='<span style="font-weight:700;color:#10b981">['+esc(e.type||'')+']</span> '
+        +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'
+        +'<span style="float:right;opacity:.4">'+esc(dt)+'</span>'
+        +'<div style="opacity:.6;margin-top:2px">'+esc(e.detail||'')+'</div>';
+      c.appendChild(el);
+    }
+  }catch(e){}
+}

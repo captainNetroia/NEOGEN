@@ -778,6 +778,61 @@ def _section_evolution() -> str:
       <div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l'instant.</div>
     </div>
   </div>
+
+  <!-- Super-capacite : evolution gouvernee (s'auto-modifier sans toucher au noyau) -->
+  <div class="panel glass" style="margin-top:20px">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0;font-size:15px">Super-capacite <span style="font-size:11px;opacity:.5;font-weight:400">&mdash; evolution gouvernee</span></h3>
+      <span id="evo-portee-badge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:rgba(16,185,129,.12);color:#10b981">--</span>
+    </div>
+    <p style="font-size:12px;opacity:.55;margin:0 0 14px;line-height:1.5">NEOGEN peut ajouter regles, idees, skills, savoir, bebe-agents, modeles... TOUT en data-driven. Le noyau (ADN + murs + securite) reste grave : aucune evolution ne peut le toucher. Chaque changement passe par ton consentement (onglet Propositions) et est notifie sur la generation de l'annee.</p>
+
+    <!-- Noyau grave -->
+    <div id="evo-noyau" style="padding:12px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:10px;margin-bottom:14px;font-size:12px">
+      <div style="font-weight:600;color:#ef4444;margin-bottom:6px">&#128274; Noyau grave (jamais modifiable)</div>
+      <div id="evo-noyau-corps" style="opacity:.7;line-height:1.6">chargement...</div>
+    </div>
+
+    <!-- Generation courante -->
+    <div class="row" style="gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <div style="text-align:center;padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:20px;font-weight:700;color:#10b981" id="evo-gen-num">--</div>
+        <div style="font-size:10px;opacity:.5">generation (1 an)</div>
+      </div>
+      <div style="text-align:center;padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">
+        <div style="font-size:20px;font-weight:700;color:#3b82f6" id="evo-gen-chg">--</div>
+        <div style="font-size:10px;opacity:.5">changements cette annee</div>
+      </div>
+    </div>
+
+    <!-- Proposer un changement -->
+    <div style="padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Proposer une evolution</div>
+      <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <select id="evo-type" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+          <option value="regle">Regle</option>
+          <option value="idee">Idee</option>
+          <option value="skill">Skill / fonction</option>
+          <option value="savoir">Savoir</option>
+          <option value="agent">Bebe-agent</option>
+          <option value="modele">Modele IA</option>
+        </select>
+        <input id="evo-titre" type="text" placeholder="Titre court" style="flex:1;min-width:160px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+      </div>
+      <textarea id="evo-payload" placeholder='payload JSON, ex : {"cle":"style_reponse","valeur":"direct"}' style="width:100%;min-height:60px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px;font-family:monospace;margin-bottom:8px"></textarea>
+      <div class="row" style="gap:10px;align-items:center">
+        <input id="evo-raison" type="text" placeholder="Pourquoi ce changement ?" style="flex:1;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+        <button id="btn-evo-proposer" style="padding:8px 18px;font-size:12px">Proposer</button>
+      </div>
+      <div id="evo-proposer-status" style="font-size:12px;opacity:.6;margin-top:8px;display:none"></div>
+    </div>
+
+    <!-- Changelog de la generation -->
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Changements de la generation</div>
+    <div id="evo-changelog">
+      <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>
+    </div>
+  </div>
 </div>
 """
 

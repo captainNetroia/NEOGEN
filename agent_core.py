@@ -145,6 +145,36 @@ PROFILS: dict[str, dict] = {
 # Le Cerveau peut deleguer a ces agents.
 _DELEGABLES = ("createur", "genealogiste", "secretaire")
 
+# Agents du NOYAU : jamais ecrases par un bebe-agent custom (evolution gouvernee).
+_PROFILS_NOYAU = frozenset(PROFILS.keys())
+
+
+def rafraichir_profils() -> int:
+    """Fusionne les bebe-agents custom (crees par evolution_gouvernee, data-driven) dans
+    PROFILS. Idempotent. Les agents du noyau ne sont JAMAIS ecrases ; delegue force a
+    False (anti-escalade : un bebe-agent ne peut pas orchestrer le Cerveau)."""
+    try:
+        import evolution_gouvernee
+        customs = evolution_gouvernee.profils_custom()
+    except Exception:
+        return 0
+    n = 0
+    for cle, prof in (customs or {}).items():
+        if cle in _PROFILS_NOYAU or not isinstance(prof, dict):
+            continue
+        p = dict(prof)
+        p["delegue"] = False
+        PROFILS[cle] = p
+        n += 1
+    return n
+
+
+# Charge les bebe-agents custom au demarrage du module (best-effort, jamais bloquant).
+try:
+    rafraichir_profils()
+except Exception:
+    pass
+
 MAX_ETAPES = 8
 
 # Outils "significatifs" : une trajectoire qui en enchaîne >=2 distincts et REUSSIT
