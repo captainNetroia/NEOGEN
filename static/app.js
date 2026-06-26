@@ -2785,8 +2785,8 @@ function _renderPensee(p){
   if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
   if(Array.isArray(p.transcript)&&p.transcript.length){
-    tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.55;cursor:pointer">Conversation ('+p.transcript.length+')</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">';
-    for(const t of p.transcript){tr+='<div style="font-size:12px;line-height:1.45"><span style="font-weight:600;color:'+col+'">'+esc(t.agent||'')+'</span> : <span style="opacity:.8">'+esc(t.texte||'')+'</span></div>';}
+    tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.55;cursor:pointer">Conversation ('+p.transcript.length+')</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding-right:4px">';
+    for(const t of p.transcript){tr+='<div style="font-size:12px;line-height:1.5"><span style="font-weight:600;color:'+col+'">'+esc(t.agent||'')+'</span> : <span style="opacity:.85">'+esc(t.texte||'')+'</span></div>';}
     tr+='</div></details>';
   }
   const parts=Array.isArray(p.participants)?p.participants.join(', '):'';
@@ -3157,7 +3157,7 @@ async function loadEvolutionChangelog(){
     const log=(d.changelog)||[];
     if(!log.length){c.innerHTML='<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>';return;}
     c.innerHTML='';
-    const _CL_COL={interface:'#06b6d4',regle:'#10b981',loi:'#f59e0b',idee:'#a855f7',agent:'#3b82f6',modele:'#ec4899',savoir:'#f97316',cellule:'#10b981'};
+    const _CL_COL={interface:'#06b6d4',regle:'#10b981',loi:'#f59e0b',idee:'#a855f7',agent:'#3b82f6',modele:'#ec4899',savoir:'#f97316',cellule:'#22d3ee',skill:'#fb923c',fonction:'#fb923c'};
     for(const e of log){
       const el=document.createElement('div');
       el.style.cssText='padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(255,255,255,.07)';

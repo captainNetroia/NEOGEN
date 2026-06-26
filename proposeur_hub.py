@@ -194,10 +194,25 @@ def proposer_depuis_pensee(pensee: dict) -> dict:
 
 def proposer_depuis_evolution(changement: dict) -> dict:
     """Un changement autorise par le noyau devient une proposition d'evolution SYSTEME.
-    L'approbation = le consentement humain qui declenche l'application reelle. Idempotent."""
-    cle = hashlib.sha256(json.dumps(changement, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
+    L'approbation = le consentement humain qui declenche l'application reelle. Idempotent.
+    Dedup : on exclut _pensee_id (source pointer, pas la definition du concept) et portee
+    (calcule a l'execution) du hash -> le meme concept depuis deux pensees = UNE proposition."""
+    payload_stable = {k: v for k, v in (changement.get("payload") or {}).items() if k != "_pensee_id"}
+    chg_stable = {k: v for k, v in changement.items() if k not in ("portee", "raison")}
+    chg_stable["payload"] = payload_stable
+    cle = hashlib.sha256(json.dumps(chg_stable, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
     pid = _prop_id("evolution", cle)
     if _prop_existe(pid):
+        # Sync badge pensee source si la proposition est deja approuvee (cas "Donner vie" x2).
+        pensee_id_src = (changement.get("payload") or {}).get("_pensee_id", "")
+        if pensee_id_src:
+            prop_existante = next((p for p in charger_propositions() if p.get("id") == pid), None)
+            if prop_existante and prop_existante.get("statut") == "approuve":
+                try:
+                    import pensee as _pensee_mod
+                    _pensee_mod.marquer_forge(pensee_id_src, _etat_consommation(changement))
+                except Exception:
+                    pass
         return {"ok": True, "id": pid, "deja": True}
     type_ = changement.get("type", "?")
     portee = changement.get("portee", "?")

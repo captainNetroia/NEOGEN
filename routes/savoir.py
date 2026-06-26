@@ -228,6 +228,10 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
          "_pensee_id": pensee_id},
         titre=p.get("titre", ""), raison=p.get("synthese", ""))
     r["voie"] = "note"
+    try:
+        _pensee.marquer_forge(pensee_id, "notee")
+    except Exception:
+        pass
     return r
 
 

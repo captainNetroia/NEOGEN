@@ -870,6 +870,8 @@ def _section_evolution() -> str:
         <button onclick="filtrerChangelog('agent')" class="filtre-btn-cl" data-cl="agent" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Agent</button>
         <button onclick="filtrerChangelog('modele')" class="filtre-btn-cl" data-cl="modele" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Modele</button>
         <button onclick="filtrerChangelog('cellule')" class="filtre-btn-cl" data-cl="cellule" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Cellule</button>
+        <button onclick="filtrerChangelog('skill')" class="filtre-btn-cl" data-cl="skill" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Skill</button>
+        <button onclick="filtrerChangelog('savoir')" class="filtre-btn-cl" data-cl="savoir" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Savoir</button>
       </div>
     </div>
     <div id="evo-changelog">
