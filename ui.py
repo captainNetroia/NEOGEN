@@ -507,6 +507,7 @@ def _section_analyse() -> str:
     <h2><span class="sec-dot" style="background:var(--c-analyse)"></span>Analyse</h2>
     <p>Metriques de production, capacites utilisees, repartition tentatives.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="analyste" data-titre="📊 L'Analyste" data-sub="Je lis les metriques, identifie les tendances et propose des optimisations basees sur les donnees reelles."></div>
   <div class="stat-grid" id="analyse-stats"></div>
   <div class="panel glass" style="margin-bottom:18px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Auto-amelioration (l'usage nourrit le systeme)</div>
@@ -531,6 +532,7 @@ def _section_integrations() -> str:
     <h2><span class="sec-dot" style="background:var(--c-integration)"></span>Integrations</h2>
     <p>Connecte ton modele IA et tes comptes. NEOGEN les utilise dans les analyses et productions.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="connecteur" data-titre="🔌 Le Connecteur" data-sub="Je diagnostique les connexions, guide la configuration des providers IA et l agent RPA. Dis-moi ce qui ne fonctionne pas."></div>
 
   <!-- Modele IA multi-provider avec switch actif -->
   <div class="panel glass" style="margin-bottom:20px">
@@ -709,6 +711,7 @@ def _section_evolution() -> str:
     <h2><span class="sec-dot" style="background:#10b981"></span>Evolution</h2>
     <p>Hub du savoir : 5 silos unifies. Le systeme apprend, propose, tu approuves.</p>
   </div>
+  <div class="agent-chat-mount" data-agent="architecte" data-titre="🏗️ L'Architecte" data-sub="Je connais le noyau, les murs et les stores. Dis-moi ce que tu veux faire evoluer : je t'aide a formuler la bonne proposition."></div>
 
   <!-- Stats Hub -->
   <div class="panel glass" style="margin-bottom:20px">
