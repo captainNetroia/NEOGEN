@@ -793,7 +793,7 @@ def _section_evolution() -> str:
       <button onclick="filtrerPensees('bulle')" class="filtre-btn" data-filtre="bulle" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#9679; Bulle</button>
       <button onclick="filtrerPensees('archivee')" class="filtre-btn" data-filtre="archivee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Archivees</button>
     </div>
-    <div id="pensee-filtres-type" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;padding-left:2px">
+    <div id="pensee-filtres-type" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;padding-left:2px">
       <span style="font-size:10px;opacity:.4;align-self:center;margin-right:2px">type :</span>
       <button onclick="filtrerPenseesType('tous')" class="filtre-btn-type" data-type="tous" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#a855f7;cursor:pointer">Tous</button>
       <button onclick="filtrerPenseesType('sujet')" class="filtre-btn-type" data-type="sujet" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Sujets</button>
@@ -803,6 +803,12 @@ def _section_evolution() -> str:
       <button onclick="filtrerPenseesType('reve')" class="filtre-btn-type" data-type="reve" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Reves</button>
       <button onclick="filtrerPenseesType('obsession')" class="filtre-btn-type" data-type="obsession" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Obsessions</button>
       <button onclick="filtrerPenseesType('desir')" class="filtre-btn-type" data-type="desir" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Desirs</button>
+    </div>
+    <div id="pensee-tri" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;padding-left:2px;align-items:center">
+      <span style="font-size:10px;opacity:.4;align-self:center;margin-right:2px">tri :</span>
+      <button onclick="trierPensees('type')" class="filtre-btn-tri" data-tri="type" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#a855f7;cursor:pointer">Par type</button>
+      <button onclick="trierPensees('recent')" class="filtre-btn-tri" data-tri="recent" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">&#8595; Récent</button>
+      <button onclick="trierPensees('ancien')" class="filtre-btn-tri" data-tri="ancien" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">&#8593; Ancien</button>
     </div>
 
     <div id="pensee-list">

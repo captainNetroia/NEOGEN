@@ -2722,6 +2722,9 @@ async function loadPenseesConfig(){
   };
 }
 
+window._penseesData=[];
+window._triPenseesCourant='type';
+
 async function loadPensees(){
   const container=document.getElementById('pensee-list');
   const counter=document.getElementById('pensee-count');
@@ -2730,12 +2733,64 @@ async function loadPensees(){
     const r=await fetch('/savoir/pensees?limit=50');
     if(!r.ok)return;
     const d=await r.json();
-    const list=(d&&d.pensees)||[];
-    const visibles=list.filter(function(p){return p.forge_etat!=='archivee';});
-    if(counter)counter.textContent=visibles.length+' pensee'+(visibles.length>1?'s':'')+' ('+list.length+' total)';
-    if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l\'instant. Provoquez-en une.</div>';return;}
-    container.innerHTML='';
-    // Trier par type pour le groupement visuel
+    window._penseesData=(d&&d.pensees)||[];
+    _renderPenseesList();
+    const visibles=window._penseesData.filter(function(p){return p.forge_etat!=='archivee';});
+    if(counter)counter.textContent=visibles.length+' pensee'+(visibles.length>1?'s':'')+' ('+window._penseesData.length+' total)';
+  }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
+}
+
+function trierPensees(mode){
+  window._triPenseesCourant=mode;
+  document.querySelectorAll('.filtre-btn-tri').forEach(function(b){
+    const actif=b.dataset.tri===mode;
+    b.style.background=actif?'rgba(168,85,247,.15)':'rgba(255,255,255,.03)';
+    b.style.borderColor=actif?'rgba(168,85,247,.4)':'rgba(255,255,255,.08)';
+    b.style.color=actif?'#a855f7':'#9ca3af';
+  });
+  _renderPenseesList();
+}
+
+function _renderPenseesList(){
+  const container=document.getElementById('pensee-list');
+  if(!container||!window._penseesData)return;
+  const list=window._penseesData;
+  if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l\'instant. Provoquez-en une.</div>';return;}
+  container.innerHTML='';
+  const mode=window._triPenseesCourant||'type';
+
+  if(mode==='recent'||mode==='ancien'){
+    // Tri chronologique — separateurs de periode au lieu des groupes par type
+    const sorted=[...list].sort(function(a,b){
+      const ta=a.ts||0,tb=b.ts||0;
+      return mode==='recent'?tb-ta:ta-tb;
+    });
+    const now=Date.now()/1000;
+    const _periode=function(ts){
+      if(!ts)return'inconnue';
+      const j=(now-ts)/86400;
+      if(j<1)return'Aujourd\'hui';
+      if(j<7)return'Cette semaine';
+      if(j<30)return'Ce mois';
+      if(j<90)return'Il y a 1 a 3 mois';
+      return'Plus ancien';
+    };
+    var dernierePeriode=null;
+    for(const p of sorted){
+      const per=_periode(p.ts);
+      if(per!==dernierePeriode){
+        const hdr=document.createElement('div');
+        hdr.className='pensee-groupe-header';
+        hdr.dataset.groupe='periode-'+per.toLowerCase().replace(/\s/g,'-');
+        hdr.style.cssText='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#6b7280;padding:14px 0 6px;margin-top:4px;border-top:1px solid rgba(255,255,255,.06)';
+        hdr.textContent=per;
+        container.appendChild(hdr);
+        dernierePeriode=per;
+      }
+      container.appendChild(_renderPensee(p));
+    }
+  }else{
+    // Tri par type (comportement original)
     const ORDRE_TYPE=['sujet','idee','suggestion','reflexion','reve','obsession','desir'];
     const sorted=[...list].sort(function(a,b){
       var ia=ORDRE_TYPE.indexOf(a.type||(a.sujet?'sujet':'idee'));
@@ -2758,8 +2813,8 @@ async function loadPensees(){
       }
       container.appendChild(_renderPensee(p));
     }
-    if(_filtrePenseesCourant&&_filtrePenseesCourant!=='tous')filtrerPensees(_filtrePenseesCourant);
-  }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
+  }
+  if(_filtrePenseesCourant&&_filtrePenseesCourant!=='tous')filtrerPensees(_filtrePenseesCourant);
 }
 
 function _renderPensee(p){
