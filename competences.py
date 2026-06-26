@@ -98,6 +98,13 @@ def creer(nom: str, description: str, instructions: str,
     os.makedirs(SKILLS_DIR, exist_ok=True)
     slug = _slug(nom)
     existant = charger(slug) or {}
+    def _bump_v(v):
+        if not v:
+            return "1"
+        s = str(v).lstrip("v")
+        return s + ".1" if "." not in s else ".".join(s.split(".")[:-1] + [str(int(s.split(".")[-1]) + 1)])
+    v_existante = existant.get("version") if existant else None
+    version = _bump_v(v_existante or "1") if existant else "1"
     skill = {
         "nom": slug,
         "titre": nettoyer((nom or slug).strip())[:80],
@@ -109,6 +116,8 @@ def creer(nom: str, description: str, instructions: str,
         "signature": signature[:120],
         "usages": int(existant.get("usages", 0)),
         "cree_le": existant.get("cree_le") or time.strftime("%Y-%m-%d %H:%M:%S"),
+        "version": version,
+        "maj_le": time.strftime("%Y-%m-%d %H:%M:%S") if existant else None,
     }
     with open(os.path.join(SKILLS_DIR, f"{slug}.json"), "w", encoding="utf-8") as f:
         json.dump(skill, f, ensure_ascii=False, indent=2)

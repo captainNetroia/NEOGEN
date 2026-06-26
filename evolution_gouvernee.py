@@ -241,14 +241,18 @@ def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
 def _appliquer_skill(payload: dict, titre: str) -> dict:
     try:
         import competences
+        nom = payload.get("nom") or titre
+        existant = competences.charger(competences._slug(nom))
         sk = competences.creer(
-            nom=payload.get("nom") or titre,
+            nom=nom,
             description=payload.get("description", ""),
             instructions=payload.get("instructions", ""),
             outils=payload.get("outils", []),
             auto=False,
         )
-        return {"ok": True, "detail": f"skill '{sk.get('nom')}' cristallise"}
+        v = sk.get("version", "1")
+        action = f"mis a jour v{v}" if existant else f"cree v{v}"
+        return {"ok": True, "detail": f"skill '{sk.get('nom')}' {action}"}
     except Exception as e:
         return {"ok": False, "raison": f"creation skill echouee : {e}"}
 
@@ -299,23 +303,31 @@ def _appliquer_modele(payload: dict, _titre: str) -> dict:
     provider = (payload.get("provider") or "").strip().lower()
     if not provider:
         return {"ok": False, "raison": "provider manquant"}
+    existant = modeles.get(provider)
+    v = _bump_version(existant.get("version") or "1") if existant else "1"
     modeles[provider] = {
         "fort": payload.get("fort") or payload.get("modele") or "",
         "moyen": payload.get("moyen") or payload.get("modele") or "",
         "leger": payload.get("leger") or payload.get("modele") or "",
+        "version": v,
     }
     if payload.get("base_url"):
         modeles[provider]["base_url"] = payload["base_url"]
     _sauver("modeles_custom.json", modeles)
-    return {"ok": True, "detail": f"modele '{provider}' ajoute (tiers configures)"}
+    action = f"mis a jour v{v}" if existant else f"cree v{v}"
+    return {"ok": True, "detail": f"modele '{provider}' {action} (tiers configures)"}
 
 
 def _appliquer_savoir(payload: dict, titre: str) -> dict:
     try:
         import memoire_agent
         contenu = payload.get("contenu") or payload.get("texte") or titre
+        # Verifier si un souvenir similaire existe (rappel par mots-cles du titre)
+        existants = memoire_agent.rappeler(titre[:40], limite=3) if titre else []
         m = memoire_agent.memoriser(f"[Savoir evolution] {contenu}", "fait")
-        return {"ok": True, "detail": f"savoir memorise (souvenir {m.get('id', '?')}) -> nourrit le Hub"}
+        if existants:
+            return {"ok": True, "detail": f"savoir mis a jour v1.1 (souvenir {m.get('id', '?')}, {len(existants)} grain(s) similaire(s) existant) -> nourrit le Hub"}
+        return {"ok": True, "detail": f"savoir cree v1 (souvenir {m.get('id', '?')}) -> nourrit le Hub"}
     except Exception as e:
         return {"ok": False, "raison": f"memorisation echouee : {e}"}
 
