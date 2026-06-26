@@ -544,6 +544,28 @@ def marquer_vie_donnee(pensee_id: str) -> dict:
     return {"ok": trouve, "id": pensee_id}
 
 
+def marquer_forge(pensee_id: str, etat: str) -> dict:
+    """Statut honnete d'une pensee passee par 'donner vie' :
+      'generee' -> du vrai code a ete genere, teste et persiste (forge)
+      'actif'   -> changement data-driven REELLEMENT consomme par du code (agent, modele, savoir...)
+      'refusee' -> la forge a rejete (mur / test / generation)
+      'notee'   -> note data-driven SANS consommateur (idee, regle generique) : pas d'effet reel.
+    Remplace le 'vie_donnee' binaire par un etat precis (fin du faux vert)."""
+    etat = etat if etat in ("generee", "actif", "refusee", "notee") else "notee"
+    pensees = _lire()
+    trouve = False
+    for p in pensees:
+        if p.get("id") == pensee_id:
+            p["forge_etat"] = etat
+            trouve = True
+    if trouve:
+        os.makedirs(_DATA, exist_ok=True)
+        with open(_PENSEES_PATH, "w", encoding="utf-8") as f:
+            for p in pensees:
+                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    return {"ok": trouve, "id": pensee_id, "forge_etat": etat}
+
+
 def marquer_lue(pensee_id: str) -> dict:
     """Marque une bulle comme lue (rewrite du fichier). Idempotent."""
     pensees = _lire()

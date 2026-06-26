@@ -119,12 +119,32 @@ def pensees_marquer_lue(pensee_id: str, authorization: str | None = Header(defau
     return res
 
 
+# Types/indices qui demandent du VRAI code (passent par la forge), pas du data-driven.
+_TYPES_FORGE = {"fonction", "capacite"}
+_INDICES_TECHNIQUES = ("etapes", "code", "action", "scanner", "valider", "reparer",
+                       "parser", "detecter", "compiler", "indexer", "automatis")
+
+
+def _est_technique(evo: dict | None, p: dict) -> bool:
+    """Une pensee est 'technique' (donc forgeable en code) si son evolution vise une fonction,
+    ou si son payload/contenu contient des indices d'action executable."""
+    if isinstance(evo, dict):
+        if (evo.get("type") or "").lower() in _TYPES_FORGE:
+            return True
+        payload = evo.get("payload") if isinstance(evo.get("payload"), dict) else {}
+        if any(k in payload for k in ("etapes", "code", "action")):
+            return True
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    return any(ind in blob for ind in _INDICES_TECHNIQUES)
+
+
 @router.post("/pensees/{pensee_id}/donner-vie")
 def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(default=None)):
-    """Donne vie a une pensee : la propose dans la Super-Capacite (evolution gouvernee).
-    Si la pensee contient un champ 'evolution' genere par le LLM -> l'utilise directement.
-    Sinon -> propose une 'idee' generique avec son titre + synthese.
-    Jordan approuve dans l'onglet Propositions -> le changement s'applique."""
+    """Donne vie a une pensee, en routant selon sa NATURE :
+      - technique/fonctionnelle -> LA FORGE (generator -> Membrane -> sandbox), vrai code teste.
+        Asynchrone : renvoie {voie:'forge', job_id} ; l'UI poll /evolution/forge/{job_id}.
+      - data-driven (agent, modele, savoir, regle, loi) -> proposition evolution gouvernee.
+      - idee pure -> proposition 'idee' notee (honnete : pas de fausse 'vie')."""
     _gate_owner(authorization)
     import pensee as _pensee
     import evolution_gouvernee as _evo
@@ -134,22 +154,35 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
     if not p:
         raise HTTPException(status_code=404, detail="pensee introuvable")
 
-    evo = p.get("evolution")
-    if isinstance(evo, dict) and evo.get("type") and isinstance(evo.get("payload"), dict):
+    evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
+
+    # VOIE 1 : technique -> la forge (vrai code).
+    if _est_technique(evo, p):
+        import forge_evolution
+        besoin = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
+        if evo and isinstance(evo.get("payload"), dict):
+            besoin += " Details : " + str(evo["payload"])[:400]
+        job_id = forge_evolution.lancer_forge_async(
+            besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
+        return {"ok": True, "voie": "forge", "job_id": job_id}
+
+    # VOIE 2 : data-driven explicite (le LLM a propose un type non technique).
+    if evo and evo.get("type") and isinstance(evo.get("payload"), dict):
         payload = dict(evo["payload"])
         payload["_pensee_id"] = pensee_id
-        return _evo.proposer(
-            evo["type"], payload,
-            titre=p.get("titre", ""),
-            raison=evo.get("raison", "") or p.get("synthese", ""))
+        r = _evo.proposer(evo["type"], payload, titre=p.get("titre", ""),
+                          raison=evo.get("raison", "") or p.get("synthese", ""))
+        r["voie"] = "data"
+        return r
 
-    # Pas de champ evolution LLM -> propose comme idee avec le contenu de la pensee.
-    return _evo.proposer(
+    # VOIE 3 : idee pure -> notee honnetement (proposition idee).
+    r = _evo.proposer(
         "idee",
         {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip(),
          "_pensee_id": pensee_id},
-        titre=p.get("titre", ""),
-        raison=p.get("synthese", ""))
+        titre=p.get("titre", ""), raison=p.get("synthese", ""))
+    r["voie"] = "note"
+    return r
 
 
 @router.get("/pensees/config")
@@ -252,3 +285,32 @@ def evolution_appliquer(
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("raison", "refuse"))
     return res
+
+
+# ── La Forge : suivi de progression + cellules de code reel generees ─────────────
+
+@router.get("/evolution/forge/{job_id}")
+def evolution_forge_statut(job_id: str, authorization: str | None = Header(default=None)):
+    """Etat d'avancement d'une forge en cours (polling UI pour la bulle de progression)."""
+    _gate_owner(authorization)
+    import forge_evolution as _forge
+    return _forge.statut_job(job_id)
+
+
+@router.get("/evolution/cellules")
+def evolution_cellules(authorization: str | None = Header(default=None)):
+    """Liste des cellules de code reel forgees (sans le code), plus recentes d'abord."""
+    _gate_owner(authorization)
+    import forge_evolution as _forge
+    return {"cellules": _forge.lister_cellules()}
+
+
+@router.get("/evolution/cellules/{nom}")
+def evolution_cellule(nom: str, authorization: str | None = Header(default=None)):
+    """Une cellule forgee AVEC son code Python reel + verdict Membrane + resume du test."""
+    _gate_owner(authorization)
+    import forge_evolution as _forge
+    c = _forge.cellule(nom)
+    if not c:
+        raise HTTPException(status_code=404, detail="cellule introuvable")
+    return c

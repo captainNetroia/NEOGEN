@@ -2700,7 +2700,12 @@ function _renderPensee(p){
     +'<span style="font-size:11px;opacity:.5">'+esc(p.ambiance_label||p.ambiance||'')+'</span>'
     +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
   if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
-  if(p.vie_donnee)badges+='<span style="font-size:11px;color:#a855f7;font-weight:700">&#9889; Vie donnee</span>';
+  // Statut HONNETE : etat reel de la mise en oeuvre (fin du faux vert).
+  var fe=p.forge_etat||(p.vie_donnee?'actif':'');
+  if(fe==='generee')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.12);border-radius:6px;padding:2px 8px">&#9889; Code genere &amp; teste</span>';
+  else if(fe==='actif')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.1);border-radius:6px;padding:2px 8px">&#10003; Actif</span>';
+  else if(fe==='refusee')badges+='<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);border-radius:6px;padding:2px 8px">&#10007; Refuse</span>';
+  else if(fe==='notee')badges+='<span style="font-size:11px;color:#9ca3af;font-weight:600;background:rgba(255,255,255,.05);border-radius:6px;padding:2px 8px">note (pas encore branche)</span>';
   else if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
   if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
@@ -2740,8 +2745,12 @@ async function donnerVie(id,btn){
   try{
     const r=await fetch('/savoir/pensees/'+encodeURIComponent(id)+'/donner-vie',{method:'POST'});
     const d=await r.json();
-    if(d.ok||d.prop_id){
-      btn.textContent='Proposee dans Evolution';
+    if(d.voie==='forge'&&d.job_id){
+      // Idee technique : la forge genere du VRAI code (asynchrone). Bulle de progression vivante.
+      btn.textContent='Forge en cours...';
+      _bulleProgression(d.job_id,(btn.closest('div')&&'idee')||'idee',btn);
+    }else if(d.ok||d.prop_id){
+      btn.textContent=d.voie==='note'?'Notee':'Proposee dans Evolution';
       btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';
       btn.style.background='rgba(16,185,129,.08)';
       if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,800);
@@ -2750,6 +2759,48 @@ async function donnerVie(id,btn){
       btn.style.color='#ef4444';btn.disabled=false;
     }
   }catch(e){btn.textContent='Erreur';btn.disabled=false;}
+}
+
+/* Bulle de PROGRESSION vivante : la forge n'est pas instantanee (Opus + Docker).
+   Poll /savoir/evolution/forge/{jobId} et montre l'etape reelle jusqu'au verdict. */
+function _bulleProgression(jobId,titre,btn){
+  const el=document.createElement('div');
+  el.id='forge-bubble-'+jobId;
+  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:340px;z-index:10000;padding:16px 18px;background:rgba(16,22,30,.98);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.65);backdrop-filter:blur(10px)';
+  el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Votre idee prend vie</div>'
+    +'<div id="fp-etape-'+jobId+'" style="font-size:13px;font-weight:600;margin-bottom:8px">Initialisation…</div>'
+    +'<div style="height:6px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden">'
+    +'<div id="fp-bar-'+jobId+'" style="height:100%;width:5%;background:linear-gradient(90deg,#a855f7,#10b981);transition:width .5s"></div></div>'
+    +'<div id="fp-note-'+jobId+'" style="font-size:11px;opacity:.55;line-height:1.4;margin-top:8px">La forge genere du vrai code, le teste en sandbox isolee, puis controle les murs. Cela prend un moment.</div>';
+  document.body.appendChild(el);
+
+  const timer=setInterval(async function(){
+    let st;
+    try{ st=await (await fetch('/savoir/evolution/forge/'+encodeURIComponent(jobId))).json(); }
+    catch(e){ return; }
+    const et=document.getElementById('fp-etape-'+jobId);
+    const bar=document.getElementById('fp-bar-'+jobId);
+    const note=document.getElementById('fp-note-'+jobId);
+    if(et&&st.etape_label)et.textContent=st.etape_label;
+    if(bar&&typeof st.pct==='number')bar.style.width=Math.max(5,st.pct)+'%';
+    if(st.etat==='generee'){
+      clearInterval(timer);
+      if(et)et.textContent='⚡ Code genere & teste';
+      el.style.borderColor='rgba(16,185,129,.6)';
+      if(note)note.innerHTML='Cellule <b>'+esc(st.nom||'')+'</b> (score '+(st.score||'--')+'). Voir « Cellules forgees ». Recharge dans 2s.';
+      if(btn){btn.textContent='⚡ Code genere';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';}
+      if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
+      setTimeout(function(){location.reload();},2200);
+    }else if(st.etat==='refusee'){
+      clearInterval(timer);
+      if(et)et.textContent='✗ Refuse';
+      el.style.borderColor='rgba(239,68,68,.6)';
+      if(bar)bar.style.background='#ef4444';
+      if(note)note.textContent='Refuse : '+(st.raison||'raison inconnue')+'. Aucun code installe.';
+      if(btn){btn.textContent='✗ Refuse';btn.style.color='#ef4444';btn.disabled=false;}
+      setTimeout(function(){if(el.parentNode)el.remove();},8000);
+    }
+  },1500);
 }
 
 /* Bulles de notification : poll des pensees a haut score non lues. */
@@ -2806,6 +2857,7 @@ async function loadEvolutionSysteme(){
     }
   }catch(e){}
   loadEvolutionChangelog();
+  loadEvolutionCellules();
   if(_evoWired)return; _evoWired=true;
   const bp=document.getElementById('btn-evo-proposer');
   if(bp)bp.onclick=async function(){
@@ -2850,6 +2902,49 @@ async function loadEvolutionChangelog(){
         +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'
         +'<span style="float:right;opacity:.4">'+esc(dt)+'</span>'
         +'<div style="opacity:.6;margin-top:2px">'+esc(e.detail||'')+'</div>';
+      c.appendChild(el);
+    }
+  }catch(e){}
+}
+
+/* Cellules forgees : le VRAI code genere par la forge. Clic -> deplie le code + verdict. */
+async function loadEvolutionCellules(){
+  const c=document.getElementById('evo-cellules');
+  if(!c)return;
+  try{
+    const r=await fetch('/savoir/evolution/cellules');
+    if(!r.ok)return;
+    const d=await r.json();
+    const cells=(d.cellules)||[];
+    if(!cells.length){c.innerHTML='<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucune cellule forgee. « Donner vie » a une idee technique en genere une.</div>';return;}
+    c.innerHTML='';
+    for(const cell of cells){
+      const el=document.createElement('div');
+      el.style.cssText='padding:10px 12px;background:rgba(16,185,129,.05);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(16,185,129,.18)';
+      const dt=cell.ts?new Date(cell.ts*1000).toLocaleDateString():'';
+      const det=document.createElement('details');
+      det.innerHTML='<summary style="cursor:pointer;list-style:none">'
+        +'<span style="font-weight:700;color:#10b981">&#9889; '+esc(cell.nom||'')+'</span> '
+        +'<span style="opacity:.7">'+esc(cell.description||'')+'</span>'
+        +'<span style="float:right;opacity:.5">score '+(cell.score||'--')+' &middot; '+esc(dt)+'</span>'
+        +'</summary>';
+      const corps=document.createElement('div');
+      corps.style.cssText='margin-top:8px';
+      corps.innerHTML='<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
+        +(cell.test&&cell.test.resume?' &middot; test : '+esc(cell.test.resume):'')+'</div>'
+        +'<pre style="background:rgba(0,0,0,.35);border-radius:8px;padding:10px;overflow:auto;font-size:11px;max-height:300px;white-space:pre-wrap" id="cellcode-'+esc(cell.nom)+'">Chargement du code…</pre>';
+      det.appendChild(corps);
+      det.addEventListener('toggle',async function(){
+        if(!det.open)return;
+        const pre=document.getElementById('cellcode-'+cell.nom);
+        if(pre&&pre.dataset.charge)return;
+        try{
+          const rc=await fetch('/savoir/evolution/cellules/'+encodeURIComponent(cell.nom));
+          const dc=await rc.json();
+          if(pre){pre.textContent=dc.code||'(code indisponible)';pre.dataset.charge='1';}
+        }catch(e){if(pre)pre.textContent='Erreur de chargement';}
+      });
+      el.appendChild(det);
       c.appendChild(el);
     }
   }catch(e){}

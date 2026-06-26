@@ -238,18 +238,38 @@ def approuver(prop_id: str) -> dict:
     resultat = _executer(prop)
     _maj_proposition(prop_id, {"statut": "approuve", "approuve_le": time.time(), "resultat": resultat})
 
-    # Si la proposition vient d'un "Donner vie" -> marquer la pensee source comme vie_donnee.
-    pensee_id = prop.get("changement", {}).get("payload", {}).get("_pensee_id") or \
-                prop.get("pensee_id", "")
+    # Si la proposition vient d'un "Donner vie" -> statut HONNETE de la pensee source :
+    #   'actif' si le type est reellement consomme par du code, 'notee' sinon (fin du faux vert).
+    chg = prop.get("changement", {}) if isinstance(prop.get("changement"), dict) else {}
+    pensee_id = chg.get("payload", {}).get("_pensee_id") or prop.get("pensee_id", "")
+    etat = _etat_consommation(chg)
     if pensee_id:
         try:
             import pensee as _pensee_mod
-            _pensee_mod.marquer_vie_donnee(pensee_id)
+            _pensee_mod.marquer_forge(pensee_id, etat)
         except Exception:
             pass
 
     return {"ok": True, "prop_id": prop_id, "resultat": resultat,
-            "pensee_id": pensee_id or None}
+            "pensee_id": pensee_id or None, "etat_consommation": etat}
+
+
+# Types data-driven REELLEMENT lus par du code (verifie 2026-06-26) :
+#   agent -> agent_core | modele -> gateway | savoir -> Hub | regle 'rappel_contextuel' -> pensee.
+_TYPES_CONSOMMES = {"agent", "modele", "savoir"}
+
+
+def _etat_consommation(changement: dict) -> str:
+    """'actif' si le changement est lu par du code en prod, 'notee' sinon (honnetete)."""
+    type_ = (changement.get("type") or "").lower()
+    if type_ in _TYPES_CONSOMMES:
+        return "actif"
+    if type_ in ("regle", "loi"):
+        # Seul un consommateur reel existe aujourd'hui : la regle 'rappel_contextuel'.
+        payload = changement.get("payload", {}) if isinstance(changement.get("payload"), dict) else {}
+        blob = (str(payload) + " " + changement.get("titre", "")).lower()
+        return "actif" if "rappel_contextuel" in blob else "notee"
+    return "notee"
 
 
 def refuser(prop_id: str) -> dict:

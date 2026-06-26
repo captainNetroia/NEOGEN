@@ -365,7 +365,7 @@ def _section_cerveau() -> str:
       <textarea id="tache-msg" rows="2" placeholder="Que doit faire l'agent ? (ex: resume l'etat de mes creations)"></textarea>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--mut)">Modele</span>
-        <select id="tache-provider" style="font-size:12px"><option value="local">Local (gratuit)</option><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="mistral">Mistral</option></select>
+        <select id="tache-provider" style="font-size:12px"><option value="local">Local (gratuit)</option><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="mistral">Mistral</option><option value="moonshot">Kimi (Moonshot)</option></select>
         <span style="font-size:12px;color:var(--mut)">Toutes les</span>
         <input type="number" id="tache-interval" value="60" min="5" style="width:70px"><span style="font-size:12px;color:var(--mut)">min</span>
         <button id="tache-save" style="margin-left:auto;font-size:13px;padding:6px 14px">Creer</button>
@@ -529,6 +529,7 @@ def _section_integrations() -> str:
       <span class="prov-tab" data-prov="gemini">Gemini</span>
       <span class="prov-tab" data-prov="deepseek">DeepSeek</span>
       <span class="prov-tab" data-prov="mistral">Mistral</span>
+      <span class="prov-tab" data-prov="moonshot">Kimi</span>
       <span class="prov-tab" data-prov="local">Local</span>
     </div>
     <div class="integ-model-row">
@@ -835,6 +836,12 @@ def _section_evolution() -> str:
     <div style="font-size:13px;font-weight:600;margin-bottom:8px">Changements de la generation</div>
     <div id="evo-changelog">
       <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>
+    </div>
+
+    <!-- Cellules forgees : le VRAI code genere par "donner vie" sur une idee technique -->
+    <div style="font-size:13px;font-weight:600;margin:18px 0 8px">Cellules forgees <span style="font-size:11px;opacity:.5;font-weight:400">(code reel genere, teste en sandbox, valide contre les murs)</span></div>
+    <div id="evo-cellules">
+      <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucune cellule forgee. « Donner vie » a une idee technique en genere une.</div>
     </div>
   </div>
 </div>
