@@ -35,16 +35,19 @@ MODEL = "claude-opus-4-8"
 _MAX_CSS = 12000  # un override raisonnable ; au-dela on refuse (anti-emballement)
 
 # Selecteurs que le CSS peut viser, documentes pour le LLM (vocabulaire reel de l'UI).
+# Couvre TOUTES les listes de l'app : si une liste manque ici, l'app ne peut pas la reorganiser.
 _SELECTEURS = {
-    ".agent-chat-log": "zone de messages d'un chat d'agent (agrandir = min-height/height)",
-    "#pensee-list": "liste des pensees (onglet Evolution) — souvent trop longue",
+    "#pensee-list": "liste des pensees (onglet Evolution) — TRES longue, a compacter en priorite",
     "#hub-props-list": "liste des propositions d'evolution",
-    "#evo-changelog": "liste des changements de la generation",
-    "#evo-cellules": "liste des cellules forgees",
-    ".card": "une carte generique",
+    "#evo-changelog": "liste des changements de la generation (onglet Evolution) — longue",
+    "#evo-cellules": "liste des cellules de code forgees",
+    "#produit-grid": "GRILLE des produits/creations (section Production) — longue, scroll interminable",
+    "#skills-list": "liste des competences apprises (section Cerveaux) — longue",
+    ".agent-chat-log": "zone de messages d'un chat d'agent (agrandir = min-height/height)",
+    ".card, .creation-card": "une carte de creation/produit",
     ".panel": "un panneau de section",
     ".section": "une section entiere",
-    "body": "toute la page (densite globale, variables de couleur)",
+    "body": "toute la page (densite globale)",
 }
 
 # Termes interdits dans le CSS (fail-closed) : reseau, script, injection.
@@ -94,9 +97,12 @@ def _prompt_systeme() -> str:
         "REGLES ABSOLUES :\n"
         "- CSS pur uniquement. AUCUN acces reseau : pas de @import, pas de url(http...), pas de "
         "url() externe, pas d'image distante. Pas de script, pas d'expression().\n"
-        "- Pour 'replier / compacter une liste trop longue' : applique max-height + overflow:auto "
-        "au conteneur (#pensee-list, #hub-props-list...) pour une zone scrollable compacte.\n"
+        "- Si l'idee parle de listes trop longues / scroll interminable / interface indigeste : "
+        "applique max-height (240-360px) + overflow-y:auto a TOUS les conteneurs de listes a la fois "
+        "(#pensee-list, #hub-props-list, #evo-changelog, #evo-cellules, #produit-grid, #skills-list), "
+        "pour que CHAQUE liste devienne une zone scrollable compacte. N'en oublie aucune.\n"
         "- Pour 'agrandir le chat' : augmente min-height/height de .agent-chat-log.\n"
+        "- Pour 'plus compact / dense' : reduis paddings et margins des .card et des enfants de listes.\n"
         "- Reste sobre et lisible (l'UI est sombre : evite les fonds clairs agressifs).\n"
         "- Ne casse pas la mise en page : prefere des ajustements cibles.\n\n"
         "Reponds par un objet JSON STRICT, sans texte autour :\n"
@@ -231,7 +237,6 @@ def reinitialiser() -> dict:
 
 if __name__ == "__main__":
     import tempfile
-    import types
 
     print("=" * 64)
     print("NEOGEN - FORGE INTERFACE : auto-verification (offline)")
