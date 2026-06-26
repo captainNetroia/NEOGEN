@@ -397,3 +397,120 @@ def evolution_ui_reset(authorization: str | None = Header(default=None)):
     _gate_owner(authorization)
     import forge_interface as _fi
     return _fi.reinitialiser()
+
+
+# ── Forge de fragments : de VRAIS blocs HTML/CSS injectes a l'ecran (proprio) ─────
+
+@router.get("/fragments")
+def fragments_lister(authorization: str | None = Header(default=None)):
+    """Tous les fragments forges, par zone (metadonnees pour l'UI de pilotage)."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    return {"zones": list(_ff.ZONES.items()), "fragments": _ff.lister()}
+
+
+@router.get("/fragments/{zone}/{frag_id}")
+def fragments_un(zone: str, frag_id: str, authorization: str | None = Header(default=None)):
+    """Un fragment complet (avec son HTML) pour previsualisation/edition."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    f = _ff.fragment(zone, frag_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="fragment introuvable")
+    return f
+
+
+@router.post("/fragments/apercu")
+def fragments_apercu(corps: dict = Body(default={}),
+                     authorization: str | None = Header(default=None)):
+    """Genere un apercu de fragment a partir d'une idee {idee, zone} (NON applique)."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    res = _ff.generer_apercu((corps or {}).get("idee", ""), (corps or {}).get("zone", ""))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
+    return res
+
+
+@router.post("/fragments/appliquer")
+def fragments_appliquer(corps: dict = Body(default={}),
+                        authorization: str | None = Header(default=None)):
+    """Applique un fragment {html, zone, titre, frag_id?} (proprio) ou le remonte (public)."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    c = corps or {}
+    res = _ff.appliquer(c.get("html", ""), c.get("zone", ""), titre=c.get("titre", ""),
+                        user=_user_courant(authorization), frag_id=c.get("frag_id"))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
+    return res
+
+
+@router.post("/fragments/{zone}/{frag_id}/basculer")
+def fragments_basculer(zone: str, frag_id: str, authorization: str | None = Header(default=None)):
+    """Active/desactive un fragment sans le supprimer (reversibilite douce)."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    res = _ff.basculer(zone, frag_id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=404, detail=res.get("raison", "introuvable"))
+    return res
+
+
+@router.post("/fragments/{zone}/{frag_id}/supprimer")
+def fragments_supprimer(zone: str, frag_id: str, authorization: str | None = Header(default=None)):
+    """Retire un fragment definitivement (rollback instantane, pas de restart)."""
+    _gate_owner(authorization)
+    import forge_fragments as _ff
+    res = _ff.supprimer(zone, frag_id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=404, detail=res.get("raison", "introuvable"))
+    return res
+
+
+# ── Forge UI Python : graver de VRAIS blocs dans le CODE (permanent, git, proprio) ─
+
+@router.get("/ui-python")
+def ui_python_etat(authorization: str | None = Header(default=None)):
+    """Blocs permanents graves + backups disponibles."""
+    _gate_owner(authorization)
+    import forge_ui_python as _fup
+    return {"blocs": _fup.blocs(), "backups": _fup.lister_backups()}
+
+
+@router.post("/ui-python/graver")
+def ui_python_graver(corps: dict = Body(default={}),
+                     authorization: str | None = Header(default=None)):
+    """Grave un bloc permanent {zone, html, titre} dans le code (backup + compile + rollback)."""
+    _gate_owner(authorization)
+    import forge_ui_python as _fup
+    c = corps or {}
+    res = _fup.graver(c.get("zone", ""), c.get("html", ""), titre=c.get("titre", ""),
+                      user=_user_courant(authorization))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
+    return res
+
+
+@router.post("/ui-python/retirer")
+def ui_python_retirer(corps: dict = Body(default={}),
+                      authorization: str | None = Header(default=None)):
+    """Retire le bloc permanent d'une zone {zone} (backup + rollback)."""
+    _gate_owner(authorization)
+    import forge_ui_python as _fup
+    res = _fup.retirer((corps or {}).get("zone", ""), user=_user_courant(authorization))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
+    return res
+
+
+@router.post("/ui-python/restaurer")
+def ui_python_restaurer(corps: dict = Body(default={}),
+                        authorization: str | None = Header(default=None)):
+    """Restaure un backup de ui_custom.py {backup_id} (rollback manuel)."""
+    _gate_owner(authorization)
+    import forge_ui_python as _fup
+    res = _fup.restaurer((corps or {}).get("backup_id", ""))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
+    return res

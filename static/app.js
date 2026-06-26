@@ -3203,7 +3203,9 @@ async function loadEvolutionSysteme(){
   }catch(e){}
   loadEvolutionChangelog();
   loadEvolutionCellules();
+  loadFragments();
   if(_evoWired)return; _evoWired=true;
+  wireFragments();
   const br=document.getElementById('btn-ui-reset');
   if(br)br.onclick=async function(){
     br.disabled=true;br.textContent='...';
@@ -3236,6 +3238,110 @@ async function loadEvolutionSysteme(){
     }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
     finally{bp.disabled=false;}
   };
+}
+
+/* --- Forge de fragments : de vrais blocs HTML injectes a l'ecran (proprio) --- */
+var _fragApercuCourant=null;
+
+async function loadFragments(){
+  const sel=document.getElementById('frag-zone');
+  const liste=document.getElementById('frag-liste');
+  if(!sel||!liste)return;
+  try{
+    const r=await fetch('/savoir/fragments',{headers:_authHdrs()});
+    if(r.status===403){const p=document.getElementById('forge-frag-panel');if(p)p.style.display='none';return;}
+    if(!r.ok)return;
+    const d=await r.json();
+    // remplir le select des zones (une seule fois)
+    if(!sel.dataset.rempli){
+      sel.innerHTML=(d.zones||[]).map(function(z){return '<option value="'+esc(z[0])+'">'+esc(z[1])+'</option>';}).join('');
+      sel.dataset.rempli='1';
+    }
+    // lister les fragments existants
+    const frags=d.fragments||{};
+    const zones=Object.keys(frags);
+    if(!zones.length){liste.innerHTML='<div style="opacity:.4;font-size:12px">Aucun bloc forge. Decris-en un ci-dessus.</div>';return;}
+    let html='';
+    for(const z of zones){
+      for(const f of frags[z]){
+        const off=!f.actif;
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;margin-bottom:6px;'+(off?'opacity:.5':'')+'">'
+          +'<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:rgba(168,85,247,.15);color:#a855f7">'+esc(z)+'</span>'
+          +'<span style="font-weight:600;font-size:12px">'+esc(f.titre||f.id)+'</span>'
+          +'<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(59,130,246,.15);color:#3b82f6">v'+esc(f.version||'1')+'</span>'
+          +'<span style="margin-left:auto;display:flex;gap:6px">'
+          +'<button class="ghost" style="font-size:11px;padding:3px 9px" onclick="basculerFragment(\''+esc(z)+'\',\''+esc(f.id)+'\')">'+(off?'Activer':'Desactiver')+'</button>'
+          +'<button class="ghost" style="font-size:11px;padding:3px 9px;color:#ef4444" onclick="supprimerFragment(\''+esc(z)+'\',\''+esc(f.id)+'\')">Supprimer</button>'
+          +'</span></div>';
+      }
+    }
+    liste.innerHTML=html;
+  }catch(e){}
+}
+
+function wireFragments(){
+  const apBtn=document.getElementById('frag-apercu-btn');
+  const apZone=document.getElementById('frag-apercu-zone');
+  const st=document.getElementById('frag-status');
+  if(apBtn)apBtn.onclick=async function(){
+    const zone=(document.getElementById('frag-zone')||{}).value||'';
+    const idee=((document.getElementById('frag-idee')||{}).value||'').trim();
+    if(!idee){if(st){st.style.color='#ef4444';st.textContent='Decris le bloc d abord.';}return;}
+    apBtn.disabled=true;apBtn.textContent='Generation...';
+    if(st){st.style.color='';st.textContent='Le forgeron genere le bloc...';}
+    try{
+      const r=await fetch('/savoir/fragments/apercu',{method:'POST',headers:{'Content-Type':'application/json',..._authHdrs()},body:JSON.stringify({idee:idee,zone:zone})});
+      const d=await r.json();
+      if(r.ok&&d.ok){
+        _fragApercuCourant={html:d.html,zone:zone,titre:d.titre};
+        document.getElementById('frag-apercu-titre').textContent='— '+(d.titre||'');
+        document.getElementById('frag-apercu-render').innerHTML=d.html;
+        document.getElementById('frag-apercu-expl').textContent=d.explication||'';
+        if(apZone)apZone.style.display='';
+        if(st)st.textContent='';
+      }else{if(st){st.style.color='#ef4444';st.textContent='Refuse : '+esc((d&&d.detail)||(d&&d.raison)||'echec');}}
+    }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
+    finally{apBtn.disabled=false;apBtn.textContent='Generer un apercu';}
+  };
+  const okBtn=document.getElementById('frag-appliquer-btn');
+  if(okBtn)okBtn.onclick=async function(){
+    if(!_fragApercuCourant)return;
+    okBtn.disabled=true;okBtn.textContent='...';
+    try{
+      const r=await fetch('/savoir/fragments/appliquer',{method:'POST',headers:{'Content-Type':'application/json',..._authHdrs()},body:JSON.stringify(_fragApercuCourant)});
+      const d=await r.json();
+      if(r.ok&&d.ok){
+        if(st){st.style.color='#10b981';st.textContent='Bloc applique ('+esc(d.action||'')+'). Recharge dans un instant...';}
+        setTimeout(function(){location.reload();},1100);
+      }else{if(st){st.style.color='#ef4444';st.textContent='Refuse : '+esc((d&&d.detail)||(d&&d.raison)||'echec');}}
+    }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
+    finally{okBtn.disabled=false;okBtn.textContent='Appliquer ce bloc';}
+  };
+  const gravBtn=document.getElementById('frag-graver-btn');
+  if(gravBtn)gravBtn.onclick=async function(){
+    if(!_fragApercuCourant)return;
+    if(!confirm('Graver ce bloc dans le VRAI code (permanent, versionne git) ?\n\nUn backup automatique est cree et un rollback se declenche si le bloc casserait l interface.'))return;
+    gravBtn.disabled=true;gravBtn.textContent='Gravure...';
+    try{
+      const r=await fetch('/savoir/ui-python/graver',{method:'POST',headers:{'Content-Type':'application/json',..._authHdrs()},body:JSON.stringify({zone:_fragApercuCourant.zone,html:_fragApercuCourant.html,titre:_fragApercuCourant.titre})});
+      const d=await r.json();
+      if(r.ok&&d.ok){
+        if(st){st.style.color='#10b981';st.textContent='Bloc grave dans le code (permanent). Recharge...';}
+        setTimeout(function(){location.reload();},1100);
+      }else{if(st){st.style.color='#ef4444';st.textContent='Refuse : '+esc((d&&d.detail)||(d&&d.raison)||'echec');}}
+    }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
+    finally{gravBtn.disabled=false;gravBtn.innerHTML='&#128190; Graver (permanent, code)';}
+  };
+  const noBtn=document.getElementById('frag-annuler-btn');
+  if(noBtn)noBtn.onclick=function(){_fragApercuCourant=null;if(apZone)apZone.style.display='none';if(st)st.textContent='';};
+}
+
+async function basculerFragment(zone,id){
+  try{await fetch('/savoir/fragments/'+encodeURIComponent(zone)+'/'+encodeURIComponent(id)+'/basculer',{method:'POST',headers:_authHdrs()});location.reload();}catch(e){}
+}
+async function supprimerFragment(zone,id){
+  if(!confirm('Supprimer ce bloc definitivement ?'))return;
+  try{await fetch('/savoir/fragments/'+encodeURIComponent(zone)+'/'+encodeURIComponent(id)+'/supprimer',{method:'POST',headers:_authHdrs()});location.reload();}catch(e){}
 }
 
 async function loadEvolutionChangelog(){

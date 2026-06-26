@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import robustesse as _rob
 from executeur_conteneur import docker_disponible
-from ui import PAGE
+import ui as _ui
 
 
 @asynccontextmanager
@@ -67,6 +67,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Durcissement frontieres publiques : rate limit + headers securite (CSP/nosniff/frame).
+# Non intrusif : desactive sur l'instance proprio, exempte static/health.
+_rob.protege(lambda: __import__("securite_web").installer(app),
+             operation="installer securite web", source="startup")
 app.mount("/static", StaticFiles(directory=_os.path.join(_os.path.dirname(__file__), "static")), name="static")
 
 # ── Routers ────────────────────────────────────────────────────────────────────
@@ -111,7 +115,8 @@ def telegram_statut():
 
 @app.get("/", response_class=HTMLResponse)
 def racine():
-    return PAGE
+    # rendre_page injecte les fragments forges (fail-closed : sert la page d'origine si souci).
+    return _ui.rendre_page()
 
 
 @app.get("/info")
