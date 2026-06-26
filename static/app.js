@@ -2951,6 +2951,18 @@ async function donnerVie(id,btn){
       btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';
       btn.style.background='rgba(16,185,129,.08)';
       if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,800);
+      // Rafraichir la liste des propositions sans rechargement page.
+      // Placeholder immediat pour indiquer que quelque chose arrive.
+      if(d.prop_id){
+        const _c=document.getElementById('hub-props-list');
+        if(_c){
+          const _ph=document.createElement('div');
+          _ph.style.cssText='padding:12px 14px;background:rgba(168,85,247,.05);border:1px dashed rgba(168,85,247,.3);border-radius:10px;margin-bottom:10px;font-size:12px;color:#a855f7;opacity:.8;display:flex;align-items:center;gap:8px';
+          _ph.innerHTML='<span>&#8987;</span> Proposition enregistree, chargement…';
+          _c.prepend(_ph);
+        }
+        setTimeout(function(){if(typeof loadHubPropositions==='function')loadHubPropositions();},700);
+      }
     }else{
       btn.textContent='Refuse : '+(d.raison||'?');
       btn.style.color='#ef4444';btn.disabled=false;
