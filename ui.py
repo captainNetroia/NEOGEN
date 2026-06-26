@@ -786,7 +786,7 @@ def _section_evolution() -> str:
 
     <div id="pensee-filtres" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       <button onclick="filtrerPensees('tous')" class="filtre-btn" data-filtre="tous" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:#a855f7;cursor:pointer">Toutes</button>
-      <button onclick="filtrerPensees('actif')" class="filtre-btn" data-filtre="actif" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#10003; Actif</button>
+      <button onclick="filtrerPensees('pris-en-vie')" class="filtre-btn" data-filtre="pris-en-vie" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#10003; Pris en vie</button>
       <button onclick="filtrerPensees('generee')" class="filtre-btn" data-filtre="generee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#9889; Forge</button>
       <button onclick="filtrerPensees('notee')" class="filtre-btn" data-filtre="notee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Note</button>
       <button onclick="filtrerPensees('refusee')" class="filtre-btn" data-filtre="refusee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#10007; Refuse</button>

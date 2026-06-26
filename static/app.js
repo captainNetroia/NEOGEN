@@ -2352,23 +2352,51 @@ _initPreferences();
 fetch('/savoir/etat').then(function(r){if(r.status===403){var si=document.getElementById('side-evolution');if(si)si.style.display='none';}}).catch(function(){});
 
 // ===== COMPETENCES (skills) auto-creees =====
+function _familleSkill(s){
+  var outils=((s.outils||[]).join(' ')).toLowerCase();
+  var all=(outils+' '+(s.nom||'')+' '+(s.description||'')).toLowerCase();
+  if(/controler_ecran|ouvrir_url|fermer_onglet|cliquer|rpa|taper|saisir|piloter/.test(all))return'RPA';
+  if(/memoriser|rappeler|memoire_continue|memoire/.test(all))return'Memoire';
+  if(/creer_application|discerner|pipeline|generer|forger|creation/.test(all))return'Creation';
+  if(/analyser|lire_document|resumer|chercher|savoir|recherche|extraire|fetch|syntaxe/.test(all))return'Analyse';
+  if(/deleguer|orchestrer|planifier|coordonner|utiliser_skill|lister_skill/.test(all))return'Orchestration';
+  return'General';
+}
+const _FAMILLE_COULEUR={RPA:'#ef4444',Memoire:'#3b82f6',Creation:'#a855f7',Analyse:'#06b6d4',Orchestration:'#f59e0b',General:'#6b7280'};
+
 async function loadSkills(){
   const el=document.getElementById('skills-list');if(!el)return;
   try{
     const d=await(await fetch('/skills')).json();
     const list=d.skills||[];
     if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">Aucune competence apprise pour le moment. Demande au Cerveau d\'accomplir une tache reproductible, il la cristallisera.</div>';return;}
-    el.innerHTML=list.map(function(s){
-      return '<div class="hist-item" style="align-items:flex-start">'
-        +'<span class="tag ok" style="flex-shrink:0">'+esc(s.nom)+'</span>'
-        +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
-        +(s.auto?' <span class="badge live" style="font-size:9px">auto</span>':'')
-        +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
-        +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
-        +'</span>'
-        +'<span style="color:var(--ko);cursor:pointer;font-weight:700;flex-shrink:0" title="Supprimer" onclick="deleteSkill(\''+esc(s.nom)+'\')">&times;</span>'
-        +'</div>';
-    }).join('');
+    // Grouper par famille
+    const groupes={};
+    list.forEach(function(s){
+      var f=_familleSkill(s);
+      if(!groupes[f])groupes[f]=[];
+      groupes[f].push(s);
+    });
+    const ORDRE=['RPA','Memoire','Creation','Analyse','Orchestration','General'];
+    var html='';
+    ORDRE.forEach(function(famille){
+      if(!groupes[famille]||!groupes[famille].length)return;
+      var col=_FAMILLE_COULEUR[famille]||'#6b7280';
+      html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:'+col+';padding:12px 0 6px;border-top:1px solid rgba(255,255,255,.06)">'
+        +famille+' <span style="opacity:.5;font-weight:400">('+groupes[famille].length+')</span></div>';
+      groupes[famille].forEach(function(s){
+        html+='<div class="hist-item" style="align-items:flex-start">'
+          +'<span class="tag ok" style="flex-shrink:0;background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+esc(s.nom)+'</span>'
+          +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
+          +(s.auto?' <span class="badge live" style="font-size:9px">auto</span>':'')
+          +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
+          +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
+          +'</span>'
+          +'<span style="color:var(--ko);cursor:pointer;font-weight:700;flex-shrink:0" title="Supprimer" onclick="deleteSkill(\''+esc(s.nom)+'\')">&times;</span>'
+          +'</div>';
+      });
+    });
+    el.innerHTML=html;
   }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
 }
 window.deleteSkill=async function(nom){
@@ -2703,12 +2731,33 @@ async function loadPensees(){
     if(!r.ok)return;
     const d=await r.json();
     const list=(d&&d.pensees)||[];
-    const total=list.length;
     const visibles=list.filter(function(p){return p.forge_etat!=='archivee';});
     if(counter)counter.textContent=visibles.length+' pensee'+(visibles.length>1?'s':'')+' ('+list.length+' total)';
     if(!list.length){container.innerHTML='<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l\'instant. Provoquez-en une.</div>';return;}
     container.innerHTML='';
-    for(const p of list){container.appendChild(_renderPensee(p));}
+    // Trier par type pour le groupement visuel
+    const ORDRE_TYPE=['sujet','idee','suggestion','reflexion','reve','obsession','desir'];
+    const sorted=[...list].sort(function(a,b){
+      var ia=ORDRE_TYPE.indexOf(a.type||(a.sujet?'sujet':'idee'));
+      var ib=ORDRE_TYPE.indexOf(b.type||(b.sujet?'sujet':'idee'));
+      if(ia<0)ia=99;if(ib<0)ib=99;return ia-ib;
+    });
+    const LABELS_TYPE={sujet:'Sujets de discussion',idee:'Idees',suggestion:'Suggestions',reflexion:'Reflexions',reve:'Reves',obsession:'Obsessions',desir:'Desirs'};
+    var dernierType=null;
+    for(const p of sorted){
+      const ptype=p.type||(p.sujet?'sujet':'idee');
+      if(ptype!==dernierType){
+        const cnt=sorted.filter(function(x){return (x.type||(x.sujet?'sujet':'idee'))===ptype;}).length;
+        const hdr=document.createElement('div');
+        hdr.className='pensee-groupe-header';
+        hdr.dataset.groupe=ptype;
+        hdr.style.cssText='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#6b7280;padding:14px 0 6px;margin-top:4px;border-top:1px solid rgba(255,255,255,.06)';
+        hdr.textContent=(LABELS_TYPE[ptype]||ptype)+' ('+cnt+')';
+        container.appendChild(hdr);
+        dernierType=ptype;
+      }
+      container.appendChild(_renderPensee(p));
+    }
     if(_filtrePenseesCourant&&_filtrePenseesCourant!=='tous')filtrerPensees(_filtrePenseesCourant);
   }catch(e){container.innerHTML='<div style="opacity:.4;font-size:12px;padding:20px">Erreur chargement</div>';}
 }
@@ -2721,6 +2770,7 @@ function _renderPensee(p){
   wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
   wrap.dataset.etat=etatAttr;
   wrap.dataset.bulle=p.bulle?'1':'0';
+  wrap.dataset.ptype=p.type||'autre';
   const sc=(typeof p.score==='number')?p.score.toFixed(2):'--';
   let badges='<span style="font-size:11px;font-weight:700;color:'+col+';background:rgba(255,255,255,.06);border-radius:6px;padding:2px 8px">'+esc(p.type||'')+'</span>'
     +'<span style="font-size:11px;opacity:.5">'+esc(p.ambiance_label||p.ambiance||'')+'</span>'
@@ -2770,18 +2820,33 @@ function filtrerPensees(filtre){
   });
   var container=document.getElementById('pensee-list');
   if(!container)return;
+  // Masquer/afficher aussi les separateurs de groupe
+  container.querySelectorAll('.pensee-groupe-header').forEach(function(h){h.style.display='none';});
   var cartes=container.querySelectorAll('[data-etat]');
   var nb=0;
   cartes.forEach(function(c){
     var vis=false;
-    if(filtre==='tous')vis=(c.dataset.etat!=='archivee');
-    else if(filtre==='bulle')vis=(c.dataset.bulle==='1'&&c.dataset.etat!=='archivee');
-    else vis=(c.dataset.etat===filtre);
+    var et=c.dataset.etat||'';
+    if(filtre==='tous')vis=(et!=='archivee');
+    else if(filtre==='pris-en-vie')vis=(et==='actif'||et==='generee');
+    else if(filtre==='bulle')vis=(c.dataset.bulle==='1'&&et!=='archivee');
+    else vis=(et===filtre);
     c.style.display=vis?'':'none';
     if(vis)nb++;
   });
+  // Ré-afficher les headers dont le groupe a au moins une carte visible
+  container.querySelectorAll('.pensee-groupe-header').forEach(function(h){
+    var grp=h.dataset.groupe;
+    var visible=false;
+    var sib=h.nextElementSibling;
+    while(sib&&!sib.classList.contains('pensee-groupe-header')){
+      if(sib.dataset.ptype===grp&&sib.style.display!=='none'){visible=true;break;}
+      sib=sib.nextElementSibling;
+    }
+    if(visible)h.style.display='';
+  });
   var counter=document.getElementById('pensee-count');
-  if(counter&&filtre!=='tous')counter.textContent=nb+' pensee'+(nb>1?'s':'')+' ('+filtre+')';
+  if(counter)counter.textContent=nb+' pensee'+(nb>1?'s':'')+' ('+(filtre==='tous'?'toutes':filtre)+')';
 }
 
 function filtrerProduits(filtre){
