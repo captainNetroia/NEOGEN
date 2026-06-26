@@ -362,6 +362,63 @@ def outil_creer_rapport(titre: str = "Rapport", contenu: str = "",
     return nettoyer(f"Rapport {fmt.upper()} créé : /fichiers/rapports/{nom}")
 
 
+def outil_forger_bloc(idee: str = "", zone: str = "evolution", **kw) -> str:
+    """Genere et applique un fragment HTML dans la zone indiquee (runtime, securise)."""
+    if not idee:
+        return "[forger_bloc] idee requise"
+    import forge_fragments as _ff
+    apercu = _ff.generer_apercu(idee.strip(), zone)
+    if not apercu.get("ok"):
+        return f"[forger_bloc] refuse : {apercu.get('raison', 'echec')}"
+    res = _ff.appliquer(apercu["html"], zone, titre=apercu.get("titre", ""),
+                        user={"owner": True})
+    if res.get("ok"):
+        return nettoyer(f"[forger_bloc] '{apercu.get('titre', '')}' applique en zone '{zone}' ({res.get('action', '')})")
+    return f"[forger_bloc] echec : {res.get('raison', 'inconnu')}"
+
+
+def outil_donner_vie(pensee_id: str = "", **kw) -> str:
+    """Active une pensee existante (route son evolution ou lance une conversation dediee)."""
+    if not pensee_id:
+        return "[donner_vie] pensee_id requis"
+    import pensee as _p
+    import hashlib
+    pensees = _p.lister(limit=200)
+    found = next((x for x in pensees
+                  if hashlib.sha256(
+                      f"{x.get('titre', '')}|{x.get('synthese', '')[:120]}".encode()
+                  ).hexdigest()[:16] == pensee_id), None)
+    if not found:
+        return f"[donner_vie] pensee '{pensee_id}' introuvable"
+    evo = found.get("evolution")
+    if isinstance(evo, dict) and evo.get("type"):
+        try:
+            import evolution_gouvernee as _eg
+            res = _eg.proposer(evo["type"], evo.get("payload", {}),
+                               titre=found.get("titre", ""),
+                               raison=found.get("synthese", ""))
+            _p.marquer_vie_donnee(pensee_id)
+            return nettoyer(f"[donner_vie] evolution proposee : {res.get('detail', res.get('raison', ''))}")
+        except Exception as e:
+            return f"[donner_vie] erreur evolution : {e}"
+    result = _p.cycle_pensee(force=True, sujet=found.get("titre", ""))
+    _p.marquer_vie_donnee(pensee_id)
+    return nettoyer(f"[donner_vie] conversation lancee — titre : {result.get('titre', '')} score={result.get('score', '?')}")
+
+
+def outil_proposer_conversation(sujet: str = "", contexte: str = "", **kw) -> str:
+    """Lance une conversation autonome sur un sujet specifique (force un cycle pensee)."""
+    if not sujet:
+        return "[proposer_conversation] sujet requis"
+    import pensee as _p
+    sujet_complet = sujet.strip() + (f" — {contexte.strip()}" if contexte.strip() else "")
+    result = _p.cycle_pensee(force=True, sujet=sujet_complet)
+    if not result.get("execute"):
+        return f"[proposer_conversation] non execute : {result.get('raison', 'inconnu')}"
+    return nettoyer(f"[proposer_conversation] conversation creee — '{result.get('titre', '')}' "
+                    f"score={result.get('score', '?')} bulle={result.get('bulle', False)}")
+
+
 # ---------------------------------------------------------------------------
 # nom outil -> (fonction, description courte pour le prompt)
 # ---------------------------------------------------------------------------
@@ -382,6 +439,9 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire + boucle satisfaction (demande si ok, adapte ou crée si non, juge valeur systeme). params: {nom, contexte?}"),
     "memoriser":         (outil_memoriser,         "Memorise un fait DURABLE sur l'utilisateur/ses preferences/ses projets (se souvenir entre sessions). params: {contenu, type?: user|preference|projet|fait}"),
     "rappeler":          (outil_rappeler,          "Rappelle ce que tu sais deja (souvenirs des sessions precedentes). params: {requete?}"),
-    "lire_fichier":      (outil_lire_fichier,      "Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local. params: {chemin}"),
-    "creer_rapport":     (outil_creer_rapport,     "Cree un rapport telechargeable. params: {titre, contenu, format?} — format: docx (defaut), pdf, excel/xlsx, csv, pptx, html. Le contenu peut utiliser ## ### pour les titres/sections."),
+    "lire_fichier":           (outil_lire_fichier,           "Lit un fichier PDF/PPTX/DOCX/TXT depuis un chemin local. params: {chemin}"),
+    "creer_rapport":          (outil_creer_rapport,          "Cree un rapport telechargeable. params: {titre, contenu, format?} — format: docx (defaut), pdf, excel/xlsx, csv, pptx, html. Le contenu peut utiliser ## ### pour les titres/sections."),
+    "forger_bloc":            (outil_forger_bloc,            "Genere et applique un fragment HTML dans l'interface (runtime, securise). params: {idee, zone?} — zone: cerveaux|creation|production|compte|analyse|evolution|integrations"),
+    "donner_vie":             (outil_donner_vie,             "Active une pensee existante : route son evolution ou lance une conversation dediee. params: {pensee_id}"),
+    "proposer_conversation":  (outil_proposer_conversation,  "Lance une conversation autonome sur un sujet (force un cycle pensee). params: {sujet, contexte?}"),
 }

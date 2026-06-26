@@ -3015,8 +3015,14 @@ async function donnerVie(id,btn){
   try{
     const r=await fetch('/savoir/pensees/'+encodeURIComponent(id)+'/donner-vie',{method:'POST'});
     const d=await r.json();
-    if(d.voie==='interface'&&d.css){
-      // Idee d'interface : apercu du CSS reel -> confirmation -> application a l'ecran.
+    if(d.voie==='forge_blocs'&&d.ok&&d.html){
+      // Idee d'affichage : apercu HTML -> active la Forge de blocs avec le preview charge.
+      btn.textContent='Apercu Forge';
+      _activerForgeBlocs(d);
+    }else if(d.voie==='forge_blocs'&&!d.ok){
+      btn.textContent='Forge : '+(d.raison||'echec');
+      btn.style.color='#ef4444';btn.disabled=false;
+    }else if(d.voie==='interface'&&d.css){
       btn.textContent='Apercu pret';
       _bulleApercuInterface(d,btn);
     }else if(d.voie==='interface'&&!d.ok){
@@ -3239,6 +3245,25 @@ async function loadEvolutionSysteme(){
     }catch(e){if(st){st.style.color='#ef4444';st.textContent='Erreur : '+esc(e.message);}}
     finally{bp.disabled=false;}
   };
+}
+
+/* Activation de la Forge de blocs depuis "Donner vie" (voie forge_blocs).
+   Charge l'apercu HTML dans le panel existant, scrolle vers la Forge, met a jour la zone. */
+function _activerForgeBlocs(d){
+  _fragApercuCourant={html:d.html,zone:d.zone||'evolution',titre:d.titre||''};
+  const apZone=document.getElementById('frag-apercu-zone');
+  const titreEl=document.getElementById('frag-apercu-titre');
+  const renderEl=document.getElementById('frag-apercu-render');
+  const explEl=document.getElementById('frag-apercu-expl');
+  const zoneEl=document.getElementById('frag-zone');
+  if(titreEl)titreEl.textContent='— '+esc(_fragApercuCourant.titre);
+  if(renderEl)renderEl.innerHTML=_fragApercuCourant.html;
+  if(explEl)explEl.textContent=d.explication||'';
+  if(zoneEl)zoneEl.value=_fragApercuCourant.zone;
+  if(apZone)apZone.style.display='';
+  const forgeSection=document.getElementById('forge-section')||document.querySelector('[data-section="forge"]');
+  if(forgeSection)forgeSection.scrollIntoView({behavior:'smooth',block:'start'});
+  else if(apZone)apZone.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 /* --- Forge de fragments : de vrais blocs HTML injectes a l'ecran (proprio) --- */

@@ -148,11 +148,39 @@ _DELEGABLES = ("createur", "genealogiste", "secretaire")
 # Agents du NOYAU : jamais ecrases par un bebe-agent custom (evolution gouvernee).
 _PROFILS_NOYAU = frozenset(PROFILS.keys())
 
+# Outils accordes aux bebe-agents selon leur section deduite (sauf Soutenir = aucun).
+_OUTILS_PAR_SECTION: dict[str, list[str]] = {
+    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation"],
+    "creation":     ["creer_application", "lister_creations", "creer_skill", "lister_skills", "utiliser_skill", "forger_bloc", "proposer_conversation"],
+    "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
+    "compte":       ["conseiller", "discerner", "proposer_conversation"],
+    "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation"],
+    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport"],
+    "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation"],
+}
+
+_SECTION_KEYWORDS = {
+    "cerveaux":     ("cerveau", "critique", "arbitre", "veilleur", "savoir", "memoire", "skill"),
+    "creation":     ("creation", "creer", "fabriquer", "forgeron", "generateur"),
+    "production":   ("production", "registre", "genealog", "produit"),
+    "compte":       ("compte", "secretaire", "rpa", "ecran", "preference"),
+    "analyse":      ("analyste", "analyse", "metrique", "statistique", "pattern"),
+    "evolution":    ("architecte", "evolution", "store", "noyau", "gouverne", "changement"),
+    "integrations": ("connecteur", "integration", "provider", "api", "fournisseur"),
+}
+
+
+def _detecter_section(profil: dict) -> str | None:
+    blob = (profil.get("titre", "") + " " + profil.get("role", "")).lower()
+    for section, mots in _SECTION_KEYWORDS.items():
+        if any(m in blob for m in mots):
+            return section
+    return None
+
 
 def rafraichir_profils() -> int:
-    """Fusionne les bebe-agents custom (crees par evolution_gouvernee, data-driven) dans
-    PROFILS. Idempotent. Les agents du noyau ne sont JAMAIS ecrases ; delegue force a
-    False (anti-escalade : un bebe-agent ne peut pas orchestrer le Cerveau)."""
+    """Fusionne les bebe-agents custom dans PROFILS. Assigne les outils de section si absents.
+    Idempotent. Les agents noyau ne sont JAMAIS ecrases ; delegue=False (anti-escalade)."""
     try:
         import evolution_gouvernee
         customs = evolution_gouvernee.profils_custom()
@@ -164,6 +192,11 @@ def rafraichir_profils() -> int:
             continue
         p = dict(prof)
         p["delegue"] = False
+        # Outils par section : si le bebe-agent n'en a pas, on les deduit de son role/titre.
+        if not p.get("outils"):
+            section = _detecter_section(p)
+            if section and section in _OUTILS_PAR_SECTION:
+                p["outils"] = _OUTILS_PAR_SECTION[section]
         PROFILS[cle] = p
         n += 1
     return n
