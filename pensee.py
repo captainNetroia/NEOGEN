@@ -528,6 +528,22 @@ def bulles_non_lues() -> list[dict]:
     return [p for p in _lire() if p.get("bulle") and not p.get("lue")]
 
 
+def marquer_vie_donnee(pensee_id: str) -> dict:
+    """Marque une pensee comme 'vie_donnee' : sa proposition a ete approuvee et appliquee."""
+    pensees = _lire()
+    trouve = False
+    for p in pensees:
+        if p.get("id") == pensee_id:
+            p["vie_donnee"] = True
+            trouve = True
+    if trouve:
+        os.makedirs(_DATA, exist_ok=True)
+        with open(_PENSEES_PATH, "w", encoding="utf-8") as f:
+            for p in pensees:
+                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    return {"ok": trouve, "id": pensee_id}
+
+
 def marquer_lue(pensee_id: str) -> dict:
     """Marque une bulle comme lue (rewrite du fichier). Idempotent."""
     pensees = _lire()

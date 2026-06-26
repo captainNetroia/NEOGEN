@@ -136,15 +136,18 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
 
     evo = p.get("evolution")
     if isinstance(evo, dict) and evo.get("type") and isinstance(evo.get("payload"), dict):
+        payload = dict(evo["payload"])
+        payload["_pensee_id"] = pensee_id
         return _evo.proposer(
-            evo["type"], evo["payload"],
+            evo["type"], payload,
             titre=p.get("titre", ""),
             raison=evo.get("raison", "") or p.get("synthese", ""))
 
     # Pas de champ evolution LLM -> propose comme idee avec le contenu de la pensee.
     return _evo.proposer(
         "idee",
-        {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip()},
+        {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip(),
+         "_pensee_id": pensee_id},
         titre=p.get("titre", ""),
         raison=p.get("synthese", ""))
 

@@ -2563,8 +2563,9 @@ function _renderProp(p){
       wrap.style.opacity='.4';
       wrap.querySelector('[data-refuse]').style.display='none';
       this.textContent=d.ok?'Approuve !':'Erreur';
+      if(d.ok) _bulleVieDonnee(p.titre||'');
     }catch(e){this.textContent='Erreur';}
-    setTimeout(function(){loadHubPropositions();loadHubEtat();},1200);
+    setTimeout(function(){loadHubPropositions();loadHubEtat();loadEvolutionSysteme();loadPensees();},1400);
   };
   wrap.querySelector('[data-refuse]').onclick=async function(){
     this.disabled=true;this.textContent='...';
@@ -2699,7 +2700,8 @@ function _renderPensee(p){
     +'<span style="font-size:11px;opacity:.5">'+esc(p.ambiance_label||p.ambiance||'')+'</span>'
     +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
   if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
-  if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
+  if(p.vie_donnee)badges+='<span style="font-size:11px;color:#a855f7;font-weight:700">&#9889; Vie donnee</span>';
+  else if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
   if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
   if(Array.isArray(p.transcript)&&p.transcript.length){
@@ -2719,6 +2721,17 @@ function _renderPensee(p){
     +'style="font-size:11px;padding:4px 12px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);color:#a855f7;border-radius:6px;cursor:pointer">&#9889; Donner vie a cette idee</button>'
     +'</div>';
   return wrap;
+}
+
+function _bulleVieDonnee(titre){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;right:20px;bottom:80px;max-width:320px;z-index:9999;padding:16px 18px;background:rgba(16,22,30,.97);border:1px solid rgba(168,85,247,.5);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.6);backdrop-filter:blur(10px)';
+  el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Votre idee prend vie</div>'
+    +'<div style="font-size:13px;font-weight:600;margin-bottom:4px">'+esc(titre)+'</div>'
+    +'<div style="font-size:11px;opacity:.55;line-height:1.4">La regle est appliquee. La page se recharge dans 2s.</div>';
+  document.body.appendChild(el);
+  setTimeout(function(){if(el.parentNode)el.remove();},5000);
+  setTimeout(function(){location.reload();},2200);
 }
 
 async function donnerVie(id,btn){

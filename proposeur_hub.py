@@ -237,7 +237,19 @@ def approuver(prop_id: str) -> dict:
 
     resultat = _executer(prop)
     _maj_proposition(prop_id, {"statut": "approuve", "approuve_le": time.time(), "resultat": resultat})
-    return {"ok": True, "prop_id": prop_id, "resultat": resultat}
+
+    # Si la proposition vient d'un "Donner vie" -> marquer la pensee source comme vie_donnee.
+    pensee_id = prop.get("changement", {}).get("payload", {}).get("_pensee_id") or \
+                prop.get("pensee_id", "")
+    if pensee_id:
+        try:
+            import pensee as _pensee_mod
+            _pensee_mod.marquer_vie_donnee(pensee_id)
+        except Exception:
+            pass
+
+    return {"ok": True, "prop_id": prop_id, "resultat": resultat,
+            "pensee_id": pensee_id or None}
 
 
 def refuser(prop_id: str) -> dict:
