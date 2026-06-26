@@ -211,20 +211,29 @@ def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
     store = regles_actives()
     if type_ == "regle":
         cle = payload.get("cle") or _slug(titre)
-        store.setdefault("regles", {})[cle] = payload.get("valeur", payload)
-        detail = f"regle '{cle}' = {store['regles'][cle]}"
+        versions = store.setdefault("versions_regles", {})
+        existante = store.setdefault("regles", {}).get(cle)
+        v = _bump_version(versions.get(cle)) if existante is not None else "1"
+        store["regles"][cle] = payload.get("valeur", payload)
+        versions[cle] = v
+        action = f"mis a jour v{v}" if existante is not None else f"cree v{v}"
+        detail = f"regle '{cle}' {action}"
     elif type_ == "loi":
         loi = payload.get("loi") or payload.get("texte") or titre
         store.setdefault("lois", [])
         if loi not in store["lois"]:
             store["lois"].append(loi)
-        detail = f"loi ajoutee : {loi[:80]}"
+            detail = f"loi ajoutee : {loi[:80]}"
+        else:
+            detail = f"loi deja presente : {loi[:80]}"
     else:  # idee
         idee = payload.get("idee") or payload.get("texte") or titre
         store.setdefault("idees", [])
         if idee not in store["idees"]:
             store["idees"].append(idee)
-        detail = f"idee notee : {idee[:80]}"
+            detail = f"idee notee : {idee[:80]}"
+        else:
+            detail = f"idee deja notee : {idee[:80]}"
     _sauver("regles_actives.json", store)
     return {"ok": True, "detail": detail}
 
@@ -246,30 +255,46 @@ def _appliquer_skill(payload: dict, titre: str) -> dict:
 
 def _appliquer_agent(payload: dict, titre: str) -> dict:
     """Bebe-agent : un profil custom. delegue=False TOUJOURS (il ne peut pas orchestrer
-    le Cerveau) ; ses outils sont filtres a un sous-ensemble sur (anti-escalade)."""
+    le Cerveau) ; ses outils sont filtres a un sous-ensemble sur (anti-escalade).
+    Si la cle existe deja -> mise a jour + bump version. Sinon -> creation v1."""
     profils = profils_custom()
     cle = payload.get("cle") or _slug(payload.get("nom") or titre)
     outils_surs = {"conseiller", "lister_creations", "genealogie", "lister_skills",
                    "utiliser_skill", "memoriser", "rappeler", "lire_fichier", "creer_rapport"}
     outils = [o for o in (payload.get("outils") or []) if o in outils_surs]
-    profils[cle] = {
-        "titre": (payload.get("titre") or payload.get("nom") or cle)[:80],
-        "tier": payload.get("tier") if payload.get("tier") in ("moyen", "leger") else "moyen",
-        "delegue": False,
-        "outils": outils,
-        "role": (payload.get("role") or "Tu es un agent specialise de NEOGEN.")[:2000],
-        "custom": True,
-    }
+    existant = profils.get(cle)
+    if existant:
+        nouvelle_version = _bump_version(existant.get("version") or "1")
+        profils[cle] = {**existant,
+                        "titre": (payload.get("titre") or payload.get("nom") or existant.get("titre") or cle)[:80],
+                        "tier": payload.get("tier") if payload.get("tier") in ("moyen", "leger") else existant.get("tier", "moyen"),
+                        "delegue": False,
+                        "outils": outils if outils else existant.get("outils", []),
+                        "role": (payload.get("role") or existant.get("role") or "Tu es un agent specialise de NEOGEN.")[:2000],
+                        "version": nouvelle_version,
+                        "custom": True}
+        action = f"mis a jour v{nouvelle_version}"
+    else:
+        profils[cle] = {
+            "titre": (payload.get("titre") or payload.get("nom") or cle)[:80],
+            "tier": payload.get("tier") if payload.get("tier") in ("moyen", "leger") else "moyen",
+            "delegue": False,
+            "outils": outils,
+            "role": (payload.get("role") or "Tu es un agent specialise de NEOGEN.")[:2000],
+            "version": "1",
+            "custom": True,
+        }
+        action = "cree v1"
     _sauver("agents_custom.json", profils)
     try:
         import agent_core
         agent_core.rafraichir_profils()
     except Exception:
         pass
-    return {"ok": True, "detail": f"bebe-agent '{cle}' cree (tier {profils[cle]['tier']}, {len(outils)} outils surs)"}
+    return {"ok": True, "detail": f"bebe-agent '{cle}' {action} (tier {profils[cle]['tier']}, {len(profils[cle]['outils'])} outils surs)"}
 
 
-def _appliquer_modele(payload: dict, titre: str) -> dict:
+def _appliquer_modele(payload: dict, _titre: str) -> dict:
     modeles = modeles_custom()
     provider = (payload.get("provider") or "").strip().lower()
     if not provider:
@@ -297,15 +322,18 @@ def _appliquer_savoir(payload: dict, titre: str) -> dict:
 
 def _appliquer_store(type_: str, payload: dict, titre: str) -> dict:
     """esthetique / section / integration / capacite : enregistre le descripteur data-driven.
-    (Consommation UI/gateway de esthetique & sections : phase 2 ; deja gouverne et trace.)"""
+    Si la cle existe -> mise a jour + bump version."""
     fichier = _STORES.get(type_)
     if not fichier:
         return {"ok": False, "raison": f"type '{type_}' sans store"}
     store = _charger(fichier, {})
     cle = payload.get("cle") or _slug(payload.get("nom") or titre)
-    store[cle] = payload
+    existant = store.get(cle)
+    v = _bump_version(existant.get("version") if isinstance(existant, dict) else None) if existant is not None else "1"
+    store[cle] = {**payload, "version": v}
+    action = f"mis a jour v{v}" if existant is not None else f"cree v{v}"
     _sauver(fichier, store)
-    return {"ok": True, "detail": f"{type_} '{cle}' enregistre (data-driven)"}
+    return {"ok": True, "detail": f"{type_} '{cle}' {action} (data-driven)"}
 
 
 # ── Etat / journal ──────────────────────────────────────────────────────────────
@@ -318,7 +346,10 @@ def etat() -> dict:
                        "changements_cette_annee": len(gen.get("changelog", []))},
         "stores": {
             "regles": regles_actives(),
-            "agents_custom": list(profils_custom().keys()),
+            "agents_custom": {k: {"titre": v.get("titre", k), "version": v.get("version", "1"),
+                                   "tier": v.get("tier", "moyen"), "outils": v.get("outils", []),
+                                   "role": (v.get("role") or "")[:120]}
+                              for k, v in profils_custom().items()},
             "modeles_custom": list(modeles_custom().keys()),
             "esthetique": list(store_custom("esthetique").keys()),
             "sections": list(store_custom("section").keys()),
@@ -342,6 +373,21 @@ def _slug(txt: str) -> str:
     import re
     s = re.sub(r"[^a-z0-9]+", "_", (txt or "").lower()).strip("_")
     return s[:40] or "item"
+
+
+def _bump_version(v: str | None) -> str:
+    """'1' -> '1.1' -> '1.2' -> ... (bump mineur) ; None -> '1'."""
+    if not v:
+        return "1"
+    s = str(v).lstrip("v")
+    if "." not in s:
+        return s + ".1"
+    parts = s.split(".")
+    try:
+        parts[-1] = str(int(parts[-1]) + 1)
+        return ".".join(parts)
+    except (ValueError, IndexError):
+        return s + ".1"
 
 
 # ── Auto-verification offline ───────────────────────────────────────────────────

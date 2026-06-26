@@ -1865,7 +1865,7 @@ const _origShowSection=showSection;
 showSection=function(name){
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
-  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();}
+  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();if(window.loadBebeAgents)loadBebeAgents();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -2478,6 +2478,13 @@ window.deleteMemoire=async function(id){
   const btn=document.getElementById('mem-refresh');
   if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
   loadMemoire();
+})();
+
+// ===== BEBE-AGENTS CUSTOM =====
+(function(){
+  const btn=document.getElementById('bebeagents-refresh');
+  if(btn)btn.onclick=function(){btn.textContent='...';loadBebeAgents().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
+  loadBebeAgents();
 })();
 
 // ===== TACHES AUTONOMES (cron) =====
@@ -3248,8 +3255,13 @@ async function loadEvolutionChangelog(){
       el.dataset.ctype=(e.type||'').toLowerCase();
       const dt=e.ts?new Date(e.ts*1000).toLocaleDateString():'';
       const col=_CL_COL[el.dataset.ctype]||'#10b981';
+      // Extraire la version du detail (ex: "bebe-agent 'x' mis a jour v1.2 ...")
+      const _vmatch=(e.detail||'').match(/\bv(\d+(?:\.\d+)*)\b/);
+      const _vbadge=_vmatch?'<span style="display:inline-block;margin-left:6px;font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1);color:#e2e8f0;vertical-align:middle">v'+esc(_vmatch[1])+'</span>':'';
+      const _isMaj=(e.detail||'').includes('mis a jour');
+      const _actionBadge=_isMaj?'<span style="display:inline-block;margin-left:4px;font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(251,146,60,.15);color:#fb923c;vertical-align:middle">MAJ</span>':'';
       el.innerHTML='<span style="font-weight:700;color:'+col+'">['+esc(e.type||'')+']</span> '
-        +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'
+        +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'+_vbadge+_actionBadge
         +'<span style="float:right;opacity:.4">'+esc(dt)+'</span>'
         +'<div style="opacity:.6;margin-top:2px">'+esc(e.detail||'')+'</div>';
       // Appliquer le filtre courant immediatement
@@ -3258,6 +3270,36 @@ async function loadEvolutionChangelog(){
       c.appendChild(el);
     }
   }catch(e){}
+}
+
+/* Bebe-agents custom : liste avec version + role court. */
+async function loadBebeAgents(){
+  const c=document.getElementById('bebeagents-list');
+  if(!c)return;
+  try{
+    const r=await fetch('/savoir/evolution/etat');
+    if(!r.ok)return;
+    const d=await r.json();
+    const agents=(d.stores||{}).agents_custom||{};
+    const keys=Object.keys(agents);
+    if(!keys.length){c.innerHTML='<div style="color:var(--mut);font-size:12px;opacity:.6">Aucun bebe-agent cree. « Donner vie » a une idee agent en cree un.</div>';return;}
+    c.innerHTML='';
+    for(const cle of keys){
+      const a=agents[cle];
+      const v=a.version||'1';
+      const isMaj=v.includes('.');
+      const vBadge='<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;background:'+(isMaj?'rgba(251,146,60,.18)':'rgba(59,130,246,.18)')+';color:'+(isMaj?'#fb923c':'#3b82f6')+';margin-left:6px">v'+esc(v)+'</span>';
+      const majBadge=isMaj?'<span style="display:inline-block;font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(251,146,60,.12);color:#fb923c;margin-left:4px">MAJ</span>':'';
+      const el=document.createElement('div');
+      el.style.cssText='padding:10px 12px;background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.12);border-radius:8px;margin-bottom:6px;font-size:12px';
+      el.innerHTML='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">'
+        +'<span style="font-weight:700;color:#3b82f6">'+esc(a.titre||cle)+'</span>'+vBadge+majBadge
+        +'<span style="margin-left:auto;opacity:.4;font-size:10px">tier '+esc(a.tier||'moyen')+(a.outils&&a.outils.length?' · '+a.outils.length+' outils':'')+'</span>'
+        +'</div>'
+        +(a.role?'<div style="opacity:.55;margin-top:4px;line-height:1.5">'+esc(a.role)+'</div>':'');
+      c.appendChild(el);
+    }
+  }catch(e){c.innerHTML='<div style="color:var(--mut);font-size:12px">Erreur chargement.</div>';}
 }
 
 /* Cellules forgees : le VRAI code genere par la forge. Clic -> deplie le code + verdict. */

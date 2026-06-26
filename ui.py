@@ -342,6 +342,16 @@ def _section_cerveau() -> str:
     </div>
   </div>
 
+  <!-- Bebe-agents custom (crees par evolution) -->
+  <div class="panel glass" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">Bebe-agents crees</div>
+      <button class="ghost" id="bebeagents-refresh" style="font-size:12px;padding:4px 10px">Rafraichir</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Agents specialises crees par evolution gouvernee. Chaque mise a jour bumpe la version.</div>
+    <div id="bebeagents-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+  </div>
+
   <!-- Memoire cross-session : ce que l'agent retient de toi -->
   <div class="panel glass" style="margin-top:18px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
