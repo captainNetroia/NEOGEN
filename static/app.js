@@ -2766,7 +2766,7 @@ function _renderPensee(p){
   const tcol={idee:'#10b981',suggestion:'#3b82f6',obsession:'#ef4444',sujet:'#a855f7',reflexion:'#06b6d4',reve:'#f59e0b',desir:'#ec4899'};
   const col=tcol[p.type]||'#888';
   const wrap=document.createElement('div');
-  const etatAttr=p.forge_etat||(p.vie_donnee?'notee':'');
+  const etatAttr=p.forge_etat||(p.vie_donnee?'actif':'');
   wrap.style.cssText='padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-bottom:10px';
   wrap.dataset.etat=etatAttr;
   wrap.dataset.bulle=p.bulle?'1':'0';
