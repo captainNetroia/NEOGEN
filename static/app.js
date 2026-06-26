@@ -2785,7 +2785,24 @@ function _renderPensee(p){
   if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
   if(Array.isArray(p.transcript)&&p.transcript.length){
-    tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.55;cursor:pointer">Conversation ('+p.transcript.length+')</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding-right:4px">';
+    // Badge de fraicheur base sur p.ts (quand la conversation a eu lieu)
+    const _tsConv=p.ts?p.ts*1000:null;
+    let _freshLabel='';let _freshCol='';
+    if(_tsConv){
+      const _ageS=(Date.now()-_tsConv)/1000;
+      const _ageMin=_ageS/60;const _ageH=_ageMin/60;const _ageJ=_ageH/24;
+      if(_ageMin<60){_freshLabel='il y a '+Math.max(1,Math.round(_ageMin))+'min';_freshCol='#10b981';}
+      else if(_ageH<24){_freshLabel='il y a '+Math.round(_ageH)+'h';_freshCol='#22d3ee';}
+      else if(_ageJ<7){_freshLabel='il y a '+Math.round(_ageJ)+'j';_freshCol='#f59e0b';}
+      else if(_ageJ<30){_freshLabel='il y a '+Math.round(_ageJ/7)+'sem';_freshCol='#f97316';}
+      else{_freshLabel='il y a '+Math.round(_ageJ/30)+'mois';_freshCol='#6b7280';}
+    }
+    const _dateStr=_tsConv?new Date(_tsConv).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    const _freshBadge=_freshLabel
+      ?'<span title="'+_dateStr+'" style="margin-left:8px;font-size:10px;color:'+_freshCol+';background:'+_freshCol+'22;border:1px solid '+_freshCol+'44;border-radius:4px;padding:1px 6px;font-weight:600">'+_freshLabel+'</span>'
+      :'';
+    tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.6;cursor:pointer;list-style:none;display:flex;align-items:center;gap:0">&#9654; Conversation ('+p.transcript.length+')'+_freshBadge+'</summary>'
+      +'<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;padding-right:4px">';
     for(const t of p.transcript){tr+='<div style="font-size:12px;line-height:1.5"><span style="font-weight:600;color:'+col+'">'+esc(t.agent||'')+'</span> : <span style="opacity:.85">'+esc(t.texte||'')+'</span></div>';}
     tr+='</div></details>';
   }
