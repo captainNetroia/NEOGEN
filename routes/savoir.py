@@ -119,6 +119,36 @@ def pensees_marquer_lue(pensee_id: str, authorization: str | None = Header(defau
     return res
 
 
+@router.post("/pensees/{pensee_id}/donner-vie")
+def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(default=None)):
+    """Donne vie a une pensee : la propose dans la Super-Capacite (evolution gouvernee).
+    Si la pensee contient un champ 'evolution' genere par le LLM -> l'utilise directement.
+    Sinon -> propose une 'idee' generique avec son titre + synthese.
+    Jordan approuve dans l'onglet Propositions -> le changement s'applique."""
+    _gate_owner(authorization)
+    import pensee as _pensee
+    import evolution_gouvernee as _evo
+
+    toutes = _pensee.lister(limit=500)
+    p = next((x for x in toutes if x.get("id") == pensee_id), None)
+    if not p:
+        raise HTTPException(status_code=404, detail="pensee introuvable")
+
+    evo = p.get("evolution")
+    if isinstance(evo, dict) and evo.get("type") and isinstance(evo.get("payload"), dict):
+        return _evo.proposer(
+            evo["type"], evo["payload"],
+            titre=p.get("titre", ""),
+            raison=evo.get("raison", "") or p.get("synthese", ""))
+
+    # Pas de champ evolution LLM -> propose comme idee avec le contenu de la pensee.
+    return _evo.proposer(
+        "idee",
+        {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip()},
+        titre=p.get("titre", ""),
+        raison=p.get("synthese", ""))
+
+
 @router.get("/pensees/config")
 def pensees_config(authorization: str | None = Header(default=None)):
     _gate_owner(authorization)

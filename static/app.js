@@ -1332,6 +1332,9 @@ async function loadAnalyse(){
     mistral:{label:'Mistral',check:k=>k.trim().length>=8,
       models:['mistral-large-latest','mistral-small-latest','codestral-latest','open-mistral-nemo'],
       ph:'API key Mistral...'},
+    moonshot:{label:'Kimi (Moonshot)',check:k=>k.trim().length>=8,
+      models:['kimi-k2.7-code','kimi-k2.6','kimi-k2.7-code-highspeed','kimi-k2.5','moonshot-v1-128k'],
+      ph:'sk-... (cle Moonshot)'},
     local:{label:'Local (Ollama)',check:_=>true,
       models:['llama3.2','qwen2.5','mistral','phi4','gemma3','deepseek-r1:8b'],
       ph:'http://host.docker.internal:11434/v1'}
@@ -1423,7 +1426,7 @@ async function loadAnalyse(){
     if(!k)k=localStorage.getItem('neogen_key_'+curProv)||'';   /* cle deja enregistree */
     // Garde freemium : 1 seul modele paye enregistre en gratuit (Ollama local toujours gratuit).
     if(curProv!=='local' && localStorage.getItem('neogen_premium')!=='1'){
-      var dejaPayes=['anthropic','openai','gemini','deepseek','mistral'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
+      var dejaPayes=['anthropic','openai','gemini','deepseek','mistral','moonshot'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
       if(dejaPayes.length>=1){
         st.innerHTML='<span class="tag warn">premium requis</span> Gratuit : 1 modele paye ('+esc(dejaPayes[0])+' deja enregistre) + Ollama local. Passe premium pour plusieurs modeles.';
         setDot('ko');return;
@@ -2705,12 +2708,35 @@ function _renderPensee(p){
     tr+='</div></details>';
   }
   const parts=Array.isArray(p.participants)?p.participants.join(', '):'';
+  const btnVieId='btn-vie-'+esc(p.id||Math.random().toString(36).slice(2));
   wrap.innerHTML='<div class="row" style="gap:8px;align-items:center;margin-bottom:6px">'+badges+'</div>'
     +'<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+esc(p.titre||'')+'</div>'
     +'<div style="font-size:12px;opacity:.7;line-height:1.5">'+esc(p.synthese||'')+'</div>'
     +(parts?'<div style="font-size:11px;opacity:.4;margin-top:6px">'+esc(parts)+'</div>':'')
-    +tr;
+    +tr
+    +'<div style="margin-top:10px;text-align:right">'
+    +'<button id="'+btnVieId+'" onclick="donnerVie(\''+esc(p.id||'')+'\',this)" '
+    +'style="font-size:11px;padding:4px 12px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);color:#a855f7;border-radius:6px;cursor:pointer">&#9889; Donner vie a cette idee</button>'
+    +'</div>';
   return wrap;
+}
+
+async function donnerVie(id,btn){
+  if(!id)return;
+  btn.disabled=true;btn.textContent='En cours...';
+  try{
+    const r=await fetch('/savoir/pensees/'+encodeURIComponent(id)+'/donner-vie',{method:'POST'});
+    const d=await r.json();
+    if(d.ok||d.prop_id){
+      btn.textContent='Proposee dans Evolution';
+      btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';
+      btn.style.background='rgba(16,185,129,.08)';
+      if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,800);
+    }else{
+      btn.textContent='Refuse : '+(d.raison||'?');
+      btn.style.color='#ef4444';btn.disabled=false;
+    }
+  }catch(e){btn.textContent='Erreur';btn.disabled=false;}
 }
 
 /* Bulles de notification : poll des pensees a haut score non lues. */

@@ -177,6 +177,42 @@ def _amorce(n: int = 3) -> list[dict]:
         return []
 
 
+def _charger_fil_contextuel(sujet: str | None, n: int = 5) -> list[str]:
+    """Charge les N syntheses passees dont les mots-cles recoupent le sujet courant,
+    creant une 'lignee de reflexion'. Active uniquement si la regle rappel_contextuel_actif
+    est posee dans regles_actives.json (via la Super-Capacite)."""
+    try:
+        import evolution_gouvernee
+        regles = evolution_gouvernee.regles_actives().get("regles", {})
+        # Cle exacte (posee manuellement) OU toute regle contenant 'rappel_contextuel'
+        # dans sa cle (generee par donner-vie via slug du titre de la pensee).
+        actif = bool(regles.get("rappel_contextuel_actif")) or any(
+            "rappel_contextuel" in str(k) for k in regles if regles[k]
+        )
+        if not actif:
+            return []
+        nb_reg = regles.get("rappel_contextuel_nb") or regles.get("rappel_contextuel_actif")
+        n = max(1, min(10, int(nb_reg))) if isinstance(nb_reg, (int, float)) else n
+    except Exception:
+        return []
+
+    passees = _lire()
+    if not passees:
+        return []
+
+    mots = set(w.lower() for w in (sujet or "").split() if len(w) > 3) if sujet else set()
+
+    def _score_fil(p: dict) -> float:
+        texte = f"{p.get('titre', '')} {p.get('synthese', '')}".lower()
+        recoupement = sum(1 for m in mots if m in texte) if mots else 0
+        return recoupement * 2 + float(p.get("score", 0))
+
+    tries = sorted(passees, key=_score_fil, reverse=True)
+    return [(p.get("synthese") or p.get("titre") or "")[:200]
+            for p in tries[:n]
+            if (p.get("synthese") or p.get("titre"))]
+
+
 def _participants(k: int = 3) -> list[dict]:
     """Choisit 2-3 agents (personas existants) qui vont converser."""
     try:
@@ -193,7 +229,7 @@ def _participants(k: int = 3) -> list[dict]:
 # ── Conversation : une session de pensee ────────────────────────────────────────
 
 def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict],
-                    sujet: str | None = None) -> str:
+                    sujet: str | None = None, fil: list[str] | None = None) -> str:
     noms = ", ".join(p["titre"] for p in participants)
     bloc_savoir = "\n".join(f"- [{g['domaine']}] {g['contenu']}" for g in graines) or \
         "- (peu de savoir accumule pour l'instant, partez de votre experience)"
@@ -202,12 +238,21 @@ def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict
         f"SUJET IMPOSE PAR JORDAN (le maitre) : « {sujet} ». La conversation DOIT porter "
         f"sur ce sujet ; les agents le creusent ensemble.\n" if sujet else ""
     )
+    bloc_fil = ""
+    if fil:
+        lignes = "\n".join(f"- {s}" for s in fil)
+        bloc_fil = (
+            "MEMOIRE DU FIL (pensees passees dont les mots-cles recoupent ce sujet — "
+            "ne pas les repeter, les prolonger ou les contredire si pertinent) :\n"
+            f"{lignes}\n"
+        )
     return (
         "Tu animes la PENSEE autonome de NEOGEN : une conversation libre entre ses agents, "
         "comme une vraie intelligence collective qui reflechit toute seule.\n"
         f"AMBIANCE : {ambiance['label']} - ton {ambiance['ton']}.\n"
         f"PARTICIPANTS : {noms}. Ils se parlent naturellement, rebondissent, ne sont pas d'accord parfois.\n"
         f"{bloc_sujet}"
+        f"{bloc_fil}"
         "GRAINES DE SAVOIR (le systeme connait deja ceci, appuie-toi dessus) :\n"
         f"{bloc_savoir}\n\n"
         "Genere une COURTE conversation autonome (3 a 5 repliques) ou ces agents font emerger "
@@ -237,7 +282,8 @@ def converser(ambiance: dict | None = None, mode: str | None = None,
     sujet = (sujet or "").strip()[:300] or None
     graines = _amorce()
     participants = _participants()
-    systeme = _prompt_systeme(ambiance, participants, graines, sujet=sujet)
+    fil = _charger_fil_contextuel(sujet)
+    systeme = _prompt_systeme(ambiance, participants, graines, sujet=sujet, fil=fil)
 
     try:
         if _client is not None:
