@@ -2907,7 +2907,8 @@ function filtrerPensees(filtre){
     var vis=false;
     var et=c.dataset.etat||'';
     if(filtre==='tous')vis=(et!=='archivee');
-    else if(filtre==='pris-en-vie')vis=(et==='actif'||et==='generee');
+    else if(filtre==='neuves')vis=(!et||et===''||et==='undefined')&&et!=='archivee';
+    else if(filtre==='pris-en-vie')vis=(et==='actif'||et==='notee');
     else if(filtre==='bulle')vis=(c.dataset.bulle==='1'&&et!=='archivee');
     else vis=(et===filtre);
     c.style.display=vis?'':'none';
@@ -3271,6 +3272,7 @@ async function loadFragments(){
           +'<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(59,130,246,.15);color:#3b82f6">v'+esc(f.version||'1')+'</span>'
           +'<span style="margin-left:auto;display:flex;gap:6px">'
           +'<button class="ghost" style="font-size:11px;padding:3px 9px" onclick="basculerFragment(\''+esc(z)+'\',\''+esc(f.id)+'\')">'+(off?'Activer':'Desactiver')+'</button>'
+          +'<button class="ghost" style="font-size:11px;padding:3px 9px;color:#f59e0b" onclick="graverFragment(\''+esc(z)+'\',\''+esc(f.id)+'\',\''+esc(f.titre||f.id)+'\')">&#128190; Graver</button>'
           +'<button class="ghost" style="font-size:11px;padding:3px 9px;color:#ef4444" onclick="supprimerFragment(\''+esc(z)+'\',\''+esc(f.id)+'\')">Supprimer</button>'
           +'</span></div>';
       }
@@ -3343,6 +3345,18 @@ async function supprimerFragment(zone,id){
   if(!confirm('Supprimer ce bloc definitivement ?'))return;
   try{await fetch('/savoir/fragments/'+encodeURIComponent(zone)+'/'+encodeURIComponent(id)+'/supprimer',{method:'POST',headers:_authHdrs()});location.reload();}catch(e){}
 }
+async function graverFragment(zone,id,titre){
+  if(!confirm('Graver ce bloc dans le VRAI code (permanent, versionné git) ?\n\nBackup auto + rollback si ça casse l\'interface.'))return;
+  try{
+    const rf=await fetch('/savoir/fragments/'+encodeURIComponent(zone)+'/'+encodeURIComponent(id),{headers:_authHdrs()});
+    if(!rf.ok){alert('Impossible de recuperer le bloc.');return;}
+    const frag=await rf.json();
+    const r=await fetch('/savoir/ui-python/graver',{method:'POST',headers:{'Content-Type':'application/json',..._authHdrs()},body:JSON.stringify({zone:zone,html:frag.html,titre:titre})});
+    const d=await r.json();
+    if(r.ok&&d.ok){alert('Bloc grave dans le code (permanent). L\'interface va recharger.');location.reload();}
+    else{alert('Refuse : '+((d&&d.detail)||(d&&d.raison)||'echec'));}
+  }catch(e){alert('Erreur : '+e.message);}
+}
 
 async function loadEvolutionChangelog(){
   const c=document.getElementById('evo-changelog');
@@ -3400,12 +3414,24 @@ async function loadBebeAgents(){
       el.style.cssText='padding:10px 12px;background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.12);border-radius:8px;margin-bottom:6px;font-size:12px';
       el.innerHTML='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">'
         +'<span style="font-weight:700;color:#3b82f6">'+esc(a.titre||cle)+'</span>'+vBadge+majBadge
-        +'<span style="margin-left:auto;opacity:.4;font-size:10px">tier '+esc(a.tier||'moyen')+(a.outils&&a.outils.length?' · '+a.outils.length+' outils':'')+'</span>'
-        +'</div>'
+        +'<span style="margin-left:auto;display:flex;gap:6px;align-items:center">'
+        +'<span style="opacity:.4;font-size:10px">tier '+esc(a.tier||'moyen')+(a.outils&&a.outils.length?' · '+a.outils.length+' outils':'')+'</span>'
+        +'<button class="ghost" style="font-size:10px;padding:2px 8px;color:#ef4444" onclick="supprimerBebeAgent(\''+esc(cle)+'\',\''+esc(a.titre||cle)+'\')">Supprimer</button>'
+        +'</span></div>'
         +(a.role?'<div style="opacity:.55;margin-top:4px;line-height:1.5">'+esc(a.role)+'</div>':'');
       c.appendChild(el);
     }
   }catch(e){c.innerHTML='<div style="color:var(--mut);font-size:12px">Erreur chargement.</div>';}
+}
+
+async function supprimerBebeAgent(cle, titre){
+  if(!confirm('Supprimer le bebe-agent "'+titre+'" ?\n\nCette action est irreversible.'))return;
+  try{
+    const r=await fetch('/savoir/evolution/agents/'+encodeURIComponent(cle),{method:'DELETE',headers:_authHdrs()});
+    const d=await r.json();
+    if(r.ok&&d.ok){loadBebeAgents();}
+    else{alert('Refuse : '+((d&&d.raison)||(d&&d.detail)||'echec'));}
+  }catch(e){alert('Erreur : '+e.message);}
 }
 
 /* Cellules forgees : le VRAI code genere par la forge. Clic -> deplie le code + verdict. */

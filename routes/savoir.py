@@ -288,6 +288,14 @@ def evolution_etat(authorization: str | None = Header(default=None)):
     return _evo.etat()
 
 
+@router.delete("/evolution/agents/{cle}")
+def evolution_supprimer_agent(cle: str, authorization: str | None = Header(default=None)):
+    """Supprime un bébé-agent custom (agents noyau intouchables)."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    return _evo.supprimer_agent(cle)
+
+
 @router.get("/evolution/generation")
 def evolution_generation(authorization: str | None = Header(default=None)):
     """Generation NEOGEN courante (1 an) + changelog des changements de l'annee."""

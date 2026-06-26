@@ -213,14 +213,62 @@ def _charger_fil_contextuel(sujet: str | None, n: int = 5) -> list[str]:
             if (p.get("synthese") or p.get("titre"))]
 
 
-def _participants(k: int = 3) -> list[dict]:
-    """Choisit 2-3 agents (personas existants) qui vont converser."""
+def _participants(sujet: str | None = None) -> list[dict]:
+    """Sélectionne les agents par affinité avec le sujet (TF-IDF cosinus).
+    Nombre variable : tous ceux au-dessus du seuil (min 2, max 30).
+    25% de chance d'ajouter 1 agent surprise (faible affinité) pour les idées neuves."""
     try:
         import agent_core
-        cles = list(agent_core.PROFILS.keys())
-        k = max(2, min(k, len(cles)))
-        choisis = random.sample(cles, k)
-        return [{"cle": c, "titre": agent_core.PROFILS[c].get("titre", c)} for c in choisis]
+        profils = agent_core.PROFILS
+        cles = list(profils.keys())
+        if len(cles) < 2:
+            raise ValueError("pas assez d'agents")
+
+        if not sujet or not sujet.strip():
+            # Pas de sujet : sélection aléatoire 2-4 agents
+            k = min(random.randint(2, 4), len(cles))
+            return [{"cle": c, "titre": profils[c].get("titre", c)} for c in random.sample(cles, k)]
+
+        # Texte de chaque agent : titre + role (premiers 200 car.)
+        docs = [(c, (profils[c].get("titre", c) + " " + profils[c].get("role", ""))[:200])
+                for c in cles]
+
+        try:
+            import vecteurs
+            scores_idx = vecteurs.classer(sujet, [d[1] for d in docs], seuil=0.0)
+            scores = {docs[i][0]: s for i, s in scores_idx}
+        except Exception:
+            # Fallback : overlap de mots simples
+            mots_sujet = set(sujet.lower().split())
+            scores = {}
+            for c, txt in docs:
+                mots = set(txt.lower().split())
+                scores[c] = len(mots_sujet & mots) / max(len(mots_sujet), 1)
+
+        # Seuil dynamique : top 40% du score max (min 0.05 pour ne pas exclure tout le monde)
+        max_score = max(scores.values()) if scores else 0
+        seuil = max(0.05, max_score * 0.40)
+
+        retenus = sorted([c for c in cles if scores.get(c, 0) >= seuil],
+                         key=lambda c: scores.get(c, 0), reverse=True)
+        retenus = retenus[:30]  # cap à 30
+
+        # Minimum 2 agents : compléter avec les meilleurs restants
+        if len(retenus) < 2:
+            for c in sorted(cles, key=lambda c: scores.get(c, 0), reverse=True):
+                if c not in retenus:
+                    retenus.append(c)
+                if len(retenus) >= 2:
+                    break
+
+        # Surprise : 25% de chance d'ajouter 1 agent hors seuil (idées neuves)
+        if random.random() < 0.25:
+            hors_seuil = [c for c in cles if c not in retenus]
+            if hors_seuil:
+                retenus.append(random.choice(hors_seuil))
+
+        return [{"cle": c, "titre": profils[c].get("titre", c)} for c in retenus]
+
     except Exception:
         return [{"cle": "cerveau", "titre": "Le Cerveau"},
                 {"cle": "createur", "titre": "Le Forgeron"}]
@@ -281,7 +329,7 @@ def converser(ambiance: dict | None = None, mode: str | None = None,
     mode = mode or _config().get("mode", "eco")
     sujet = (sujet or "").strip()[:300] or None
     graines = _amorce()
-    participants = _participants()
+    participants = _participants(sujet=sujet)
     fil = _charger_fil_contextuel(sujet)
     systeme = _prompt_systeme(ambiance, participants, graines, sujet=sujet, fil=fil)
 

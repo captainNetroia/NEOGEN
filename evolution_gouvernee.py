@@ -370,6 +370,24 @@ def etat() -> dict:
     }
 
 
+def supprimer_agent(cle: str) -> dict:
+    """Supprime un bébé-agent custom par sa clé. Les agents noyau sont intouchables."""
+    import agent_core
+    if cle in agent_core._PROFILS_NOYAU:
+        return {"ok": False, "raison": f"'{cle}' est un agent noyau, il ne peut pas etre supprime"}
+    profils = profils_custom()
+    if cle not in profils:
+        return {"ok": False, "raison": f"agent '{cle}' introuvable"}
+    titre = profils[cle].get("titre", cle)
+    del profils[cle]
+    _sauver("agents_custom.json", profils)
+    agent_core.rafraichir_profils()
+    if cle in agent_core.PROFILS:
+        del agent_core.PROFILS[cle]
+    _notifier_generation("agent", titre, f"bebe-agent '{cle}' supprime")
+    return {"ok": True, "detail": f"agent '{cle}' supprime"}
+
+
 def changelog_generation() -> list[dict]:
     gen = generation_courante()
     return sorted(gen.get("changelog", []), key=lambda c: c.get("ts", 0), reverse=True)

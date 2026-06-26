@@ -1,0 +1,54 @@
+{
+  "journeys": [
+    {
+      "id": "forge-runtime-graver",
+      "titre": "Forge fragment runtime -> Graver permanent",
+      "etapes": [
+        {"desc": "Generer un apercu HTML", "methode": "check_route", "endpoint": "POST /savoir/fragments/apercu"},
+        {"desc": "Appliquer en runtime", "methode": "check_route", "endpoint": "POST /savoir/fragments/appliquer"},
+        {"desc": "Recuperer HTML fragment existant", "methode": "check_route", "endpoint": "GET /savoir/fragments/{zone}/{frag_id}"},
+        {"desc": "Bouton Graver sur fragment existant dans la liste", "methode": "check_js", "js_fn": "graverFragment"},
+        {"desc": "Graver en code permanent", "methode": "check_route", "endpoint": "POST /savoir/ui-python/graver"}
+      ]
+    },
+    {
+      "id": "donner-vie-cellule",
+      "titre": "Donner vie idee technique -> Cellule forgee visible",
+      "etapes": [
+        {"desc": "Declencher la forge async", "methode": "check_route", "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"},
+        {"desc": "Polling progression job", "methode": "check_route", "endpoint": "GET /savoir/evolution/forge/{job_id}"},
+        {"desc": "Bulle de progression JS (loadForgeJob)", "methode": "check_js", "js_fn": "loadForgeJob"},
+        {"desc": "Liste cellules forgees", "methode": "check_route", "endpoint": "GET /savoir/evolution/cellules"},
+        {"desc": "Bloc cellules forgees JS", "methode": "check_js", "js_fn": "loadEvolutionCellules"}
+      ]
+    },
+    {
+      "id": "creer-agent-visible",
+      "titre": "Creer bebe-agent -> Visible dans section Cerveaux",
+      "etapes": [
+        {"desc": "Donner vie agent", "methode": "check_route", "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"},
+        {"desc": "Etat evolution (agents custom)", "methode": "check_route", "endpoint": "GET /savoir/evolution/etat"},
+        {"desc": "Panel bebe-agents JS", "methode": "check_js", "js_fn": "loadBebeAgents"}
+      ]
+    },
+    {
+      "id": "fragment-cycle-complet",
+      "titre": "Fragment runtime -> Desactiver -> Reactiver -> Supprimer",
+      "etapes": [
+        {"desc": "Basculer actif/inactif route", "methode": "check_route", "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/basculer"},
+        {"desc": "Basculer JS", "methode": "check_js", "js_fn": "basculerFragment"},
+        {"desc": "Supprimer fragment route", "methode": "check_route", "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/supprimer"},
+        {"desc": "Supprimer fragment JS", "methode": "check_js", "js_fn": "supprimerFragment"}
+      ]
+    },
+    {
+      "id": "graver-backup-restaurer",
+      "titre": "Graver permanent -> Backup -> Restaurer si probleme",
+      "etapes": [
+        {"desc": "Graver cree un backup", "methode": "check_route", "endpoint": "POST /savoir/ui-python/graver"},
+        {"desc": "Lister backups", "methode": "check_route", "endpoint": "GET /savoir/ui-python"},
+        {"desc": "Restaurer un backup", "methode": "check_route", "endpoint": "POST /savoir/ui-python/restaurer"}
+      ]
+    }
+  ]
+}

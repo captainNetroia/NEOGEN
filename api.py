@@ -175,4 +175,9 @@ def health():
         sortie["environnement"] = _env.resume()
     except Exception:
         pass
+    try:
+        import coherence_auto as _coh
+        sortie["coherence"] = _coh.audit_journeys()
+    except Exception:
+        pass
     return sortie

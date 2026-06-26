@@ -284,6 +284,12 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
     except Exception:
         design_bloc = ""
     directives_bloc = _directives_actives()
+    coherence_bloc = ""
+    try:
+        import coherence_auto as _coh
+        coherence_bloc = _coh.bloc_pour_prompt()
+    except Exception:
+        pass
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -298,7 +304,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
         + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
-        + design_bloc + directives_bloc
+        + design_bloc + directives_bloc + coherence_bloc
     )
 
 
