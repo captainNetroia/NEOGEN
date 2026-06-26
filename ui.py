@@ -843,6 +843,12 @@ def _section_evolution() -> str:
     <div id="evo-cellules">
       <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucune cellule forgee. « Donner vie » a une idee technique en genere une.</div>
     </div>
+
+    <!-- Interface : evolutions d'apparence (CSS override), reversibles -->
+    <div class="row" style="align-items:center;margin:18px 0 8px;gap:10px">
+      <div style="font-size:13px;font-weight:600">Interface <span style="font-size:11px;opacity:.5;font-weight:400">(« donner vie » a une idee d'affichage genere un apercu CSS a confirmer)</span></div>
+      <button class="ghost" id="btn-ui-reset" style="font-size:11px;padding:4px 12px;margin-left:auto">Reinitialiser l'interface</button>
+    </div>
   </div>
 </div>
 """

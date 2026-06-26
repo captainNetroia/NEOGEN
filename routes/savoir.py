@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Header, HTTPException, Query, Response
 
 import quotas as _quotas
 import savoir as _savoir
@@ -124,6 +124,21 @@ _TYPES_FORGE = {"fonction", "capacite"}
 _INDICES_TECHNIQUES = ("etapes", "code", "action", "scanner", "valider", "reparer",
                        "parser", "detecter", "compiler", "indexer", "automatis")
 
+# Indices qu'une idee concerne l'INTERFACE/experience -> forge d'interface (CSS reel).
+_INDICES_INTERFACE = ("interface", "affichage", "ecran", "liste", "replier", "repliable",
+                      "deroulant", "regrouper", "compact", "densite", "layout", "onglet",
+                      "vue", "agrandir", "plus grand", "chat", "scroll", "bloc", "carte",
+                      "lisible", "organis", "espace", "colonne", "mise en page")
+
+
+def _est_interface(evo: dict | None, p: dict) -> bool:
+    """Une pensee concerne l'INTERFACE si son evolution est de type esthetique/section,
+    ou si son contenu evoque l'affichage/l'experience visuelle."""
+    if isinstance(evo, dict) and (evo.get("type") or "").lower() in ("esthetique", "section", "interface"):
+        return True
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    return any(ind in blob for ind in _INDICES_INTERFACE)
+
 
 def _est_technique(evo: dict | None, p: dict) -> bool:
     """Une pensee est 'technique' (donc forgeable en code) si son evolution vise une fonction,
@@ -155,6 +170,18 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
         raise HTTPException(status_code=404, detail="pensee introuvable")
 
     evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
+
+    # VOIE 0 : interface -> forge d'interface (CSS reel). Apercu d'abord, puis confirmation.
+    if _est_interface(evo, p):
+        import forge_interface
+        idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
+        apercu = forge_interface.generer_apercu(idee)
+        if apercu.get("ok"):
+            return {"ok": True, "voie": "interface", "pensee_id": pensee_id,
+                    "titre": p.get("titre", ""), "css": apercu["css"],
+                    "explication": apercu.get("explication", "")}
+        # echec de generation -> on retombe honnetement (pas d'effet, on le dit)
+        return {"ok": False, "voie": "interface", "raison": apercu.get("raison", "echec")}
 
     # VOIE 1 : technique -> la forge (vrai code).
     if _est_technique(evo, p):
@@ -314,3 +341,36 @@ def evolution_cellule(nom: str, authorization: str | None = Header(default=None)
     if not c:
         raise HTTPException(status_code=404, detail="cellule introuvable")
     return c
+
+
+# ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────
+
+@router.get("/evolution/ui.css")
+def evolution_ui_css():
+    """Sert l'override CSS d'interface (charge par l'ecran au demarrage). Vide si aucun.
+    Pas de gate : c'est du CSS d'apparence, jamais une donnee sensible."""
+    import forge_interface as _fi
+    return Response(content=_fi.overrides_actuels(), media_type="text/css")
+
+
+@router.post("/evolution/ui/appliquer")
+def evolution_ui_appliquer(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Applique le CSS confirme (admin) ou le remonte en proposition (public)."""
+    _gate_owner(authorization)
+    import forge_interface as _fi
+    res = _fi.appliquer((corps or {}).get("css", ""), user=_user_courant(authorization),
+                        titre=(corps or {}).get("titre", ""))
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("raison", "refuse"))
+    return res
+
+
+@router.post("/evolution/ui/reset")
+def evolution_ui_reset(authorization: str | None = Header(default=None)):
+    """Reinitialise l'interface : retour a l'apparence d'origine (reversibilite)."""
+    _gate_owner(authorization)
+    import forge_interface as _fi
+    return _fi.reinitialiser()

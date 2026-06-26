@@ -2701,7 +2701,9 @@ function _renderPensee(p){
     +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
   if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
   // Statut HONNETE : etat reel de la mise en oeuvre (fin du faux vert).
-  var fe=p.forge_etat||(p.vie_donnee?'actif':'');
+  // On n'affiche QUE l'etat verifie (forge_etat) ; le legacy 'vie_donnee' n'etait pas fiable
+  // (marquait 'Actif' des idees sans aucun consommateur) -> on le degrade en 'note'.
+  var fe=p.forge_etat||(p.vie_donnee?'notee':'');
   if(fe==='generee')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.12);border-radius:6px;padding:2px 8px">&#9889; Code genere &amp; teste</span>';
   else if(fe==='actif')badges+='<span style="font-size:11px;color:#10b981;font-weight:700;background:rgba(16,185,129,.1);border-radius:6px;padding:2px 8px">&#10003; Actif</span>';
   else if(fe==='refusee')badges+='<span style="font-size:11px;color:#ef4444;font-weight:700;background:rgba(239,68,68,.1);border-radius:6px;padding:2px 8px">&#10007; Refuse</span>';
@@ -2745,7 +2747,14 @@ async function donnerVie(id,btn){
   try{
     const r=await fetch('/savoir/pensees/'+encodeURIComponent(id)+'/donner-vie',{method:'POST'});
     const d=await r.json();
-    if(d.voie==='forge'&&d.job_id){
+    if(d.voie==='interface'&&d.css){
+      // Idee d'interface : apercu du CSS reel -> confirmation -> application a l'ecran.
+      btn.textContent='Apercu pret';
+      _bulleApercuInterface(d,btn);
+    }else if(d.voie==='interface'&&!d.ok){
+      btn.textContent='Interface : '+(d.raison||'echec');
+      btn.style.color='#ef4444';btn.disabled=false;
+    }else if(d.voie==='forge'&&d.job_id){
       // Idee technique : la forge genere du VRAI code (asynchrone). Bulle de progression vivante.
       btn.textContent='Forge en cours...';
       _bulleProgression(d.job_id,(btn.closest('div')&&'idee')||'idee',btn);
@@ -2803,6 +2812,63 @@ function _bulleProgression(jobId,titre,btn){
   },1500);
 }
 
+/* Apercu d'une evolution d'INTERFACE : montre le CSS reel + ce que ca change,
+   puis APPLIQUE sur confirmation (decision Jordan : donner vie -> apercu -> confirmer). */
+function _bulleApercuInterface(d,btn){
+  const id='ui-apercu-'+Math.random().toString(36).slice(2);
+  const el=document.createElement('div');
+  el.id=id;
+  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:420px;z-index:10001;padding:18px;background:rgba(16,22,30,.99);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.7);backdrop-filter:blur(10px)';
+  el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Apercu : ton interface va changer</div>'
+    +'<div style="font-size:13px;font-weight:600;margin-bottom:6px">'+esc(d.titre||'')+'</div>'
+    +'<div style="font-size:12px;opacity:.75;line-height:1.45;margin-bottom:8px">'+esc(d.explication||'')+'</div>'
+    +'<pre style="background:rgba(0,0,0,.4);border-radius:8px;padding:10px;overflow:auto;font-size:11px;max-height:160px;white-space:pre-wrap;margin:0 0 12px">'+esc(d.css||'')+'</pre>'
+    +'<div class="row" style="gap:8px;justify-content:flex-end">'
+    +'<button id="'+id+'-no" class="ghost" style="font-size:12px;padding:6px 14px;color:#9ca3af">Annuler</button>'
+    +'<button id="'+id+'-ok" style="font-size:12px;padding:6px 16px;background:#a855f7;border:none;border-radius:8px;color:#fff;font-weight:600;cursor:pointer">Appliquer a mon interface</button>'
+    +'</div>';
+  document.body.appendChild(el);
+  document.getElementById(id+'-no').onclick=function(){el.remove();if(btn){btn.textContent='Annule';btn.disabled=false;}};
+  document.getElementById(id+'-ok').onclick=async function(){
+    this.disabled=true;this.textContent='Application...';
+    try{
+      const r=await fetch('/savoir/evolution/ui/appliquer',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({css:d.css,titre:d.titre||''})});
+      const res=await r.json();
+      if(r.ok&&res.ok){
+        if(res.portee==='remonte'){
+          el.innerHTML='<div style="font-size:13px;color:#10b981;font-weight:600">Propose a l\'admin pour validation.</div>';
+          setTimeout(function(){el.remove();},3000);
+        }else{
+          el.innerHTML='<div style="font-size:13px;color:#10b981;font-weight:600">&#9889; Interface mise a jour. Rechargement…</div>';
+          if(btn){btn.textContent='⚡ Interface modifiee';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';}
+          setTimeout(function(){location.reload();},1400);
+        }
+      }else{
+        el.innerHTML='<div style="font-size:13px;color:#ef4444;font-weight:600">Refuse : '+esc((res&&res.detail)||(res&&res.raison)||'?')+'</div>';
+        if(btn){btn.disabled=false;btn.textContent='Refuse';}
+        setTimeout(function(){el.remove();},5000);
+      }
+    }catch(e){el.innerHTML='<div style="color:#ef4444">Erreur reseau</div>';}
+  };
+}
+
+/* Charge l'override CSS d'interface au demarrage : l'evolution d'interface devient visible. */
+(function(){
+  async function injecter(){
+    try{
+      const r=await fetch('/savoir/evolution/ui.css',{cache:'no-store'});
+      if(!r.ok)return;
+      const css=await r.text();
+      let st=document.getElementById('neogen-ui-overrides');
+      if(!st){st=document.createElement('style');st.id='neogen-ui-overrides';document.head.appendChild(st);}
+      st.textContent=css||'';
+    }catch(e){}
+  }
+  if(document.readyState!=='loading')injecter();
+  else document.addEventListener('DOMContentLoaded',injecter);
+})();
+
 /* Bulles de notification : poll des pensees a haut score non lues. */
 (function(){
   function showBubble(b){
@@ -2859,6 +2925,15 @@ async function loadEvolutionSysteme(){
   loadEvolutionChangelog();
   loadEvolutionCellules();
   if(_evoWired)return; _evoWired=true;
+  const br=document.getElementById('btn-ui-reset');
+  if(br)br.onclick=async function(){
+    br.disabled=true;br.textContent='...';
+    try{
+      const r=await fetch('/savoir/evolution/ui/reset',{method:'POST'});
+      if(r.ok){br.textContent='Reinitialisee';setTimeout(function(){location.reload();},900);}
+      else{br.textContent='Erreur';br.disabled=false;}
+    }catch(e){br.textContent='Erreur';br.disabled=false;}
+  };
   const bp=document.getElementById('btn-evo-proposer');
   if(bp)bp.onclick=async function(){
     const st=document.getElementById('evo-proposer-status');
