@@ -772,6 +772,10 @@ def _section_evolution() -> str:
       </label>
       <button id="btn-pensee-cycle" class="ghost" style="font-size:12px;padding:7px 14px;margin-left:auto">Provoquer une pensee</button>
     </div>
+    <div class="row" style="gap:10px;align-items:center;margin-bottom:10px">
+      <input id="pensee-sujet" type="text" placeholder="Proposer un sujet de discussion aux agents (ex : comment rendre l'onboarding plus fluide ?)" style="flex:1;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">
+      <button id="btn-pensee-discuter" style="padding:8px 16px;font-size:12px">Discuter</button>
+    </div>
     <div id="pensee-config-status" style="font-size:12px;opacity:.5;margin-bottom:10px;display:none"></div>
 
     <div id="pensee-list">

@@ -2649,16 +2649,24 @@ async function loadPenseesConfig(){
     }catch(e){if(st){st.style.display='';st.textContent='Erreur : '+esc(e.message);}}
   }
   ['pensee-mode','pensee-intervalle','pensee-actif'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('change',saveCfg);});
-  const bc=document.getElementById('btn-pensee-cycle');
-  if(bc)bc.onclick=async function(){
-    bc.disabled=true;bc.textContent='Pensee en cours...';
+  async function lancerCycle(sujet,btn,label){
+    btn.disabled=true;btn.textContent='Pensee en cours...';
     try{
-      const r=await fetch('/savoir/pensees/cycle',{method:'POST'});
+      const body=sujet?JSON.stringify({sujet:sujet}):'{}';
+      const r=await fetch('/savoir/pensees/cycle',{method:'POST',headers:{'Content-Type':'application/json'},body:body});
       const d=await r.json();
-      if(d&&d.execute){loadPensees();if(d.proposition)loadHubPropositions();}
+      if(d&&d.execute){loadPensees();if(d.proposition)loadHubPropositions();const si=document.getElementById('pensee-sujet');if(si&&sujet)si.value='';}
       else{const st=document.getElementById('pensee-config-status');if(st){st.style.display='';st.textContent='Aucune pensee : '+esc((d&&d.raison)||'indisponible')+'.';}}
     }catch(e){}
-    finally{bc.disabled=false;bc.textContent='Provoquer une pensee';}
+    finally{btn.disabled=false;btn.textContent=label;}
+  }
+  const bc=document.getElementById('btn-pensee-cycle');
+  if(bc)bc.onclick=function(){lancerCycle(null,bc,'Provoquer une pensee');};
+  const bd=document.getElementById('btn-pensee-discuter');
+  if(bd)bd.onclick=function(){
+    const s=((document.getElementById('pensee-sujet')||{}).value||'').trim();
+    if(!s){const si=document.getElementById('pensee-sujet');if(si)si.focus();return;}
+    lancerCycle(s,bd,'Discuter');
   };
 }
 
@@ -2689,6 +2697,7 @@ function _renderPensee(p){
     +'<span style="margin-left:auto;font-size:11px;opacity:.6">score '+sc+'</span>';
   if(p.bulle)badges+='<span style="font-size:11px;color:#f59e0b">&#9679; bulle</span>';
   if(p.proposition)badges+='<span style="font-size:11px;color:#10b981">&#8594; proposition</span>';
+  if(p.sujet)badges='<span style="font-size:11px;color:#a855f7">&#128172; sujet</span>'+badges;
   let tr='';
   if(Array.isArray(p.transcript)&&p.transcript.length){
     tr='<details style="margin-top:8px"><summary style="font-size:12px;opacity:.55;cursor:pointer">Conversation ('+p.transcript.length+')</summary><div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">';

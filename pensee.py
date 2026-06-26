@@ -192,16 +192,22 @@ def _participants(k: int = 3) -> list[dict]:
 
 # ── Conversation : une session de pensee ────────────────────────────────────────
 
-def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict]) -> str:
+def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict],
+                    sujet: str | None = None) -> str:
     noms = ", ".join(p["titre"] for p in participants)
     bloc_savoir = "\n".join(f"- [{g['domaine']}] {g['contenu']}" for g in graines) or \
         "- (peu de savoir accumule pour l'instant, partez de votre experience)"
     types = ", ".join(TYPES_PENSEE)
+    bloc_sujet = (
+        f"SUJET IMPOSE PAR JORDAN (le maitre) : « {sujet} ». La conversation DOIT porter "
+        f"sur ce sujet ; les agents le creusent ensemble.\n" if sujet else ""
+    )
     return (
         "Tu animes la PENSEE autonome de NEOGEN : une conversation libre entre ses agents, "
         "comme une vraie intelligence collective qui reflechit toute seule.\n"
         f"AMBIANCE : {ambiance['label']} - ton {ambiance['ton']}.\n"
         f"PARTICIPANTS : {noms}. Ils se parlent naturellement, rebondissent, ne sont pas d'accord parfois.\n"
+        f"{bloc_sujet}"
         "GRAINES DE SAVOIR (le systeme connait deja ceci, appuie-toi dessus) :\n"
         f"{bloc_savoir}\n\n"
         "Genere une COURTE conversation autonome (3 a 5 repliques) ou ces agents font emerger "
@@ -220,26 +226,30 @@ def _prompt_systeme(ambiance: dict, participants: list[dict], graines: list[dict
     )
 
 
-def converser(ambiance: dict | None = None, mode: str | None = None, *, _client=None) -> dict | None:
+def converser(ambiance: dict | None = None, mode: str | None = None,
+              sujet: str | None = None, *, _client=None) -> dict | None:
     """Tient une session de pensee et renvoie un dict structure, ou None si echec LLM.
+    sujet : si fourni (par Jordan), la conversation porte sur ce theme impose.
     Ne leve jamais (la boucle de fond doit survivre a un provider indisponible).
     _client : injection pour les tests (aucun appel reseau)."""
     ambiance = ambiance or random.choice(AMBIANCES)
     mode = mode or _config().get("mode", "eco")
+    sujet = (sujet or "").strip()[:300] or None
     graines = _amorce()
     participants = _participants()
-    systeme = _prompt_systeme(ambiance, participants, graines)
+    systeme = _prompt_systeme(ambiance, participants, graines, sujet=sujet)
 
     try:
         if _client is not None:
             cl, tier, mode_eff = _client, "test", mode
         else:
             cl, tier, mode_eff = _resoudre_client(mode)
+        consigne = (f"Discutez du sujet impose : « {sujet} ». Produis le JSON demande."
+                    if sujet else "Lance la conversation et produis le JSON demande.")
         res = cl.messages.create(
             system=systeme,
-            messages=[{"role": "user", "content":
-                       "Lance la conversation et produis le JSON demande."}],
-            max_tokens=900,
+            messages=[{"role": "user", "content": consigne}],
+            max_tokens=1400,
         )
         brut = _texte_de(res)
         data = _parser_json(brut)
@@ -277,6 +287,7 @@ def converser(ambiance: dict | None = None, mode: str | None = None, *, _client=
         "mode": mode_eff,
         "graines": [g["domaine"] for g in graines],
         "evolution": evolution,
+        "sujet": sujet,
     }
 
 
@@ -400,9 +411,10 @@ def _lire() -> list[dict]:
 
 # ── Cycle complet : une pensee de bout en bout ──────────────────────────────────
 
-def cycle_pensee(force: bool = False, *, _client=None) -> dict:
+def cycle_pensee(force: bool = False, sujet: str | None = None, *, _client=None) -> dict:
     """Session complete : ambiance -> conversation -> score -> archive ; haut score ->
-    bulle et/ou proposition. Throttle (force=True l'ignore). NE LEVE JAMAIS."""
+    bulle et/ou proposition. sujet : theme impose par Jordan (discussion personnalisee).
+    Throttle (force=True l'ignore). NE LEVE JAMAIS."""
     cfg = _config()
     if not force and not cfg.get("actif", True):
         return {"execute": False, "raison": "pensee desactivee"}
@@ -411,7 +423,7 @@ def cycle_pensee(force: bool = False, *, _client=None) -> dict:
     rob.marquer_fait("pensee:cycle")
 
     with rob.garde("cycle pensee", source="pensee"):
-        pensee = converser(mode=cfg.get("mode", "eco"), _client=_client)
+        pensee = converser(mode=cfg.get("mode", "eco"), sujet=sujet, _client=_client)
         if not pensee:
             return {"execute": False, "raison": "aucune pensee produite"}
 
@@ -448,7 +460,8 @@ def cycle_pensee(force: bool = False, *, _client=None) -> dict:
         return {"execute": True, "id": record["id"], "score": score,
                 "bulle": record["bulle"], "type": record["type"],
                 "titre": record["titre"], "ambiance": record["ambiance"],
-                "proposition": proposition, "mode": record.get("mode")}
+                "proposition": proposition, "mode": record.get("mode"),
+                "sujet": record.get("sujet")}
     # rob.garde a absorbe une exception -> reponse neutre, jamais de crash
     return {"execute": False, "raison": "erreur capturee (voir journal)"}
 

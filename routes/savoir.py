@@ -142,11 +142,16 @@ def pensees_set_config(
 
 
 @router.post("/pensees/cycle")
-def pensees_cycle(authorization: str | None = Header(default=None)):
-    """Provoque immediatement une session de pensee (proprietaire)."""
+def pensees_cycle(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Provoque immediatement une session de pensee (proprietaire).
+    Optionnel : {"sujet": "..."} -> discussion personnalisee sur ce theme avec les agents."""
     _gate_owner(authorization)
     import pensee as _pensee
-    return _pensee.cycle_pensee(force=True)
+    sujet = (corps or {}).get("sujet") if isinstance(corps, dict) else None
+    return _pensee.cycle_pensee(force=True, sujet=sujet)
 
 
 # ── Evolution gouvernee : la super-capacite (s'auto-modifier sans toucher au noyau) ──
