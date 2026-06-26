@@ -2860,6 +2860,50 @@ function filtrerProduits(filtre){
   loadProduits();
 }
 
+var _filtrePenseesType='tous';
+function filtrerPenseesType(type){
+  _filtrePenseesType=type;
+  document.querySelectorAll('#pensee-filtres-type .filtre-btn-type').forEach(function(b){
+    var actif=(b.dataset.type===type);
+    b.style.background=actif?'rgba(168,85,247,.15)':'rgba(255,255,255,.03)';
+    b.style.borderColor=actif?'rgba(168,85,247,.4)':'rgba(255,255,255,.08)';
+    b.style.color=actif?'#a855f7':'#9ca3af';
+  });
+  var container=document.getElementById('pensee-list');
+  if(!container)return;
+  // Masquer/afficher cartes selon le type
+  container.querySelectorAll('.pensee-groupe-header').forEach(function(h){
+    h.style.display=(type==='tous'||h.dataset.groupe===type)?'':'none';
+  });
+  container.querySelectorAll('[data-ptype]').forEach(function(c){
+    if(type==='tous'){
+      // Réappliquer le filtre de statut
+      var et=c.dataset.etat||'';
+      var f=_filtrePenseesCourant;
+      var vis=f==='tous'?(et!=='archivee'):f==='pris-en-vie'?(et==='actif'||et==='generee'):f==='bulle'?(c.dataset.bulle==='1'&&et!=='archivee'):(et===f);
+      c.style.display=vis?'':'none';
+    }else{
+      c.style.display=(c.dataset.ptype===type)?'':'none';
+    }
+  });
+}
+
+var _filtreChangelogCourant='tous';
+function filtrerChangelog(type){
+  _filtreChangelogCourant=type;
+  document.querySelectorAll('#changelog-filtres .filtre-btn-cl').forEach(function(b){
+    var actif=(b.dataset.cl===type);
+    b.style.background=actif?'rgba(16,185,129,.15)':'rgba(255,255,255,.03)';
+    b.style.borderColor=actif?'rgba(16,185,129,.4)':'rgba(255,255,255,.08)';
+    b.style.color=actif?'#10b981':'#9ca3af';
+  });
+  var c=document.getElementById('evo-changelog');
+  if(!c)return;
+  c.querySelectorAll('[data-ctype]').forEach(function(el){
+    el.style.display=(type==='tous'||el.dataset.ctype===type)?'':'none';
+  });
+}
+
 function archiverPensee(id,btn){
   if(!id)return;
   if(btn)btn.disabled=true;
@@ -3113,14 +3157,20 @@ async function loadEvolutionChangelog(){
     const log=(d.changelog)||[];
     if(!log.length){c.innerHTML='<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>';return;}
     c.innerHTML='';
+    const _CL_COL={interface:'#06b6d4',regle:'#10b981',loi:'#f59e0b',idee:'#a855f7',agent:'#3b82f6',modele:'#ec4899',savoir:'#f97316',cellule:'#10b981'};
     for(const e of log){
       const el=document.createElement('div');
       el.style.cssText='padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(255,255,255,.07)';
+      el.dataset.ctype=(e.type||'').toLowerCase();
       const dt=e.ts?new Date(e.ts*1000).toLocaleDateString():'';
-      el.innerHTML='<span style="font-weight:700;color:#10b981">['+esc(e.type||'')+']</span> '
+      const col=_CL_COL[el.dataset.ctype]||'#10b981';
+      el.innerHTML='<span style="font-weight:700;color:'+col+'">['+esc(e.type||'')+']</span> '
         +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'
         +'<span style="float:right;opacity:.4">'+esc(dt)+'</span>'
         +'<div style="opacity:.6;margin-top:2px">'+esc(e.detail||'')+'</div>';
+      // Appliquer le filtre courant immediatement
+      if(_filtreChangelogCourant!=='tous'&&el.dataset.ctype!==_filtreChangelogCourant)
+        el.style.display='none';
       c.appendChild(el);
     }
   }catch(e){}

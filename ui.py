@@ -793,6 +793,17 @@ def _section_evolution() -> str:
       <button onclick="filtrerPensees('bulle')" class="filtre-btn" data-filtre="bulle" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">&#9679; Bulle</button>
       <button onclick="filtrerPensees('archivee')" class="filtre-btn" data-filtre="archivee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">Archivees</button>
     </div>
+    <div id="pensee-filtres-type" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;padding-left:2px">
+      <span style="font-size:10px;opacity:.4;align-self:center;margin-right:2px">type :</span>
+      <button onclick="filtrerPenseesType('tous')" class="filtre-btn-type" data-type="tous" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#a855f7;cursor:pointer">Tous</button>
+      <button onclick="filtrerPenseesType('sujet')" class="filtre-btn-type" data-type="sujet" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Sujets</button>
+      <button onclick="filtrerPenseesType('idee')" class="filtre-btn-type" data-type="idee" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Idees</button>
+      <button onclick="filtrerPenseesType('suggestion')" class="filtre-btn-type" data-type="suggestion" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Suggestions</button>
+      <button onclick="filtrerPenseesType('reflexion')" class="filtre-btn-type" data-type="reflexion" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Reflexions</button>
+      <button onclick="filtrerPenseesType('reve')" class="filtre-btn-type" data-type="reve" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Reves</button>
+      <button onclick="filtrerPenseesType('obsession')" class="filtre-btn-type" data-type="obsession" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Obsessions</button>
+      <button onclick="filtrerPenseesType('desir')" class="filtre-btn-type" data-type="desir" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Desirs</button>
+    </div>
 
     <div id="pensee-list">
       <div style="text-align:center;padding:24px;opacity:.4;font-size:13px">Aucune pensee pour l'instant.</div>
@@ -848,7 +859,19 @@ def _section_evolution() -> str:
     </div>
 
     <!-- Changelog de la generation -->
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Changements de la generation</div>
+    <div class="row" style="align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:600">Changements de la generation</div>
+      <div id="changelog-filtres" style="display:flex;gap:5px;flex-wrap:wrap">
+        <button onclick="filtrerChangelog('tous')" class="filtre-btn-cl" data-cl="tous" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#10b981;cursor:pointer">Tous</button>
+        <button onclick="filtrerChangelog('interface')" class="filtre-btn-cl" data-cl="interface" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Interface</button>
+        <button onclick="filtrerChangelog('regle')" class="filtre-btn-cl" data-cl="regle" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Regle</button>
+        <button onclick="filtrerChangelog('loi')" class="filtre-btn-cl" data-cl="loi" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Loi</button>
+        <button onclick="filtrerChangelog('idee')" class="filtre-btn-cl" data-cl="idee" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Idee</button>
+        <button onclick="filtrerChangelog('agent')" class="filtre-btn-cl" data-cl="agent" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Agent</button>
+        <button onclick="filtrerChangelog('modele')" class="filtre-btn-cl" data-cl="modele" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Modele</button>
+        <button onclick="filtrerChangelog('cellule')" class="filtre-btn-cl" data-cl="cellule" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">Cellule</button>
+      </div>
+    </div>
     <div id="evo-changelog">
       <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>
     </div>
