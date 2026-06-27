@@ -1834,10 +1834,13 @@ routeHash();
 
 /* ===== RPA STATUS POLLING ===== */
 let _rpaInterval=null;
+var _rpaConnected=false;
 async function pollRpaStatus(){
   try{
     const r=await(await fetch('/rpa/status')).json();
     const dot=$('#rpa-dot'), lbl=$('#rpa-label'), sub=$('#rpa-sub'), qb=$('#rpa-queue-badge');
+    const wasConnected=_rpaConnected;
+    _rpaConnected=!!r.connected;
     if(r.connected){
       dot.className='rpa-status-dot connected';
       lbl.textContent='Agent connecte';
@@ -1853,6 +1856,8 @@ async function pollRpaStatus(){
     const btnStart=$('#btn-imit-start'),btnStop=$('#btn-imit-stop');
     if(r.recording){btnStart.style.display='none';btnStop.style.display='';}
     else{btnStart.style.display='';btnStop.style.display='none';}
+    // Mettre a jour le bloc remote-control selon connexion
+    if(wasConnected!==_rpaConnected&&window._renderRemoteConnState)window._renderRemoteConnState();
   }catch(e){}
 }
 _rpaInterval=setInterval(pollRpaStatus,3000);
@@ -1936,20 +1941,29 @@ $('#btn-rpa-clear').onclick=async()=>{
       _renderRemote();}catch(e){}
   }
   function _renderRemote(){
+    // Si agent deconnecte : section passive, pas d'alerte trompeuse
+    if(!_rpaConnected){
+      btn.textContent='Prendre le contrôle';
+      btn.style.background='';btn.style.borderColor='';btn.style.color='';btn.disabled=true;btn.title='Agent déconnecté';
+      if(st){st.textContent='Agent non connecté — lance rpa_agent.py pour activer.';st.style.color='var(--mut)';}
+      return;
+    }
+    btn.disabled=false;btn.title='';
     if(_remoteActive){
       btn.textContent='Arrêter le contrôle';
       btn.style.background='rgba(220,38,38,.12)';
       btn.style.borderColor='rgba(220,38,38,.4)';
       btn.style.color='var(--ko)';
-      if(st)st.textContent='Mode contrôle actif — l\'agent agit sans popup. Coin haut-gauche = arrêt d\'urgence.';
-      if(st)st.style.color='var(--ko)';
+      if(st){st.textContent='Mode contrôle actif — l\'agent agit sans popup. Coin haut-gauche = arrêt d\'urgence.';st.style.color='var(--ko)';}
     }else{
       btn.textContent='Prendre le contrôle';
       btn.style.background='';btn.style.borderColor='';btn.style.color='';
-      if(st)st.textContent='';
+      if(st){st.textContent='';st.style.color='';}
     }
   }
+  window._renderRemoteConnState=_renderRemote;
   btn.onclick=async function(){
+    if(!_rpaConnected)return;
     var lvl=_remoteActive?'sequence':'auto';
     try{await fetch('/rpa/settings',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({consent_level:lvl,sequence_duration:120})});
