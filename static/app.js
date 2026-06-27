@@ -1358,6 +1358,9 @@ async function loadAnalyse(){
     moonshot:{label:'Kimi (Moonshot)',check:k=>k.trim().length>=8,
       models:['kimi-k2.7-code','kimi-k2.6','kimi-k2.7-code-highspeed','kimi-k2.5','moonshot-v1-128k'],
       ph:'sk-... (cle Moonshot)'},
+    glm:{label:'GLM-5.2 (z.ai)',check:k=>k.trim().length>=20,
+      models:['glm-4.5-flash','glm-4.5','glm-5.2'],
+      ph:'xxxxxxx.NI3rc... (cle z.ai / Zhipu AI)'},
     local:{label:'Local (Ollama)',check:_=>true,
       models:['llama3.2','qwen2.5','mistral','phi4','gemma3','deepseek-r1:8b'],
       ph:'http://host.docker.internal:11434/v1'}
@@ -1449,7 +1452,7 @@ async function loadAnalyse(){
     if(!k)k=localStorage.getItem('neogen_key_'+curProv)||'';   /* cle deja enregistree */
     // Garde freemium : 1 seul modele paye enregistre en gratuit (Ollama local toujours gratuit).
     if(curProv!=='local' && localStorage.getItem('neogen_premium')!=='1'){
-      var dejaPayes=['anthropic','openai','gemini','deepseek','mistral','moonshot'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
+      var dejaPayes=['anthropic','openai','gemini','deepseek','mistral','moonshot','glm'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
       if(dejaPayes.length>=1){
         st.innerHTML='<span class="tag warn">premium requis</span> Gratuit : 1 modele paye ('+esc(dejaPayes[0])+' deja enregistre) + Ollama local. Passe premium pour plusieurs modeles.';
         setDot('ko');return;

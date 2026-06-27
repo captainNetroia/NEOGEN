@@ -52,6 +52,7 @@ PROVIDER_CRED = {
     "deepseek":  ("deepseek-api.env",  "DEEPSEEK_API_KEY"),
     "mistral":   ("mistral-api.env",   "MISTRAL_API_KEY"),
     "moonshot":  ("moonshot.env",      "MOONSHOT_API_KEY"),
+    "glm":       ("zhipu-glm-api.env", "ZHIPU_GLM_API_KEY"),
 }
 
 

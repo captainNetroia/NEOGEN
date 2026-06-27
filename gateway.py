@@ -41,6 +41,7 @@ TIERS = {
     "deepseek":  {"fort": "deepseek-reasoner", "moyen": "deepseek-chat",   "leger": "deepseek-chat"},
     "mistral":   {"fort": "mistral-large-latest", "moyen": "mistral-small-latest", "leger": "open-mistral-nemo"},
     "moonshot":  {"fort": "kimi-k2.7-code", "moyen": "kimi-k2.6", "leger": "kimi-k2.7-code-highspeed"},
+    "glm":       {"fort": "glm-5.2",          "moyen": "glm-4.5",           "leger": "glm-4.5-flash"},
     "local":     {"fort": "llama3.2",        "moyen": "llama3.2",          "leger": "qwen2.5"},
 }
 
@@ -124,6 +125,7 @@ _OPENAI_COMPAT = {
     "deepseek": "https://api.deepseek.com/v1",
     "mistral":  "https://api.mistral.ai/v1",
     "moonshot": "https://api.moonshot.ai/v1",   # Kimi (Moonshot AI), compatible OpenAI
+    "glm":      "https://open.bigmodel.cn/api/paas/v4/",   # Zhipu AI GLM, compatible OpenAI
     "local":    "http://localhost:11434/v1",   # Ollama, mode compatible OpenAI
 }
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
