@@ -634,8 +634,11 @@ async function loadProduits(){
         :'<span class="tag" style="margin-left:6px;background:rgba(100,116,139,.12);color:var(--mut)">code</span>';
     // Titre en gras + description tronquee
     const titre=esc(p.intention);
+    const penseeOrigin=p.pensee_id
+      ?'<div style="font-size:11px;color:var(--mut);margin-top:3px">Née de : <a href="#evolution" style="color:var(--acc);text-decoration:none" onclick="window._penseeScroll=\''+esc(p.pensee_id)+'\'">'+esc(p.pensee_titre||p.pensee_id)+'</a></div>'
+      :'';
     card.innerHTML='<div class="ct" style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:4px">'+titre+statusBadge+genBadge+'</div>'+
-                   '<div class="cs">'+p.lignes+' lignes &middot; '+esc(p.verdict)+'</div>';
+                   '<div class="cs">'+p.lignes+' lignes &middot; '+esc(p.verdict)+'</div>'+penseeOrigin;
     const actions=document.createElement('div');actions.className='cactions';
     const btnCode=document.createElement('button');btnCode.className='ghost';btnCode.textContent='Code';
     btnCode.onclick=async()=>{
@@ -3482,7 +3485,10 @@ async function loadEvolutionCellules(){
         +'</summary>';
       const corps=document.createElement('div');
       corps.style.cssText='margin-top:8px';
-      corps.innerHTML='<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
+      const penseeLink=cell.pensee_id
+        ?'<div style="font-size:11px;color:var(--mut);margin-bottom:6px">Née de la pensée : <a href="#evolution" style="color:var(--acc);text-decoration:none" onclick="window._penseeScroll=\''+esc(cell.pensee_id)+'\'">'+esc(cell.pensee_titre||cell.pensee_id)+'</a></div>'
+        :'';
+      corps.innerHTML=penseeLink+'<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
         +(cell.test&&cell.test.resume?' &middot; test : '+esc(cell.test.resume):'')+'</div>'
         +'<pre style="background:rgba(0,0,0,.35);border-radius:8px;padding:10px;overflow:auto;font-size:11px;max-height:300px;white-space:pre-wrap" id="cellcode-'+esc(cell.nom)+'">Chargement du code…</pre>';
       det.appendChild(corps);

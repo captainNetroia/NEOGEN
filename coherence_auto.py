@@ -84,6 +84,29 @@ def _verifier_etape(e: dict) -> tuple[bool, str]:
     return True, "methode inconnue (ignoree)"
 
 
+def _check_regles_code_requis() -> list[dict]:
+    """Détecte les règles activées avec requiert_code=true qui n'ont aucun ancrage dans le code."""
+    tensions = []
+    regles_file = _RACINE / "data" / "regles_actives.json"
+    if not regles_file.exists():
+        return tensions
+    try:
+        data = json.loads(regles_file.read_text(encoding="utf-8"))
+        py_sources = {f.stem: f.read_text(encoding="utf-8", errors="ignore")
+                      for f in _RACINE.glob("*.py")}
+        for cle, meta in data.get("regles_code_requis", {}).items():
+            ancree = any(cle in src for src in py_sources.values())
+            if not ancree:
+                tensions.append({
+                    "journey": f"Règle '{cle}' requiert implémentation code",
+                    "etape": f"Ancrage code pour '{cle}'",
+                    "raison": f"règle '{cle}' (requiert_code=true) introuvable dans les .py — implémentation manquante",
+                })
+    except Exception:
+        pass
+    return tensions
+
+
 def audit_journeys() -> dict:
     """Audite tous les parcours déclarés. Retourne {ok, tensions, journeys, total, ko}.
     Jamais d'exception : fail-closed sur toute erreur interne."""
@@ -112,6 +135,8 @@ def audit_journeys() -> dict:
                 "etapes": etapes_ok,
                 "ok": all(e2["ok"] for e2 in etapes_ok),
             })
+        # Règles qui requièrent du code mais sans ancrage détecté.
+        tensions += _check_regles_code_requis()
         return {"ok": len(tensions) == 0, "tensions": tensions,
                 "journeys": results, "total": len(results), "ko": len(tensions)}
     except Exception as exc:

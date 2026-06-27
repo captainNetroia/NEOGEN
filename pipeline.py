@@ -186,7 +186,8 @@ def _client():
 
 
 def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=True, cap=None,
-                   progress=None, client=None, parent_id=None) -> Resultat:
+                   progress=None, client=None, parent_id=None,
+                   pensee_id: str | None = None, pensee_titre: str | None = None) -> Resultat:
     """
     Vrai chemin de production : intention -> ADN (Claude) -> code (Claude)
     -> 3 garde-fous -> execution (bac a sable selon capacites) -> auto-reparation
@@ -224,7 +225,8 @@ def fabriquer_reel(intention, *, reparer=True, max_tentatives=3, enregistrer=Tru
         cap_list = [c for c in ["persistance", "reseau", "bureau"] if getattr(cap, c, False)] if cap else []
         entree = registre.enregistrer(intention, r.code,
                                       verdict=r.verdict, tentatives=r.tentatives, lignes=r.lignes,
-                                      parent_id=parent_id, murs=murs, capacites=cap_list,
+                                      parent_id=parent_id, pensee_id=pensee_id,
+                                      pensee_titre=pensee_titre, murs=murs, capacites=cap_list,
                                       domaines_autorises=getattr(cap, "domaines_autorises", []))
         print(f"  [REGISTRE] produit enregistre : {entree['id']}")
 

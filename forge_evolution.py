@@ -165,7 +165,8 @@ def _charger_registre() -> dict:
     return {}
 
 
-def _persister_cellule(cell, score, verdict_raison, test) -> str:
+def _persister_cellule(cell, score, verdict_raison, test,
+                        pensee_id: str = "", pensee_titre: str = "") -> str:
     """Ecrit le code reel + une entree de registre. Idempotent (re-forge ecrase proprement)."""
     nom = re.sub(r"[^a-z0-9_]+", "_", (cell.name or "cellule").lower()).strip("_") or "cellule"
     os.makedirs(_CELLULES_DIR, exist_ok=True)
@@ -187,6 +188,8 @@ def _persister_cellule(cell, score, verdict_raison, test) -> str:
         "test": test,
         "fichier": f"cellules_forgees/{nom}.py",
         "ts": time.time(),
+        "pensee_id": pensee_id or None,
+        "pensee_titre": pensee_titre or None,
     }
     with open(_REGISTRE, "w", encoding="utf-8") as f:
         json.dump(reg, f, ensure_ascii=False, indent=2)
@@ -282,8 +285,9 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
                             source="forge_evolution")
             return {"ok": False, "etat": "refusee", "raison": raison, "verdict": decision}
 
-        # 5. Acceptee + testee -> persiste le code reel.
-        nom = _persister_cellule(cell, score, raison, test)
+        # 5. Acceptee + testee -> persiste le code reel (avec lien vers la pensee d'origine).
+        nom = _persister_cellule(cell, score, raison, test,
+                                 pensee_id=pensee_id, pensee_titre=titre)
         try:
             import evolution_gouvernee
             evolution_gouvernee._notifier_generation(

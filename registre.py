@@ -42,6 +42,7 @@ def _norm(e: dict) -> dict:
 
 def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lignes: int,
                 contrat: dict | None = None, parent_id: str | None = None,
+                pensee_id: str | None = None, pensee_titre: str | None = None,
                 murs: list[str] | None = None, capacites: list[str] | None = None,
                 domaines_autorises: list[str] | None = None) -> dict:
     """Persiste un produit reussi et retourne son entree d'index.
@@ -92,6 +93,8 @@ def enregistrer(intention: str, code: str, *, verdict: str, tentatives: int, lig
         "lineage": lineage,
         "generation": generation,
         "parent_id": parent_id,
+        "pensee_id": pensee_id or None,
+        "pensee_titre": pensee_titre or None,
         "murs": murs or [],
         "capacites": capacites or [],
         "domaines_autorises": domaines_autorises or [],

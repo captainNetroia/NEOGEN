@@ -218,6 +218,11 @@ def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
         versions[cle] = v
         action = f"mis a jour v{v}" if existante is not None else f"cree v{v}"
         detail = f"regle '{cle}' {action}"
+        # Règle qui nécessite une implémentation code -> enregistrée pour coherence_auto.
+        if payload.get("requiert_code"):
+            store.setdefault("regles_code_requis", {})[cle] = {
+                "titre": titre, "cle": cle, "ts": time.time()
+            }
     elif type_ == "loi":
         loi = payload.get("loi") or payload.get("texte") or titre
         store.setdefault("lois", [])
