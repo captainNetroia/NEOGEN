@@ -991,6 +991,20 @@ def _section_evolution() -> str:
       </div>
     </div>
 
+    <!-- Subconscient : memoire-graphe + moteur de reve -->
+    <div id="subconscient-panel" style="margin:18px 0 8px;border:1px solid rgba(245,158,11,.22);border-radius:14px;padding:16px;background:rgba(20,10,0,.35)">
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;box-shadow:0 0 10px #f59e0b"></span>
+          Subconscient
+        </div>
+        <span style="font-size:11px;opacity:.55;font-weight:400">memoire-graphe + bisociation + nouveaute — les reves emergent en bulles</span>
+        <button id="btn-rever" onclick="faireRever(this)" style="margin-left:auto;font-size:12px;padding:6px 14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#f59e0b">&#127769; Faire rever NEOGEN</button>
+      </div>
+      <div id="subconscient-etat" style="font-size:11px;opacity:.55;margin-bottom:8px">Chargement...</div>
+      <div id="subconscient-reves" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
     <!-- Cellules forgees : le VRAI code genere par "donner vie" sur une idee technique -->
     <div style="font-size:13px;font-weight:600;margin:18px 0 8px">Cellules forgees <span style="font-size:11px;opacity:.5;font-weight:400">(code reel genere, teste en sandbox, valide contre les murs)</span></div>
     <div id="evo-cellules">

@@ -4,87 +4,253 @@
       "id": "forge-runtime-graver",
       "titre": "Forge fragment runtime -> Graver permanent",
       "etapes": [
-        {"desc": "Generer un apercu HTML", "methode": "check_route", "endpoint": "POST /savoir/fragments/apercu"},
-        {"desc": "Appliquer en runtime", "methode": "check_route", "endpoint": "POST /savoir/fragments/appliquer"},
-        {"desc": "Recuperer HTML fragment existant", "methode": "check_route", "endpoint": "GET /savoir/fragments/{zone}/{frag_id}"},
-        {"desc": "Bouton Graver sur fragment existant dans la liste", "methode": "check_js", "js_fn": "graverFragment"},
-        {"desc": "Graver en code permanent", "methode": "check_route", "endpoint": "POST /savoir/ui-python/graver"}
+        {
+          "desc": "Generer un apercu HTML",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/fragments/apercu"
+        },
+        {
+          "desc": "Appliquer en runtime",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/fragments/appliquer"
+        },
+        {
+          "desc": "Recuperer HTML fragment existant",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/fragments/{zone}/{frag_id}"
+        },
+        {
+          "desc": "Bouton Graver sur fragment existant dans la liste",
+          "methode": "check_js",
+          "js_fn": "graverFragment"
+        },
+        {
+          "desc": "Graver en code permanent",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/ui-python/graver"
+        }
       ]
     },
     {
       "id": "donner-vie-cellule",
       "titre": "Donner vie idee technique -> Cellule forgee visible",
       "etapes": [
-        {"desc": "Declencher la forge async", "methode": "check_route", "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"},
-        {"desc": "Polling progression job", "methode": "check_route", "endpoint": "GET /savoir/evolution/forge/{job_id}"},
-        {"desc": "Bulle de progression JS (_bulleProgression)", "methode": "check_js", "js_fn": "_bulleProgression"},
-        {"desc": "Liste cellules forgees", "methode": "check_route", "endpoint": "GET /savoir/evolution/cellules"},
-        {"desc": "Bloc cellules forgees JS", "methode": "check_js", "js_fn": "loadEvolutionCellules"}
+        {
+          "desc": "Declencher la forge async",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"
+        },
+        {
+          "desc": "Polling progression job",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/evolution/forge/{job_id}"
+        },
+        {
+          "desc": "Bulle de progression JS (_bulleProgression)",
+          "methode": "check_js",
+          "js_fn": "_bulleProgression"
+        },
+        {
+          "desc": "Liste cellules forgees",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/evolution/cellules"
+        },
+        {
+          "desc": "Bloc cellules forgees JS",
+          "methode": "check_js",
+          "js_fn": "loadEvolutionCellules"
+        }
       ]
     },
     {
       "id": "creer-agent-visible",
       "titre": "Creer bebe-agent -> Visible dans section Cerveaux",
       "etapes": [
-        {"desc": "Donner vie agent", "methode": "check_route", "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"},
-        {"desc": "Etat evolution (agents custom)", "methode": "check_route", "endpoint": "GET /savoir/evolution/etat"},
-        {"desc": "Panel bebe-agents JS", "methode": "check_js", "js_fn": "loadBebeAgents"}
+        {
+          "desc": "Donner vie agent",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"
+        },
+        {
+          "desc": "Etat evolution (agents custom)",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/evolution/etat"
+        },
+        {
+          "desc": "Panel bebe-agents JS",
+          "methode": "check_js",
+          "js_fn": "loadBebeAgents"
+        }
       ]
     },
     {
       "id": "fragment-cycle-complet",
       "titre": "Fragment runtime -> Desactiver -> Reactiver -> Supprimer",
       "etapes": [
-        {"desc": "Basculer actif/inactif route", "methode": "check_route", "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/basculer"},
-        {"desc": "Basculer JS", "methode": "check_js", "js_fn": "basculerFragment"},
-        {"desc": "Supprimer fragment route", "methode": "check_route", "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/supprimer"},
-        {"desc": "Supprimer fragment JS", "methode": "check_js", "js_fn": "supprimerFragment"}
+        {
+          "desc": "Basculer actif/inactif route",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/basculer"
+        },
+        {
+          "desc": "Basculer JS",
+          "methode": "check_js",
+          "js_fn": "basculerFragment"
+        },
+        {
+          "desc": "Supprimer fragment route",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/fragments/{zone}/{frag_id}/supprimer"
+        },
+        {
+          "desc": "Supprimer fragment JS",
+          "methode": "check_js",
+          "js_fn": "supprimerFragment"
+        }
       ]
     },
     {
       "id": "graver-backup-restaurer",
       "titre": "Graver permanent -> Backup -> Restaurer si probleme",
       "etapes": [
-        {"desc": "Graver cree un backup", "methode": "check_route", "endpoint": "POST /savoir/ui-python/graver"},
-        {"desc": "Lister backups", "methode": "check_route", "endpoint": "GET /savoir/ui-python"},
-        {"desc": "Restaurer un backup", "methode": "check_route", "endpoint": "POST /savoir/ui-python/restaurer"}
+        {
+          "desc": "Graver cree un backup",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/ui-python/graver"
+        },
+        {
+          "desc": "Lister backups",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/ui-python"
+        },
+        {
+          "desc": "Restaurer un backup",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/ui-python/restaurer"
+        }
       ]
     },
     {
       "id": "conscience-auto-connaissance",
       "titre": "Conscience du systeme -> Diagnostiquer -> Reparer une capacite",
       "etapes": [
-        {"desc": "Etat de conscience (capacites + sante)", "methode": "check_route", "endpoint": "GET /savoir/conscience"},
-        {"desc": "Diagnostiquer (reconcilier registre/realite)", "methode": "check_route", "endpoint": "POST /savoir/conscience/diagnostiquer"},
-        {"desc": "Reparer une capacite cassee", "methode": "check_route", "endpoint": "POST /savoir/conscience/{id}/reparer"},
-        {"desc": "Auto-reparer toutes les capacites cassees", "methode": "check_route", "endpoint": "POST /savoir/conscience/auto-reparer"},
-        {"desc": "Controle de sante (non-regression)", "methode": "check_route", "endpoint": "POST /savoir/conscience/controle-sante"},
-        {"desc": "Catalogue des points d-ancrage", "methode": "check_route", "endpoint": "GET /savoir/conscience/ancrages"},
-        {"desc": "Definir le point d-ancrage d-une cellule", "methode": "check_route", "endpoint": "POST /savoir/conscience/{id}/ancrage"},
-        {"desc": "Panneau conscience JS", "methode": "check_js", "js_fn": "loadConscience"},
-        {"desc": "Action diagnostiquer JS", "methode": "check_js", "js_fn": "diagnostiquerConscience"},
-        {"desc": "Action reparer JS", "methode": "check_js", "js_fn": "reparerCapacite"},
-        {"desc": "Action auto-reparer JS", "methode": "check_js", "js_fn": "autoReparerConscience"},
-        {"desc": "Action definir ancrage JS", "methode": "check_js", "js_fn": "definirAncrage"},
-        {"desc": "Registre de conscience present", "methode": "check_data", "data_path": "data/registre_capacites.json"}
+        {
+          "desc": "Etat de conscience (capacites + sante)",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/conscience"
+        },
+        {
+          "desc": "Diagnostiquer (reconcilier registre/realite)",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/conscience/diagnostiquer"
+        },
+        {
+          "desc": "Reparer une capacite cassee",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/conscience/{id}/reparer"
+        },
+        {
+          "desc": "Auto-reparer toutes les capacites cassees",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/conscience/auto-reparer"
+        },
+        {
+          "desc": "Controle de sante (non-regression)",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/conscience/controle-sante"
+        },
+        {
+          "desc": "Catalogue des points d-ancrage",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/conscience/ancrages"
+        },
+        {
+          "desc": "Definir le point d-ancrage d-une cellule",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/conscience/{id}/ancrage"
+        },
+        {
+          "desc": "Panneau conscience JS",
+          "methode": "check_js",
+          "js_fn": "loadConscience"
+        },
+        {
+          "desc": "Action diagnostiquer JS",
+          "methode": "check_js",
+          "js_fn": "diagnostiquerConscience"
+        },
+        {
+          "desc": "Action reparer JS",
+          "methode": "check_js",
+          "js_fn": "reparerCapacite"
+        },
+        {
+          "desc": "Action auto-reparer JS",
+          "methode": "check_js",
+          "js_fn": "autoReparerConscience"
+        },
+        {
+          "desc": "Action definir ancrage JS",
+          "methode": "check_js",
+          "js_fn": "definirAncrage"
+        },
+        {
+          "desc": "Registre de conscience present",
+          "methode": "check_data",
+          "data_path": "data/registre_capacites.json"
+        }
       ]
     },
     {
       "id": "resolveur-objectif",
       "titre": "Atteindre un objectif -> 3 etats -> forge des manques + demandes",
       "etapes": [
-        {"desc": "Analyser un objectif (3 etats)", "methode": "check_route", "endpoint": "POST /savoir/objectif/analyser"},
-        {"desc": "Resoudre : forge + questions + donnees", "methode": "check_route", "endpoint": "POST /savoir/objectif/resoudre"},
-        {"desc": "Lister les objectifs en cours", "methode": "check_route", "endpoint": "GET /savoir/objectif"},
-        {"desc": "Boite objectif JS", "methode": "check_js", "js_fn": "resoudreObjectif"}
+        {
+          "desc": "Analyser un objectif (3 etats)",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/objectif/analyser"
+        },
+        {
+          "desc": "Resoudre : forge + questions + donnees",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/objectif/resoudre"
+        },
+        {
+          "desc": "Lister les objectifs en cours",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/objectif"
+        },
+        {
+          "desc": "Boite objectif JS",
+          "methode": "check_js",
+          "js_fn": "resoudreObjectif"
+        }
       ]
     },
     {
       "id": "subconscient-reve",
       "titre": "Subconscient -> reve (bisociation + novelty) -> remontee en bulle",
       "etapes": [
-        {"desc": "Lister les reves + etat du graphe", "methode": "check_route", "endpoint": "GET /savoir/reves"},
-        {"desc": "Declencher un cycle de reve", "methode": "check_route", "endpoint": "POST /savoir/reves/rever"}
+        {
+          "desc": "Lister les reves + etat du graphe",
+          "methode": "check_route",
+          "endpoint": "GET /savoir/reves"
+        },
+        {
+          "desc": "Declencher un cycle de reve",
+          "methode": "check_route",
+          "endpoint": "POST /savoir/reves/rever"
+        },
+        {
+          "desc": "Panneau subconscient JS",
+          "methode": "check_js",
+          "js_fn": "loadSubconscient"
+        },
+        {
+          "desc": "Bouton faire rever JS",
+          "methode": "check_js",
+          "js_fn": "faireRever"
+        }
       ]
     }
   ]

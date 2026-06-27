@@ -3462,6 +3462,7 @@ async function loadEvolutionSysteme(){
   }catch(e){}
   loadEvolutionChangelog();
   loadConscience();
+  loadSubconscient();
   loadEvolutionCellules();
   loadFragments();
   if(_evoWired)return; _evoWired=true;
@@ -3769,6 +3770,51 @@ const _STATUT_META={
   obsolete:{l:'obsolete',c:'#6b7280',b:'rgba(107,114,128,.1)',br:'rgba(107,114,128,.25)',i:'&#9866;'}
 };
 function _statutMeta(s){return _STATUT_META[s]||_STATUT_META.proposee;}
+
+async function loadSubconscient(){
+  const etatEl=document.getElementById('subconscient-etat');
+  const revesEl=document.getElementById('subconscient-reves');
+  if(!etatEl)return;
+  try{
+    const r=await fetch('/savoir/reves');
+    if(!r.ok){etatEl.textContent='Indisponible';return;}
+    const d=await r.json();
+    const g=d.graphe||{};
+    etatEl.innerHTML='<b>'+( g.concepts||0)+'</b> concepts &nbsp;·&nbsp; <b>'+(g.liens||0)+'</b> liens &nbsp;·&nbsp; <b>'+(g.ponts||0)+'</b> ponts &nbsp;·&nbsp; <b>'+(d.reves_archives||0)+'</b> reve(s) archive(s)';
+    const reves=(d.reves||[]).slice(0,5);
+    if(!reves.length){if(revesEl)revesEl.innerHTML='<div style="font-size:11px;opacity:.4;padding:6px 0">Aucun reve encore — clique « Faire rever NEOGEN » pour un premier cycle.</div>';return;}
+    if(revesEl){
+      revesEl.innerHTML='';
+      for(const rv of reves){
+        const el=document.createElement('div');
+        el.style.cssText='padding:7px 10px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.18);border-radius:8px;font-size:11px';
+        el.innerHTML='<span style="color:#f59e0b;font-weight:700">'+esc(rv.titre||'Reve')+'</span>'
+          +' <span style="opacity:.4">(nouveaute '+((rv.nouveaute||0).toFixed(2))+')</span>'
+          +(rv.paire?'<br><span style="opacity:.45">'+esc(rv.paire.join(' × '))+'</span>':'');
+        revesEl.appendChild(el);
+      }
+    }
+  }catch(e){if(etatEl)etatEl.textContent='Erreur chargement subconscient';}
+}
+
+async function faireRever(btn){
+  const etatEl=document.getElementById('subconscient-etat');
+  if(btn){btn.disabled=true;btn.textContent='Reve en cours…';}
+  if(etatEl)etatEl.textContent='Bisociation + conceptual blending en cours…';
+  try{
+    const r=await fetch('/savoir/reves/rever',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:3})});
+    const d=await r.json();
+    if(r.ok&&d.ok){
+      const msg=d.emergents>0?('&#127769; '+d.emergents+' reve(s) emergent(s) en bulle !'):('0 emergent (sous le seuil de nouveaute — NEOGEN enrichit quand meme l\'archive)');
+      if(etatEl){etatEl.innerHTML='<span style="color:'+(d.emergents?'#f59e0b':'#9ca3af')+'">'+msg+'</span>';}
+      setTimeout(loadSubconscient,800);
+      if(d.emergents>0)setTimeout(function(){if(typeof loadPensees==='function')loadPensees();},1200);
+    }else{
+      if(etatEl)etatEl.textContent='Erreur : '+(d.detail||d.raison||'inconnu');
+    }
+  }catch(e){if(etatEl)etatEl.textContent='Erreur reseau : '+esc(e.message);}
+  finally{if(btn){btn.disabled=false;btn.innerHTML='&#127769; Faire rever NEOGEN';}}
+}
 
 async function loadConscience(){
   const cont=document.getElementById('conscience-capacites');

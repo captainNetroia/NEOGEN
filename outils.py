@@ -887,6 +887,58 @@ def outil_capacite_forgee(nom: str = "", params: str = "", **kw) -> str:
     return f"[capacite_forgee] echec : {r.get('erreur', 'inconnu')}"
 
 
+def outil_explorer_graphe(requete: str = "", top_ponts: int = 5, **kw) -> str:
+    """Interroge la memoire-graphe associative de NEOGEN (reseau de concepts, pensees, savoirs,
+    cellules, erreurs). Sans requete -> etat global + noeuds-ponts (concepts qui relient des
+    domaines eloignes). Avec requete -> voisinage conceptuel autour des mots-cles."""
+    import graphe_associatif as G
+    g = G.charger()
+    if not g.get("noeuds"):
+        return "[explorer_graphe] Graphe encore vide — attend un cycle de maintenance ou de reve pour se construire."
+    etat = G.etat()
+    if not (requete or "").strip():
+        ponts = G.noeuds_ponts(g, top=max(1, min(int(top_ponts), 15)))
+        labels = [G.label(g, p) for p in ponts[:8]]
+        return nettoyer(
+            f"[explorer_graphe] Memoire associative NEOGEN :\n"
+            f"  {etat['concepts']} concepts, {etat['liens']} liens\n"
+            f"  Ponts (concepts reliant des domaines eloignes) : {', '.join(labels)}"
+        )
+    mots = G._mots_cles(requete, n=6)
+    nids = [nid for nid, d in g.get("noeuds", {}).items()
+            if any(m in d.get("label", "").lower() for m in mots)]
+    if not nids:
+        return f"[explorer_graphe] Aucun concept trouve pour : {requete[:60]}"
+    res = f"[explorer_graphe] Concepts proches de « {requete[:40]} » :\n"
+    for nid in nids[:3]:
+        v = G.voisins(g, nid)
+        labels_v = [G.label(g, vid) for vid in list(v.keys())[:5]]
+        res += f"  {G.label(g, nid)} -> {', '.join(labels_v)}\n"
+    return nettoyer(res)
+
+
+def outil_rever(n: int = 3, **kw) -> str:
+    """Declenche un cycle de REVE de NEOGEN (subconscient) : reconstruit le graphe associatif,
+    fusionne des concepts eloignes (bisociation + conceptual blending LLM), score la nouveaute
+    (Novelty Search). Les reves assez nouveaux (>= 0.62) remontent en bulle type « reve » pour
+    que Jordan leur donne vie. Ne leve jamais."""
+    import subconscient as S
+    res = S.cycle_reve(n=max(1, min(int(n), 5)))
+    if not res.get("ok"):
+        return "[rever] Cycle de reve avorte (graphe trop pauvre ou LLM indisponible)."
+    emergents = res.get("emergents", 0)
+    total = res.get("reves", 0)
+    details = res.get("details", [])
+    if not total:
+        return "[rever] Aucun reve genere (graphe trop pauvre — construis d'abord des pensees)."
+    msg = f"[rever] {total} reve(s) genere(s), {emergents} emergent(s) remontant en bulle :\n"
+    for r in details[:3]:
+        msg += f"  « {r.get('titre', '?')} » (nouveaute {r.get('nouveaute', 0):.2f}) <- {' x '.join(r.get('paire', []))}\n"
+    if not emergents:
+        msg += "  Tous sous le seuil de nouveaute (0.62) — NEOGEN a deja vu ces associations."
+    return nettoyer(msg)
+
+
 def outil_resoudre_objectif(objectif: str = "", auto_forge: bool = True, **kw) -> str:
     """Face a un objectif, applique les 3 etats (CERTAIN/INCONNU/ANGLE_MORT), FORGE les
     briques manquantes, et signale les donnees sensibles a demander + les ambiguites a lever.
@@ -952,4 +1004,6 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "integration":            (_outil_integration_proxy,     "Appelle un service integre par l'utilisateur (Notion, Slack, GitHub, Telegram, Discord, HubSpot, Brevo, Airtable, Todoist, Calendly, Figma, Vercel, Perplexity, Tavily, ElevenLabs...). params: {service, action, params}"),
     "capacite_forgee":        (outil_capacite_forgee,        "Liste ou invoque une capacite forgee (fonction Python generee+testee+integree par la forge). Sans nom -> liste ; avec nom -> appelle. params: {nom?, params? (JSON)}"),
     "resoudre_objectif":      (outil_resoudre_objectif,      "Face a un objectif, applique les 3 etats (CERTAIN/INCONNU/ANGLE_MORT), FORGE les briques manquantes, signale les donnees sensibles a demander + les ambiguites a lever. S'adapte a n'importe quelle demande. params: {objectif, auto_forge?}"),
+    "explorer_graphe":        (outil_explorer_graphe,        "Interroge la memoire-graphe associative de NEOGEN (295+ concepts, liens ponderés, ponts). Sans requete -> etat global + noeuds-ponts. Avec requete -> voisinage conceptuel. params: {requete?, top_ponts?}"),
+    "rever":                  (outil_rever,                  "Declenche un cycle de REVE (subconscient) : fusionne des concepts eloignes (bisociation + blend LLM), score la nouveaute. Les reves suffisamment nouveaux (>= 0.62) remontent en bulle type « reve ». params: {n? (1-5 reves)}"),
 }

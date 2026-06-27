@@ -199,6 +199,60 @@ def _incrementer_reuse_count(ids: list) -> None:
         pass
 
 
+def _verifier_promotions_et_dormantes() -> dict:
+    """Règle compteur_de_reutilisation_des_pensees :
+    - reuse_count >= 5 -> pensée promue comme graine de savoir (une seule fois)
+    - reuse_count == 0 apres 30 filtrages -> mise en veille 'dormante' (exclue du pool prioritaire)
+    Appele apres chaque cycle de pensee. Ne leve jamais."""
+    try:
+        try:
+            with open(_REUSE_PATH, encoding="utf-8") as f:
+                counts = json.load(f)
+        except (FileNotFoundError, ValueError):
+            return {"ok": False, "raison": "pas de compteurs"}
+
+        pensees = _lire()
+        par_id = {p.get("id"): p for p in pensees if p.get("id")}
+
+        promues, dormantes = [], []
+        modifie = False
+        for pid, entry in counts.items():
+            if pid not in par_id:
+                continue
+            c = entry.get("count", 0)
+            # Promotion : reuse >= 5 et pas encore promue.
+            if c >= 5 and not entry.get("promue"):
+                p = par_id[pid]
+                try:
+                    import savoir
+                    graine = f"[Graine de savoir — pensee recurrente] {p.get('titre', '')}: {p.get('synthese', '')[:400]}"
+                    savoir.ajouter({"contenu": graine, "type": "graine", "source": "reuse_promotion",
+                                    "pensee_id": pid})
+                except Exception:
+                    pass
+                entry["promue"] = True
+                modifie = True
+                promues.append(pid)
+                rob.journaliser(f"pensee promue graine de savoir (reuse={c}) : {par_id[pid].get('titre','')[:50]}",
+                                "succes", source="pensee")
+            # Dormance : count == 0 apres au moins 30 filtrages sans etre choisie.
+            vus = entry.get("vu_dans", 0)
+            if c == 0 and vus >= 30 and not entry.get("dormante"):
+                entry["dormante"] = True
+                modifie = True
+                dormantes.append(pid)
+            # Incrementer le compteur de filtrages (vu_dans) a chaque appel.
+            entry["vu_dans"] = vus + 1
+
+        if modifie:
+            with open(_REUSE_PATH, "w", encoding="utf-8") as f:
+                json.dump(counts, f, ensure_ascii=False, indent=2)
+
+        return {"ok": True, "promues": len(promues), "dormantes": len(dormantes)}
+    except Exception as e:
+        return {"ok": False, "raison": str(e)}
+
+
 def _charger_fil_contextuel(sujet: str | None, n: int = 5) -> list[str]:
     """Charge les N syntheses passees dont les mots-cles recoupent le sujet courant,
     creant une 'lignee de reflexion'. Active uniquement si la regle rappel_contextuel_actif
@@ -565,6 +619,12 @@ def cycle_pensee(force: bool = False, sujet: str | None = None, *, _client=None)
                     proposition = proposeur_hub.proposer_depuis_pensee(record)
                 except Exception as e:
                     rob.journaliser(f"pensee : proposition non creee : {e}", "erreur", source="pensee")
+
+        # Règle compteur_de_reutilisation_des_pensees : vérifier promotions + dormantes.
+        try:
+            _verifier_promotions_et_dormantes()
+        except Exception:
+            pass
 
         rob.battement("pensee", score=score, bulle=record["bulle"],
                       proposition=bool(proposition))
