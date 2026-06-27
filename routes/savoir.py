@@ -150,6 +150,24 @@ _INDICES_INTERFACE = ("interface", "affichage", "ecran", "liste", "replier", "re
                       "lisible", "organis", "espace", "colonne", "mise en page")
 
 
+_ZONE_KEYWORDS = {
+    "cerveau":      ("cerveau", "agent", "memoire", "skill", "savoir", "connaissance"),
+    "production":   ("production", "registre", "genealog", "produit", "creation"),
+    "compte":       ("compte", "rpa", "ecran", "preference", "secretaire"),
+    "analyse":      ("analyse", "analyste", "metrique", "statistique", "pattern"),
+    "evolution":    ("evolution", "architecte", "store", "noyau", "changement", "gouverne"),
+    "integrations": ("integration", "connecteur", "provider", "api", "fournisseur"),
+}
+
+def _zone_depuis_pensee(p: dict) -> str:
+    """Detecte la zone forge_fragments la plus pertinente depuis le contenu de la pensee."""
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    for zone, mots in _ZONE_KEYWORDS.items():
+        if any(m in blob for m in mots):
+            return zone
+    return "evolution"  # fallback
+
+
 def _est_interface(evo: dict | None, p: dict) -> bool:
     """Une pensee concerne l'INTERFACE si son evolution est de type esthetique/section,
     ou si son contenu evoque l'affichage/l'experience visuelle."""
@@ -190,17 +208,18 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
 
     evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
 
-    # VOIE 0 : interface -> forge d'interface (CSS reel). Apercu d'abord, puis confirmation.
+    # VOIE 0 : interface -> Forge de blocs (vrais elements HTML, pas juste CSS).
     if _est_interface(evo, p):
-        import forge_interface
+        import forge_fragments as _ff
         idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
-        apercu = forge_interface.generer_apercu(idee)
+        zone = _zone_depuis_pensee(p)
+        apercu = _ff.generer_apercu(idee, zone)
         if apercu.get("ok"):
-            return {"ok": True, "voie": "interface", "pensee_id": pensee_id,
-                    "titre": p.get("titre", ""), "css": apercu["css"],
+            return {"ok": True, "voie": "forge_blocs", "pensee_id": pensee_id,
+                    "titre": apercu.get("titre") or p.get("titre", ""),
+                    "html": apercu["html"], "zone": zone,
                     "explication": apercu.get("explication", "")}
-        # echec de generation -> on retombe honnetement (pas d'effet, on le dit)
-        return {"ok": False, "voie": "interface", "raison": apercu.get("raison", "echec")}
+        return {"ok": False, "voie": "forge_blocs", "raison": apercu.get("raison", "echec")}
 
     # VOIE 1 : technique -> la forge (vrai code).
     if _est_technique(evo, p):

@@ -208,6 +208,27 @@ def _verifier_close_tab() -> tuple[bool, str]:
     return True, f"Fermeture de l'onglet actif du navigateur ('{titre}')."
 
 
+def _get_browser_context() -> dict:
+    """Lit URL + titre du navigateur actif.
+    Priorité 1 : Chrome DevTools Protocol (port 9222, si Chrome lancé avec --remote-debugging-port=9222).
+    Fallback : titre de la fenêtre Windows."""
+    titre = _titre_fenetre_active()
+    url = ""
+    try:
+        import urllib.request as _ur
+        import json as _j
+        raw = _ur.urlopen("http://localhost:9222/json", timeout=1).read()
+        tabs = _j.loads(raw)
+        for t in tabs:
+            if t.get("type") == "page" and t.get("url", "").startswith("http"):
+                url = t.get("url", "")
+                titre = t.get("title", titre)
+                break
+    except Exception:
+        pass
+    return {"url": url, "titre": titre}
+
+
 def _capturer_et_envoyer() -> tuple[bool, str | None]:
     """Capture l'écran, encode en PNG base64, et l'envoie au backend NEOGEN.
     Donne des 'yeux' à l'agent : le modèle vision analysera cette image."""
@@ -277,6 +298,13 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
             webbrowser.open(url)
         elif act_type == "screenshot":
             return _capturer_et_envoyer()
+        elif act_type == "get_browser_context":
+            ctx = _get_browser_context()
+            try:
+                requests.post(f"{SERVER_URL}/rpa/browser_context", json=ctx, timeout=5)
+            except Exception as e:
+                return False, f"envoi contexte navigateur échoué : {e}"
+            return True, None
         else:
             return False, f"Action inconnue : {act_type}"
         return True, None

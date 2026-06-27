@@ -50,6 +50,12 @@ REPEAT_THRESHOLD = 2               # nb d'occurrences avant apprentissage auto
 # Dernière capture d'écran reçue de l'agent local (pour la perception/vision)
 _LAST_SCREENSHOT: dict = {"b64": None, "ts": 0.0}
 
+# Résultats des actions terminées (en attente d'être lus par wait_result)
+_RESULTS: dict[str, dict] = {}
+
+# Contexte navigateur actif (URL + titre, poussé par l'agent hôte)
+_BROWSER_CTX: dict = {"url": "", "titre": "", "ts": 0.0}
+
 
 def store_screenshot(b64: str) -> None:
     """Stocke la dernière capture d'écran envoyée par l'agent local."""
@@ -69,6 +75,37 @@ def request_screenshot() -> float:
     (sert à savoir si la capture reçue ensuite est bien postérieure)."""
     t = time.time()
     RpaQueue.push({"action": "screenshot", "guard": "screenshot"})
+    return t
+
+
+def wait_result(action_id: str, timeout: float = 30.0) -> dict:
+    """Attend le résultat d'une action RPA (bloquant). Retourne {status, error}.
+    status : 'executed' | 'failed' | 'rejected' | 'timeout'."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if action_id in _RESULTS:
+            return _RESULTS.pop(action_id)
+        time.sleep(0.2)
+    return {"status": "timeout", "error": f"aucun résultat après {timeout}s"}
+
+
+def store_browser_context(ctx: dict) -> None:
+    """Reçoit et stocke le contexte navigateur envoyé par l'agent hôte."""
+    _BROWSER_CTX["url"] = ctx.get("url", "")
+    _BROWSER_CTX["titre"] = ctx.get("titre", "")
+    _BROWSER_CTX["ts"] = time.time()
+
+
+def get_browser_context() -> dict:
+    """Retourne le dernier contexte navigateur connu (url, titre, ts)."""
+    return dict(_BROWSER_CTX)
+
+
+def request_browser_context() -> float:
+    """Demande à l'agent hôte de lire le contexte navigateur actif.
+    Retourne le timestamp de la demande."""
+    t = time.time()
+    RpaQueue.push({"action": "get_browser_context"})
     return t
 
 
@@ -130,12 +167,13 @@ class RpaQueue:
                 item["status"] = status
                 item["error"] = error
                 item["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                
+
                 # Journalisation persistante sous NEOGEN
                 RpaQueue._log_action(item)
-                
-                # Nettoyage si exécuté ou échoué
+
+                # Stocker le résultat AVANT de retirer (pour wait_result)
                 if status in ("executed", "failed", "rejected"):
+                    _RESULTS[action_id] = {"status": status, "error": error}
                     try:
                         _QUEUE.remove(item)
                     except ValueError:

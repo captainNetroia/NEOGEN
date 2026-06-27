@@ -216,6 +216,114 @@ def outil_ouvrir_url(url: str = "", **kw) -> str:
     return f"Demande d'ouverture de {url} envoyee a l'agent local (consentement requis cote utilisateur)."
 
 
+def outil_contexte_navigateur(**kw) -> str:
+    """Lit l'URL et le titre de la page web active dans le navigateur de l'utilisateur.
+    Utilise Chrome DevTools Protocol si disponible, sinon le titre de la fenêtre."""
+    import time
+    import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
+    t0 = rpa.request_browser_context()
+    # Attendre que l'agent hôte réponde (max 5s)
+    for _ in range(25):
+        time.sleep(0.2)
+        ctx = rpa.get_browser_context()
+        if ctx.get("ts", 0) > t0:
+            url = ctx.get("url") or "(URL non disponible — lance Chrome avec --remote-debugging-port=9222)"
+            titre = ctx.get("titre") or "(titre inconnu)"
+            return nettoyer(f"Page active : {titre}\nURL : {url}")
+    return "Contexte navigateur non reçu (timeout 5s). L'agent local est-il connecté ?"
+
+
+def outil_executer_mission_rpa(objectif: str = "", actions: Any = None,
+                                infos_utilisateur: str = "", **kw) -> str:
+    """Exécute une mission RPA avec pre-flight (collecte d'infos manquantes) et
+    retry automatique (max 3 tentatives par action). Le seul blocage légitime :
+    une info que seul l'utilisateur peut fournir. Tout blocage technique est géré seul."""
+    import time
+    import rpa
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
+    if not objectif:
+        return "Fournis un 'objectif' décrivant ce que la mission doit accomplir."
+    if not actions:
+        return "Fournis la liste 'actions' à exécuter (même liste que controler_ecran)."
+    if isinstance(actions, str):
+        try:
+            import json as _j
+            actions = _j.loads(actions)
+        except Exception:
+            return "Le paramètre 'actions' doit être une liste JSON."
+    if isinstance(actions, dict):
+        actions = [actions]
+
+    MAX_RETRY = 3
+    contexte_infos = f" Informations fournies par l'utilisateur : {infos_utilisateur}." if infos_utilisateur else ""
+    rapport = [f"Mission : {objectif}", f"{len(actions)} action(s) à exécuter."]
+
+    for i, action in enumerate(actions):
+        succes = False
+        derniere_erreur = ""
+        for tentative in range(1, MAX_RETRY + 1):
+            action_id = rpa.RpaQueue.push(action)
+            res = rpa.wait_result(action_id, timeout=30)
+            statut = res.get("status", "timeout")
+
+            if statut == "executed":
+                rapport.append(f"  ✓ Action {i+1}/{len(actions)} ({action.get('action')}) OK"
+                                + (f" [tentative {tentative}]" if tentative > 1 else ""))
+                succes = True
+                break
+
+            elif statut == "rejected":
+                rapport.append(f"  ✗ Action {i+1} rejetée par l'utilisateur — mission arrêtée.")
+                return nettoyer("\n".join(rapport))
+
+            else:
+                derniere_erreur = res.get("error") or statut
+                rapport.append(f"  ↺ Action {i+1} tentative {tentative} échouée : {derniere_erreur}")
+
+                if tentative < MAX_RETRY:
+                    # Capture screenshot pour comprendre le blocage
+                    t_shot = rpa.request_screenshot()
+                    img = None
+                    for _ in range(15):
+                        time.sleep(0.3)
+                        img = rpa.get_screenshot(apres=t_shot)
+                        if img:
+                            break
+                    if img:
+                        consigne = (
+                            f"Tu pilotes cet écran pour : {objectif}.{contexte_infos} "
+                            f"L'action '{action.get('action')}' vient d'échouer ({derniere_erreur}). "
+                            "En UNE PHRASE : quel est le blocage visible ? Est-ce une INFO MANQUANTE "
+                            "(champ formulaire, identifiant, données) ou un PROBLÈME TECHNIQUE "
+                            "(page erreur, chargement, CAPTCHA, élément décalé) ?"
+                        )
+                        try:
+                            diagnostic = gateway.voir(_ctx_from(kw), img, consigne)
+                            rapport.append(f"    Vision : {str(diagnostic)[:200]}")
+                            # Si l'agent détecte une info manquante → escalader
+                            diag_lower = str(diagnostic).lower()
+                            if any(k in diag_lower for k in ("info manquante", "identifiant",
+                                                              "formulaire", "données", "renseigner",
+                                                              "saisir", "entrer")):
+                                rapport.append(f"\n⚠ Info manquante détectée à l'action {i+1}.")
+                                rapport.append(f"Contexte : {str(diagnostic)[:300]}")
+                                rapport.append("Fournis l'information via 'infos_utilisateur' et relance.")
+                                return nettoyer("\n".join(rapport))
+                        except Exception:
+                            pass
+
+        if not succes:
+            rapport.append(f"  ✗ Action {i+1} bloquée après {MAX_RETRY} tentatives : {derniere_erreur}")
+            rapport.append("Blocage technique persistant — vérifier manuellement.")
+            return nettoyer("\n".join(rapport))
+
+    rapport.append(f"\n✓ Mission accomplie : {len(actions)} action(s) exécutées avec succès.")
+    return nettoyer("\n".join(rapport))
+
+
 def outil_fermer_onglet(**kw) -> str:
     """Ferme l'onglet actif du navigateur (raccourci Ctrl+W) via l'agent local."""
     import rpa
@@ -655,12 +763,14 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "creer_application": (outil_creer_application, 'Cree une app/SaaS/gadget de A a Z (delegation + sandbox). params: {intention, persistance?, reseau?, domaines?}. Si l\'app a besoin d\'internet, mets reseau:true ET domaines:["api.exemple.com"] (liste blanche OBLIGATOIRE, sinon tout acces reseau est refuse).'),
     "lister_creations":  (outil_lister_creations,  "Liste les creations existantes. params: {}"),
     "genealogie":        (outil_genealogie,        "Lignee/generations d'une creation. params: {produit_id}"),
-    "controler_ecran":   (outil_controler_ecran,   "Pilote souris/clavier via l'agent local (consentement requis). params: {actions:[{action,x,y,text,...}]}"),
-    "lister_routines":   (outil_lister_routines,   "Liste les routines apprises par imitation. params: {}"),
-    "rejouer_routine":   (outil_rejouer_routine,   "Rejoue une routine apprise. params: {routine_id}"),
-    "ouvrir_url":        (outil_ouvrir_url,        "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),
-    "fermer_onglet":     (outil_fermer_onglet,     "Ferme l'onglet/la page web actif du navigateur (Ctrl+W). params: {} (aucun)"),
-    "regarder_ecran":    (outil_regarder_ecran,    "REGARDE l'ecran de l'utilisateur (capture + analyse vision) pour voir avant d'agir : lire un formulaire, reperer un bouton et ses coordonnees. params: {objectif}"),
+    "controler_ecran":      (outil_controler_ecran,      "Pilote souris/clavier via l'agent local (consentement requis). params: {actions:[{action,x,y,text,...}]}"),
+    "executer_mission_rpa": (outil_executer_mission_rpa, "Execute une mission RPA complete avec retry auto (max 3x) et pre-flight. Si bloque par une info manquante -> demande a l'utilisateur et s'arrete. params: {objectif, actions:[...], infos_utilisateur?}"),
+    "contexte_navigateur":  (outil_contexte_navigateur,  "Lit l'URL et le titre de la page web active dans le navigateur (CDP ou titre fenetre). params: {}"),
+    "lister_routines":      (outil_lister_routines,      "Liste les routines apprises par imitation. params: {}"),
+    "rejouer_routine":      (outil_rejouer_routine,      "Rejoue une routine apprise. params: {routine_id}"),
+    "ouvrir_url":           (outil_ouvrir_url,           "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),
+    "fermer_onglet":        (outil_fermer_onglet,        "Ferme l'onglet/la page web actif du navigateur (Ctrl+W). params: {} (aucun)"),
+    "regarder_ecran":       (outil_regarder_ecran,       "REGARDE l'ecran de l'utilisateur (capture + analyse vision) pour voir avant d'agir : lire un formulaire, reperer un bouton et ses coordonnees. params: {objectif}"),
     "creer_skill":       (outil_creer_skill,       "Cree une COMPETENCE reutilisable (skill) : un savoir-faire nomme que tu pourras reinvoquer. A faire quand tu reussis une tache utile et reproductible. params: {nom, description, instructions, outils?}"),
     "lister_skills":     (outil_lister_skills,     "Liste les competences (skills) deja apprises. params: {}"),
     "utiliser_skill":    (outil_utiliser_skill,    "Invoque une competence apprise : applique son savoir-faire + boucle satisfaction (demande si ok, adapte ou crée si non, juge valeur systeme). params: {nom, contexte?}"),

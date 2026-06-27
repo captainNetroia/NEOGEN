@@ -121,3 +121,14 @@ def rpa_get_recording(rec_id: str):
     if not rec:
         raise HTTPException(status_code=404, detail="Recording not found")
     return rec
+
+
+@router.post("/rpa/browser_context")
+def rpa_store_browser_context(body: dict):
+    rpa.store_browser_context(body)
+    return {"ok": True}
+
+
+@router.get("/rpa/browser_context")
+def rpa_get_browser_context():
+    return rpa.get_browser_context()
