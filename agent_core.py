@@ -66,6 +66,7 @@ PROFILS: dict[str, dict] = {
         "delegue": True,
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
+                   "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
                    "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler",
                    "lire_fichier", "creer_rapport"],
         "role": (
@@ -118,20 +119,28 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Secretaire",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran", "memoriser", "rappeler", "lire_fichier", "creer_rapport", "creer_skill", "lister_skills", "utiliser_skill"],
+        "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine",
+                   "ouvrir_url", "fermer_onglet", "regarder_ecran",
+                   "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
+                   "memoriser", "rappeler", "lire_fichier", "creer_rapport",
+                   "creer_skill", "lister_skills", "utiliser_skill"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
-            "administration, organisation, navigation web et dans l'application. Tu peux prendre le "
-            "controle de l'ecran (avec consentement) et rejouer des routines apprises pour automatiser "
-            "les taches repetitives.\n"
-            "REGLES DE LUCIDITE (importantes) :\n"
-            "- Avant de cliquer ou remplir quoi que ce soit, utilise 'regarder_ecran' pour VOIR "
-            "reellement l'ecran : tu sauras ou sont les champs/boutons (coordonnees) au lieu de deviner.\n"
-            "- N'invente JAMAIS une URL. Si tu n'es pas certain de l'adresse exacte d'un site, "
-            "dis-le et propose de chercher, plutot que d'ouvrir une URL approximative.\n"
-            "- Ne promets que ce que tes outils permettent reellement. Pour remplir un formulaire : "
-            "d'abord 'regarder_ecran', puis cliquer le champ (controler_ecran), puis taper le texte. "
-            "Si tu n'as pas l'info necessaire, demande-la avant d'agir.\n"
+            "administration, organisation, navigation web, automatisation et controle de l'ecran.\n"
+            "OUTILS RPA — hiérarchie a respecter :\n"
+            "1. 'objectif_rpa' = outil PRINCIPAL pour toute mission complexe : tu decris l'objectif "
+            "en langage naturel, l'agent capture l'ecran, genere les actions et execute avec retry. "
+            "A utiliser quand la cible et l'objectif sont clairs mais les actions precises inconnues.\n"
+            "2. 'executer_mission_rpa' = si tu as DEJA la liste d'actions precises. Retry x3 auto.\n"
+            "3. 'controler_ecran' = actions bas niveau (click/type) quand tu connais exactement "
+            "les coordonnees (apres regarder_ecran).\n"
+            "4. 'remote_control(enabled=on)' = active le mode sans popup AVANT une mission autonome longue. "
+            "Toujours desactiver (off) apres la mission.\n"
+            "5. 'contexte_navigateur' = lit l'URL de l'onglet actif (sans capture complete).\n"
+            "REGLES DE LUCIDITE :\n"
+            "- Pour toute mission RPA : prefere 'objectif_rpa' — il voit l'ecran et s'adapte.\n"
+            "- N'invente JAMAIS une URL. Si tu n'es pas certain, dis-le.\n"
+            "- Si des donnees sont manquantes (identifiants, valeurs formulaire), demande-les AVANT d'agir.\n"
             "REGLE SKILLS — 4 etapes obligatoires :\n"
             "1. AVANT toute tache concrete : verifie si un skill correspond, puis invoque utiliser_skill.\n"
             "2. APRES le resultat : demande si l'utilisateur est satisfait.\n"
@@ -153,7 +162,9 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
     "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent"],
     "creation":     ["creer_application", "lister_creations", "creer_skill", "lister_skills", "utiliser_skill", "forger_bloc", "proposer_conversation"],
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
-    "compte":       ["conseiller", "discerner", "proposer_conversation"],
+    "compte":       ["conseiller", "discerner", "proposer_conversation",
+                     "objectif_rpa", "executer_mission_rpa", "remote_control",
+                     "contexte_navigateur", "controler_ecran", "regarder_ecran"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent"],
     "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "appeler_agent"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent"],
