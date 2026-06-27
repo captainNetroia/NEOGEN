@@ -44,6 +44,10 @@ async def _lifespan(app):
     _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
     _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")
     _rob.protege(lambda: __import__("savoir").HUB.rafraichir(), operation="rafraichir hub savoir", source="startup")
+    # Conscience de soi : charge les capacites forgees + reconcilie le registre avec la realite,
+    # pour que le systeme sache des le demarrage ce qui est integre / en echec / a reparer.
+    _rob.protege(lambda: __import__("capacites_forgees").recharger(), operation="charger capacites forgees", source="startup")
+    _rob.protege(lambda: __import__("conscience").diagnostiquer(), operation="diagnostic conscience", source="startup")
     _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
     yield
 

@@ -49,6 +49,19 @@
         {"desc": "Lister backups", "methode": "check_route", "endpoint": "GET /savoir/ui-python"},
         {"desc": "Restaurer un backup", "methode": "check_route", "endpoint": "POST /savoir/ui-python/restaurer"}
       ]
+    },
+    {
+      "id": "conscience-auto-connaissance",
+      "titre": "Conscience du systeme -> Diagnostiquer -> Reparer une capacite",
+      "etapes": [
+        {"desc": "Etat de conscience (capacites + sante)", "methode": "check_route", "endpoint": "GET /savoir/conscience"},
+        {"desc": "Diagnostiquer (reconcilier registre/realite)", "methode": "check_route", "endpoint": "POST /savoir/conscience/diagnostiquer"},
+        {"desc": "Reparer une capacite cassee", "methode": "check_route", "endpoint": "POST /savoir/conscience/{id}/reparer"},
+        {"desc": "Panneau conscience JS", "methode": "check_js", "js_fn": "loadConscience"},
+        {"desc": "Action diagnostiquer JS", "methode": "check_js", "js_fn": "diagnostiquerConscience"},
+        {"desc": "Action reparer JS", "methode": "check_js", "js_fn": "reparerCapacite"},
+        {"desc": "Registre de conscience present", "methode": "check_data", "data_path": "data/registre_capacites.json"}
+      ]
     }
   ]
 }
