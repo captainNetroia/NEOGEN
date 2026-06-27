@@ -68,7 +68,7 @@ PROFILS: dict[str, dict] = {
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
                    "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler",
-                   "lire_fichier", "creer_rapport"],
+                   "lire_fichier", "creer_rapport", "integration"],
         "role": (
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
@@ -123,7 +123,7 @@ PROFILS: dict[str, dict] = {
                    "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
                    "memoriser", "rappeler", "lire_fichier", "creer_rapport",
-                   "creer_skill", "lister_skills", "utiliser_skill"],
+                   "creer_skill", "lister_skills", "utiliser_skill", "integration"],
         "role": (
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web, automatisation et controle de l'ecran.\n"
@@ -167,7 +167,7 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
                      "contexte_navigateur", "controler_ecran", "regarder_ecran"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent"],
     "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "appeler_agent"],
-    "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent"],
+    "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],
 }
 
 _SECTION_KEYWORDS = {
@@ -334,6 +334,12 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
         coherence_bloc = _coh.bloc_pour_prompt()
     except Exception:
         pass
+    integ_bloc = ""
+    try:
+        import integ_hub as _ih
+        integ_bloc = _ih.bloc_pour_prompt()
+    except Exception:
+        pass
     return nettoyer(
         f"{role}\n\n"
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
@@ -348,7 +354,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
         + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
-        + design_bloc + directives_bloc + coherence_bloc
+        + design_bloc + directives_bloc + coherence_bloc + integ_bloc
     )
 
 

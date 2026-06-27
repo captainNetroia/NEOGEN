@@ -853,6 +853,12 @@ def outil_proposer_evolution(type_evo: str = "", payload: str = "",
     return f"[proposer_evolution] echec : {raison_echec}"
 
 
+def _outil_integration_proxy(service: str = "", action: str = "", params: str = "", **kw) -> str:
+    """Proxy vers outils_integ.outil_integration — évite l'import circulaire au module level."""
+    from outils_integ import outil_integration
+    return outil_integration(service=service, action=action, params=params, **kw)
+
+
 # ---------------------------------------------------------------------------
 # nom outil -> (fonction, description courte pour le prompt)
 # ---------------------------------------------------------------------------
@@ -887,4 +893,5 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "ancrer_tension":         (outil_ancrer_tension,         "Trace une tension dans le fil de mémoire transversal (ouverte/prise_en_charge/resolue). Idempotent. params: {cle, source?, mots_cles?, statut?}"),
     "proposer_evolution":     (outil_proposer_evolution,     "ÉCRIT VRAIMENT dans le système : agent, regle, skill, modele, loi, idee, capacite. C'est le seul outil qui modifie les stores data-driven. Si admin (local) -> applique direct. Sinon -> propose en attente. params: {type_evo, payload (JSON string), titre?, raison?}"),
     "appeler_agent":          (outil_appeler_agent,          "Appelle un autre agent NEOGEN et retourne sa reponse directement (pair-a-pair, profondeur max 3, auto-appel interdit). Pour deleguer selon expertise : Architecte->Veilleur, Analyste->Architecte, etc. params: {cle (nom agent), mission}"),
+    "integration":            (_outil_integration_proxy,     "Appelle un service integre par l'utilisateur (Notion, Slack, GitHub, Telegram, Discord, HubSpot, Brevo, Airtable, Todoist, Calendly, Figma, Vercel, Perplexity, Tavily, ElevenLabs...). params: {service, action, params}"),
 }

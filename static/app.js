@@ -1520,27 +1520,114 @@ health();
 
 /* ===== INTEGRATIONS — activation par integration ===== */
 const INTEG_DEFS={
-  openlegi:{name:'OpenLegi',icon:'⊜',cat:'Juridique & Admin',type:'key',
-    keyPh:'Token openlegi.fr...',desc:'Legifrance : codes, jurisprudence, JORF — enrichit le scan et le conseil'},
+  /* ── PRODUCTIVITE & NOTES ── */
+  notion:{name:'Notion',icon:'◰',cat:'Productivite & Notes',type:'key',
+    keyPh:'ntn_... (Integration Token)',
+    desc:'Notes, bases, projets — pages et databases accessibles depuis les agents'},
+  googledrive:{name:'Google Drive',icon:'▲',cat:'Productivite & Notes',type:'oauth',
+    oauthUrl:'https://drive.google.com',
+    desc:'Stockage Google — lecture et recherche de fichiers dans les analyses'},
+  gmail:{name:'Gmail',icon:'◁',cat:'Productivite & Notes',type:'oauth',
+    oauthUrl:'https://mail.google.com',
+    desc:'Emails — lire, envoyer et archiver depuis les agents'},
+  gcalendar:{name:'Google Calendar',icon:'◻',cat:'Productivite & Notes',type:'oauth',
+    oauthUrl:'https://calendar.google.com',
+    desc:'Agenda — consulter et creer des evenements depuis les agents'},
+  airtable:{name:'Airtable',icon:'⊡',cat:'Productivite & Notes',type:'key',
+    keyPh:'pat... (Personal Access Token)',
+    desc:'Bases de donnees visuelles — lecture et mise a jour des tables depuis les agents'},
+  todoist:{name:'Todoist',icon:'◑',cat:'Productivite & Notes',type:'key',
+    keyPh:'Token API Todoist...',
+    desc:'Taches et projets — creer et suivre les actions depuis les agents'},
+  trello:{name:'Trello',icon:'◲',cat:'Productivite & Notes',type:'key',
+    keyPh:'APIKey:Token (format cle:token)',
+    desc:'Tableaux Kanban — cartes, listes et boards depuis les agents'},
+  /* ── COMMUNICATION ── */
+  slack:{name:'Slack',icon:'⊛',cat:'Communication',type:'key',
+    keyPh:'xoxb-... (Bot Token)',
+    desc:'Messagerie equipe — envoyer des messages et lire les canaux depuis les agents'},
+  discord:{name:'Discord',icon:'⊚',cat:'Communication',type:'key',
+    keyPh:'Token Bot Discord...',
+    desc:'Communaute — poster dans les canaux et interagir avec les serveurs'},
+  telegram:{name:'Telegram',icon:'▷',cat:'Communication',type:'key',
+    keyPh:'Token bot Telegram (BotFather)',
+    desc:'Bot Telegram — notifications et commandes depuis les agents'},
+  /* ── CRM & MARKETING ── */
+  hubspot:{name:'HubSpot',icon:'◒',cat:'CRM & Marketing',type:'key',
+    keyPh:'Bearer Token HubSpot (Private App)...',
+    desc:'CRM — contacts, deals et entreprises dans les analyses commerciales'},
+  brevo:{name:'Brevo',icon:'◊',cat:'CRM & Marketing',type:'key',
+    keyPh:'xkeysib-... (API Key Brevo)',
+    desc:'Email & SMS marketing — campagnes et listes de contacts'},
+  mailchimp:{name:'Mailchimp',icon:'◓',cat:'CRM & Marketing',type:'key',
+    keyPh:'API Key Mailchimp (key-us0)...',
+    desc:'Email marketing — audiences et statistiques de campagnes'},
+  calendly:{name:'Calendly',icon:'◔',cat:'CRM & Marketing',type:'key',
+    keyPh:'Personal Access Token Calendly...',
+    desc:'Prise de RDV — evenements et disponibilites dans le workflow'},
+  /* ── RECHERCHE & DOCS ── */
   notebooklm:{name:'NotebookLM',icon:'◫',cat:'Recherche & Docs',type:'oauth',
     oauthUrl:'https://notebooklm.google.com',
     desc:'Synthese documentaire Google — sources disponibles dans Composition'},
   deerflow:{name:'DeerFlow',icon:'⊞',cat:'Recherche & Docs',type:'url',
     urlPh:'https://deerflow.netroia.tech',
     desc:'Recherche web multi-step — injecte des sources dans la forge'},
-  stripe:{name:'Stripe',icon:'◆',cat:'E-commerce & Paiement',type:'server',
-    desc:'Paiement — cle detectee automatiquement via credentials serveur'},
+  perplexity:{name:'Perplexity',icon:'✦',cat:'Recherche & Docs',type:'key',
+    keyPh:'pplx-... (API Key)',
+    desc:'Recherche web IA — reponses sourcees en temps reel dans les analyses'},
+  tavily:{name:'Tavily',icon:'⊝',cat:'Recherche & Docs',type:'key',
+    keyPh:'tvly-... (API Key)',
+    desc:'API recherche pour agents — resultats structures et filtres web'},
+  /* ── VIDEO & CREATION ── */
+  elevenlabs:{name:'ElevenLabs',icon:'◌',cat:'Video & Creation',type:'key',
+    keyPh:'Cle API ElevenLabs...',
+    desc:'Synthese vocale IA — generer des fichiers audio depuis les agents'},
+  runway:{name:'Runway',icon:'◕',cat:'Video & Creation',type:'key',
+    keyPh:'Cle API Runway...',
+    desc:'Generation video IA — clips et effets visuels depuis les agents'},
+  magnific:{name:'Magnific',icon:'⊕',cat:'Video & Creation',bientot:true},
+  youtube:{name:'YouTube',icon:'▶',cat:'Video & Creation',bientot:true},
+  /* ── RESEAUX SOCIAUX ── */
+  xtwitter:{name:'X (Twitter)',icon:'✕',cat:'Reseaux sociaux',type:'key',
+    keyPh:'Bearer Token X (Twitter API v2)...',
+    desc:'Reseau X — publier, lire et analyser les mentions depuis les agents'},
+  pinterest:{name:'Pinterest',icon:'◳',cat:'Reseaux sociaux',type:'key',
+    keyPh:'Access Token Pinterest...',
+    desc:'Pinterest — epingles et tableaux dans les workflows creation'},
+  reddit:{name:'Reddit',icon:'⊖',cat:'Reseaux sociaux',type:'key',
+    keyPh:'Client ID:Secret Reddit',
+    desc:'Reddit — veille, posts et commentaires dans les analyses'},
   tiktok:{name:'TikTok',icon:'◈',cat:'Reseaux sociaux',bientot:true},
   instagram:{name:'Instagram',icon:'◉',cat:'Reseaux sociaux',bientot:true},
   linkedin:{name:'LinkedIn',icon:'◎',cat:'Reseaux sociaux',bientot:true},
-  magnific:{name:'Magnific',icon:'⊕',cat:'Video & Creation',bientot:true},
-  youtube:{name:'YouTube',icon:'▶',cat:'Video & Creation',bientot:true},
-  inpi:{name:'INPI',icon:'⊟',cat:'Juridique & Admin',bientot:true},
+  /* ── E-COMMERCE & PAIEMENT ── */
+  stripe:{name:'Stripe',icon:'◆',cat:'E-commerce & Paiement',type:'server',
+    desc:'Paiement — cle detectee automatiquement via credentials serveur'},
   shopify:{name:'Shopify',icon:'⊠',cat:'E-commerce & Paiement',bientot:true},
+  /* ── INFRA & DEV ── */
+  github:{name:'GitHub',icon:'⊙',cat:'Infra & Dev',type:'key',
+    keyPh:'ghp_... (Personal Access Token)',
+    desc:'GitHub — repos, issues et pull requests depuis les agents'},
+  linear:{name:'Linear',icon:'⊏',cat:'Infra & Dev',type:'key',
+    keyPh:'lin_api_... (API Key)',
+    desc:'Issue tracking — tickets, cycles et projets dev depuis les agents'},
+  figma:{name:'Figma',icon:'⊐',cat:'Infra & Dev',type:'key',
+    keyPh:'Personal Access Token Figma...',
+    desc:'Design — lecture des fichiers et composants pour les productions'},
+  vercel:{name:'Vercel',icon:'▼',cat:'Infra & Dev',type:'key',
+    keyPh:'Token Vercel...',
+    desc:'Deploiement — projets, domaines et logs depuis les agents'},
+  supabase:{name:'Supabase',icon:'⊓',cat:'Infra & Dev',type:'key',
+    keyPh:'Service Role Key Supabase...',
+    desc:'Base de donnees Postgres — requetes et mutations via API REST'},
   n8n:{name:'n8n',icon:'⊗',cat:'Infra & Dev',bientot:true},
-  github:{name:'GitHub',icon:'⊙',cat:'Infra & Dev',bientot:true},
+  /* ── JURIDIQUE & ADMIN ── */
+  openlegi:{name:'OpenLegi',icon:'⊜',cat:'Juridique & Admin',type:'key',
+    keyPh:'Token openlegi.fr...',
+    desc:'Legifrance : codes, jurisprudence, JORF — enrichit le scan et le conseil'},
+  inpi:{name:'INPI',icon:'⊟',cat:'Juridique & Admin',bientot:true},
 };
-const INTEG_CAT_ORDER=['Recherche & Docs','Juridique & Admin','E-commerce & Paiement','Reseaux sociaux','Video & Creation','Infra & Dev'];
+const INTEG_CAT_ORDER=['Productivite & Notes','Communication','CRM & Marketing','Recherche & Docs','Video & Creation','Reseaux sociaux','E-commerce & Paiement','Infra & Dev','Juridique & Admin'];
 
 function _iKey(n){return'neogen_integ_'+n;}
 function _iActive(n){try{return JSON.parse(localStorage.getItem(_iKey(n))||'{}').active===true;}catch(e){return false;}}
@@ -1684,11 +1771,13 @@ window.confirmerInteg=async function(name){
   }catch(e){res={ok:false,erreur:'serveur injoignable'};}
   if(res.ok){
     _iSet(name,{active:true,key:val,source:'user',verifie:true});
+    _syncIntegServeur(name,val,def.type);
     if(statut)statut.innerHTML='<span class="tag ok">verifie et actif</span>';
     renderIntegGrid();updateOutilsActifs();
   } else if(res.manuel){
     // Non verifiable automatiquement (ex oauth) : actif mais marque "non verifie"
     _iSet(name,{active:true,key:val,source:'user',verifie:false});
+    _syncIntegServeur(name,val,def.type);
     if(statut)statut.innerHTML='<span class="tag warn">actif (non verifie)</span> <span style="color:var(--mut);font-size:11px">'+esc(res.erreur||'')+'</span>';
     renderIntegGrid();updateOutilsActifs();
   } else {
@@ -1697,8 +1786,15 @@ window.confirmerInteg=async function(name){
   }
 };
 
+function _syncIntegServeur(name,key,type){
+  fetch('/integrations/activer',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,key,type})}).catch(function(){});
+}
+
 window.desactiverInteg=function(name){
-  _iClear(name);renderIntegGrid();updateOutilsActifs();
+  _iClear(name);
+  fetch('/integrations/activer/'+encodeURIComponent(name),{method:'DELETE'}).catch(function(){});
+  renderIntegGrid();updateOutilsActifs();
 };
 
 function updateOutilsActifs(){
