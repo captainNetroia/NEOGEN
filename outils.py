@@ -324,6 +324,105 @@ def outil_executer_mission_rpa(objectif: str = "", actions: Any = None,
     return nettoyer("\n".join(rapport))
 
 
+def outil_objectif_rpa(objectif: str = "", infos_utilisateur: str = "", **kw) -> str:
+    """Exécute une mission RPA depuis un objectif en langage naturel.
+    Capture l'écran, génère automatiquement les actions via LLM, exécute avec retry x3.
+    Si des informations manquent (identifiant, mot de passe, valeur), les demande explicitement.
+    params: {objectif, infos_utilisateur?}"""
+    import json as _j
+    import time as _t
+    import rpa
+    if not objectif.strip():
+        return "Fournis un 'objectif' décrivant la mission en langage naturel."
+    if not _agent_pret():
+        return _MSG_AGENT_ABSENT
+
+    infos = infos_utilisateur.strip()
+
+    # Capture screenshot pour ancrer le LLM sur l'état réel de l'écran
+    screen_b64 = None
+    t_shot = rpa.request_screenshot()
+    for _ in range(15):
+        _t.sleep(0.3)
+        screen_b64 = rpa.get_screenshot(apres=t_shot)
+        if screen_b64:
+            break
+
+    _SYSTEM = (
+        "Tu es un agent RPA expert. Tu pilotes physiquement un ordinateur Windows.\n"
+        "Actions disponibles : click(x,y), double_click(x,y), right_click(x,y), "
+        "type(text), press(key), hotkey(keys:[]), scroll(x,y,direction,amount), "
+        "open_url(url), screenshot(), sleep(ms).\n\n"
+        "Réponds en JSON STRICT (sans bloc markdown) :\n"
+        "{ \"infos_manquantes\": [{\"question\": \"...\", \"champ\": \"id\"}], \"actions\": [{...}] }\n"
+        "RÈGLES : si des données spécifiques non fournies sont nécessaires (identifiant, "
+        "mot de passe, SIRET, valeur formulaire) → infos_manquantes + actions vide. "
+        "Sinon génère la séquence complète avec coordonnées précises."
+    )
+    prompt = f"Objectif : {objectif}"
+    if infos:
+        prompt += f"\nInformations disponibles : {infos}"
+    if screen_b64:
+        prompt += "\nL'écran actuel est fourni ci-joint."
+    else:
+        prompt += "\nAucun écran disponible — génère un plan d'actions générique."
+
+    try:
+        if screen_b64:
+            text = gateway.voir(_ctx_from(kw), screen_b64, f"{_SYSTEM}\n\n{prompt}")
+        else:
+            cli = gateway.client(_ctx_from(kw), tier="fort")
+            resp = cli.messages.create(
+                messages=[{"role": "user", "content": prompt}],
+                system=_SYSTEM, max_tokens=2000,
+            )
+            text = "".join(getattr(b, "text", "") for b in resp.content)
+
+        text = text.strip()
+        if "```" in text:
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else parts[0]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+        plan = _j.loads(text)
+    except Exception as e:
+        return nettoyer(f"Erreur analyse objectif : {e}")
+
+    manquantes = plan.get("infos_manquantes") or []
+    actions = plan.get("actions") or []
+
+    if manquantes:
+        questions = "\n".join(f"  - {m['question']}" for m in manquantes)
+        champs = ", ".join(m.get("champ", "?") for m in manquantes)
+        return nettoyer(
+            f"Informations nécessaires pour '{objectif}' :\n{questions}\n\n"
+            f"Relance avec infos_utilisateur contenant : {champs}"
+        )
+    if not actions:
+        return "Aucune action générée pour cet objectif."
+
+    return outil_executer_mission_rpa(
+        objectif=objectif, actions=actions, infos_utilisateur=infos, **kw
+    )
+
+
+def outil_remote_control(enabled: str = "on", **kw) -> str:
+    """Active ou désactive le mode contrôle total (consent_level=auto).
+    En mode 'on' : l'agent agit sans popup de consentement.
+    En mode 'off' : retour au mode séquence (fenêtre 120 s).
+    params: {enabled:'on'/'off'}"""
+    import rpa
+    activer = str(enabled).lower().strip() in ("on", "1", "true", "oui", "activer", "yes", "auto")
+    rpa.save_settings({
+        "consent_level": "auto" if activer else "sequence",
+        "sequence_duration": 120,
+    })
+    if activer:
+        return "Mode contrôle total activé — l'agent agit sans popup de consentement."
+    return "Mode séquence restauré — l'agent demandera le consentement (fenêtre 120 s)."
+
+
 def outil_fermer_onglet(**kw) -> str:
     """Ferme l'onglet actif du navigateur (raccourci Ctrl+W) via l'agent local."""
     import rpa
@@ -765,6 +864,8 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "genealogie":        (outil_genealogie,        "Lignee/generations d'une creation. params: {produit_id}"),
     "controler_ecran":      (outil_controler_ecran,      "Pilote souris/clavier via l'agent local (consentement requis). params: {actions:[{action,x,y,text,...}]}"),
     "executer_mission_rpa": (outil_executer_mission_rpa, "Execute une mission RPA complete avec retry auto (max 3x) et pre-flight. Si bloque par une info manquante -> demande a l'utilisateur et s'arrete. params: {objectif, actions:[...], infos_utilisateur?}"),
+    "objectif_rpa":         (outil_objectif_rpa,         "Execute une mission RPA depuis un objectif en langage naturel (capture ecran + LLM genere les actions + retry x3). Utiliser quand l'objectif est connu mais pas les actions precises. params: {objectif, infos_utilisateur?}"),
+    "remote_control":       (outil_remote_control,       "Active (on) ou desactive (off) le mode controle total : l'agent agit sans popup de consentement. A activer avant une mission autonome longue. params: {enabled:'on'/'off'}"),
     "contexte_navigateur":  (outil_contexte_navigateur,  "Lit l'URL et le titre de la page web active dans le navigateur (CDP ou titre fenetre). params: {}"),
     "lister_routines":      (outil_lister_routines,      "Liste les routines apprises par imitation. params: {}"),
     "rejouer_routine":      (outil_rejouer_routine,      "Rejoue une routine apprise. params: {routine_id}"),

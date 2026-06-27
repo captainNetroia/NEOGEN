@@ -446,6 +446,31 @@ def replay_recording(rec_id: str) -> list[str] | None:
 # ---------------------------------------------------------------------------
 # Intercepteur de sortie standard des conteneurs
 # ---------------------------------------------------------------------------
+_SETTINGS_FILE = os.path.join(DATA_DIR, "rpa_settings.json")
+_SETTINGS_DEFAULT = {"consent_level": "sequence", "sequence_duration": 120}
+
+
+def get_settings() -> dict:
+    """Lit les paramètres RPA depuis data/rpa_settings.json."""
+    try:
+        if os.path.exists(_SETTINGS_FILE):
+            with open(_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return {**_SETTINGS_DEFAULT, **json.load(f)}
+    except Exception:
+        pass
+    return dict(_SETTINGS_DEFAULT)
+
+
+def save_settings(data: dict) -> dict:
+    """Persiste les paramètres RPA dans data/rpa_settings.json."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    current = get_settings()
+    current.update({k: v for k, v in data.items() if k in _SETTINGS_DEFAULT})
+    with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(current, f, ensure_ascii=False, indent=2)
+    return current
+
+
 def intercepter_sorties_rpa(stdout: str) -> list[dict]:
     """
     Parcourt le stdout d'un conteneur pour y chercher les commandes RPA

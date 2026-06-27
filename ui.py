@@ -575,6 +575,26 @@ def _section_integrations() -> str:
       <span class="rpa-queue-badge" id="rpa-queue-badge" style="display:none">file: 0</span>
     </div>
 
+    <!-- /remote-control : prise de controle totale -->
+    <div class="integ-section-label" style="margin-top:14px">Prise de contr&#244;le (/remote-control)</div>
+    <div style="display:flex;align-items:center;gap:12px;padding:6px 0 4px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--txt)">L&#8217;agent agit sans demander &#224; chaque action</div>
+        <div style="font-size:11px;color:var(--mut);margin-top:2px">En mode contr&#244;le : le consentement est automatique. Arr&#234;t d&#8217;urgence : coin haut-gauche de l&#8217;&#233;cran.</div>
+      </div>
+      <button id="btn-remote-control" class="ghost" style="white-space:nowrap;min-width:130px">Prendre le contr&#244;le</button>
+    </div>
+    <div id="remote-control-status" style="font-size:12px;min-height:16px;color:var(--mut)"></div>
+
+    <!-- /goal : mode objectif autonome -->
+    <div class="integ-section-label" style="margin-top:14px">Mode Objectif (/goal)</div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:8px">D&#233;cris ce que tu veux accomplir. L&#8217;agent analyse, collecte les infos manquantes, puis ex&#233;cute jusqu&#8217;&#224; l&#8217;objectif.</div>
+    <div style="display:flex;gap:8px;align-items:flex-start">
+      <textarea id="goal-input" rows="2" placeholder="Ex : Remplis ma d&#233;claration URSSAF du trimestre..." style="flex:1;resize:vertical;min-height:52px;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--brd);background:var(--surface);color:var(--txt)"></textarea>
+      <button id="btn-goal-launch" class="ghost" style="align-self:flex-end;white-space:nowrap">Lancer</button>
+    </div>
+    <div id="goal-log" style="margin-top:10px;font-size:12px;color:var(--mut);min-height:20px;white-space:pre-line;max-height:180px;overflow-y:auto"></div>
+
     <div class="integ-section-label" style="margin-top:14px">Apprentissage continu</div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px">
       <div style="font-size:13px;color:var(--txt)">NEOGEN observe et apprend tes routines tout seul

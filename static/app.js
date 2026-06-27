@@ -1828,6 +1828,70 @@ $('#btn-rpa-clear').onclick=async()=>{
   }catch(e){alert('Erreur : '+errMsg(e));}
 };
 
+/* ===== /remote-control ===== */
+(function(){
+  var _remoteActive=false;
+  var btn=$('#btn-remote-control');
+  var st=$('#remote-control-status');
+  if(!btn)return;
+  async function _syncRemote(){
+    try{var r=await(await fetch('/rpa/settings')).json();
+      _remoteActive=(r.consent_level==='auto');
+      _renderRemote();}catch(e){}
+  }
+  function _renderRemote(){
+    if(_remoteActive){
+      btn.textContent='Arrêter le contrôle';
+      btn.style.background='rgba(220,38,38,.12)';
+      btn.style.borderColor='rgba(220,38,38,.4)';
+      btn.style.color='var(--ko)';
+      if(st)st.textContent='Mode contrôle actif — l\'agent agit sans popup. Coin haut-gauche = arrêt d\'urgence.';
+      if(st)st.style.color='var(--ko)';
+    }else{
+      btn.textContent='Prendre le contrôle';
+      btn.style.background='';btn.style.borderColor='';btn.style.color='';
+      if(st)st.textContent='';
+    }
+  }
+  btn.onclick=async function(){
+    var lvl=_remoteActive?'sequence':'auto';
+    try{await fetch('/rpa/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({consent_level:lvl,sequence_duration:120})});
+      _remoteActive=!_remoteActive;_renderRemote();}catch(e){}
+  };
+  _syncRemote();
+})();
+
+/* ===== /goal : mode objectif autonome ===== */
+(function(){
+  var btn=$('#btn-goal-launch');
+  var log=$('#goal-log');
+  var inp=$('#goal-input');
+  if(!btn||!inp)return;
+  var _goalRunning=false;
+  btn.onclick=async function(){
+    if(_goalRunning)return;
+    var objectif=(inp.value||'').trim();
+    if(!objectif){if(log)log.textContent='Saisis un objectif avant de lancer.';return;}
+    _goalRunning=true;btn.disabled=true;btn.textContent='En cours...';
+    if(log)log.textContent='Analyse de l\'objectif...\n';
+    try{
+      var r=await(await fetch('/rpa/goal',{method:'POST',
+        headers:_llmHdrs(),
+        body:JSON.stringify({objectif})})).json();
+      if(r.detail){if(log)log.textContent+='Erreur : '+errMsg(r.detail)+'\n';return;}
+      // Si infos manquantes -> afficher la question et attendre
+      if(r.infos_manquantes&&r.infos_manquantes.length){
+        if(log)log.textContent+='Information(s) requise(s) :\n'+r.infos_manquantes.map(function(x){return'  • '+x}).join('\n')+'\n\nRéponds dans le champ ci-dessous et relance.';
+        inp.value=objectif+'\n\n[INFOS: ]';
+        return;
+      }
+      if(log){log.textContent+=r.rapport||r.detail||JSON.stringify(r);}
+    }catch(e){if(log)log.textContent+='Erreur réseau : '+errMsg(e);}
+    finally{_goalRunning=false;btn.disabled=false;btn.textContent='Lancer';}
+  };
+})();
+
 async function loadImitationList(){
   const el=$('#imit-list');if(!el)return;
   try{

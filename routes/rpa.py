@@ -132,3 +132,117 @@ def rpa_store_browser_context(body: dict):
 @router.get("/rpa/browser_context")
 def rpa_get_browser_context():
     return rpa.get_browser_context()
+
+
+# ── Settings (consent level) ────────────────────────────────────────────────
+
+@router.get("/rpa/settings")
+def rpa_settings_get():
+    return rpa.get_settings()
+
+
+@router.post("/rpa/settings")
+def rpa_settings_post(body: dict):
+    return rpa.save_settings(body)
+
+
+# ── Mode Objectif (/goal) ───────────────────────────────────────────────────
+
+class RpaGoalBody(BaseModel):
+    objectif: str
+    infos_utilisateur: str = ""
+
+
+@router.post("/rpa/goal")
+def rpa_goal(body: RpaGoalBody):
+    """
+    Mode Objectif : l'utilisateur décrit une mission en langage naturel.
+    Le LLM analyse l'écran actuel + l'objectif, génère un plan d'actions RPA,
+    identifie les infos manquantes, puis exécute la mission via outil_executer_mission_rpa.
+    """
+    import json as _json
+    import time as _time
+    import gateway as _gw
+    import outils as _outils
+
+    if not rpa.is_agent_connected():
+        return {"erreur": "Agent RPA non connecté. Lance rpa_agent.py sur ton poste."}
+
+    objectif = body.objectif.strip()
+    infos_util = (body.infos_utilisateur or "").strip()
+
+    # Capture screenshot pour donner le contexte écran au LLM
+    screen_b64 = None
+    t_shot = rpa.request_screenshot()
+    for _ in range(15):
+        _time.sleep(0.3)
+        screen_b64 = rpa.get_screenshot(apres=t_shot)
+        if screen_b64:
+            break
+
+    _SYSTEM = (
+        "Tu es un agent RPA expert. Tu pilotes physiquement un ordinateur Windows.\n"
+        "Actions disponibles : click(x,y), double_click(x,y), right_click(x,y), "
+        "type(text), press(key), hotkey(keys:[]), scroll(x,y,direction,amount), "
+        "open_url(url), screenshot(), sleep(ms).\n\n"
+        "Réponds en JSON STRICT (sans bloc markdown) :\n"
+        "{\n"
+        "  \"infos_manquantes\": [{\"question\": \"...\", \"champ\": \"id_court\"}],\n"
+        "  \"actions\": [{\"action\": \"...\", ...}]\n"
+        "}\n"
+        "RÈGLES :\n"
+        "- Si des données spécifiques sont nécessaires (identifiant, mot de passe, SIRET, "
+        "valeur de formulaire) et non fournies → liste-les dans infos_manquantes, laisse "
+        "actions vide.\n"
+        "- Sinon, génère la séquence d'actions complète. Utilise les coordonnées visibles "
+        "sur l'écran fourni. Pour open_url, utilise l'URL exacte si connue."
+    )
+
+    prompt = f"Objectif : {objectif}"
+    if infos_util:
+        prompt += f"\nInformations fournies par l'utilisateur : {infos_util}"
+    if screen_b64:
+        prompt += "\nL'écran actuel est fourni ci-joint. Génère les actions précises."
+    else:
+        prompt += "\nAucun écran disponible — génère un plan d'actions générique."
+
+    try:
+        if screen_b64:
+            full_prompt = f"{_SYSTEM}\n\n{prompt}"
+            text = _gw.voir(None, screen_b64, full_prompt)
+        else:
+            cli = _gw.client(ctx=None, tier="fort")
+            resp = cli.messages.create(
+                messages=[{"role": "user", "content": prompt}],
+                system=_SYSTEM,
+                max_tokens=2000,
+            )
+            text = "".join(getattr(b, "text", "") for b in resp.content)
+
+        text = text.strip()
+        if "```" in text:
+            parts = text.split("```")
+            text = parts[1] if len(parts) > 1 else parts[0]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+
+        plan = _json.loads(text)
+    except Exception as e:
+        return {"erreur": f"Erreur analyse objectif : {e}"}
+
+    infos_manquantes = plan.get("infos_manquantes") or []
+    actions = plan.get("actions") or []
+
+    if infos_manquantes:
+        return {"infos_manquantes": infos_manquantes}
+
+    if not actions:
+        return {"erreur": "Aucune action générée pour cet objectif."}
+
+    rapport = _outils.outil_executer_mission_rpa(
+        objectif=objectif,
+        actions=actions,
+        infos_utilisateur=infos_util,
+    )
+    return {"rapport": rapport}
