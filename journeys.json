@@ -78,6 +78,14 @@
         {"desc": "Lister les objectifs en cours", "methode": "check_route", "endpoint": "GET /savoir/objectif"},
         {"desc": "Boite objectif JS", "methode": "check_js", "js_fn": "resoudreObjectif"}
       ]
+    },
+    {
+      "id": "subconscient-reve",
+      "titre": "Subconscient -> reve (bisociation + novelty) -> remontee en bulle",
+      "etapes": [
+        {"desc": "Lister les reves + etat du graphe", "methode": "check_route", "endpoint": "GET /savoir/reves"},
+        {"desc": "Declencher un cycle de reve", "methode": "check_route", "endpoint": "POST /savoir/reves/rever"}
+      ]
     }
   ]
 }

@@ -333,12 +333,19 @@ _MAINTENANCE_LANCEE = False
 
 
 def cycle_maintenance() -> dict:
-    """Un cycle complet de maintenance autonome : le systeme se regarde, se soigne, se teste.
-    diagnostiquer() (reconcilie) -> controle_sante() (non-regression) -> auto_reparer() (soin)."""
+    """Un cycle complet de maintenance autonome : le systeme se regarde, se soigne, se teste,
+    puis REVE. diagnostiquer() -> controle_sante() -> auto_reparer() -> subconscient.cycle_reve()
+    (le sommeil de NEOGEN : consolide la memoire-graphe + fait emerger des idees nouvelles)."""
     diag = diagnostiquer()
     sante = controle_sante()
     repar = auto_reparer()
-    return {"diagnostic": diag, "sante": sante, "reparation": repar}
+    reve = {"ok": False, "raison": "subconscient indisponible"}
+    try:
+        import subconscient
+        reve = subconscient.cycle_reve(n=3)
+    except Exception as e:
+        rob.journaliser(f"cycle maintenance : reve avorte ({e})", "info", source="conscience")
+    return {"diagnostic": diag, "sante": sante, "reparation": repar, "reve": reve}
 
 
 def demarrer_maintenance(intervalle_h: float = 6.0) -> None:

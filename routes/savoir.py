@@ -517,6 +517,26 @@ def objectif_lister(authorization: str | None = Header(default=None)):
     return {"objectifs": _r.lister_objectifs()}
 
 
+# ── Subconscient : le reve de NEOGEN (bisociation + novelty search) ────────────────
+
+@router.get("/reves")
+def reves_lister(authorization: str | None = Header(default=None)):
+    """Reves archives + etat du graphe associatif (la memoire ou le reve circule)."""
+    _gate_owner(authorization)
+    import subconscient as _s
+    return {"reves": _s.lister_reves(), "etat": _s.etat()}
+
+
+@router.post("/reves/rever")
+def reves_rever(corps: dict = Body(default={}), authorization: str | None = Header(default=None)):
+    """Declenche un cycle de reve a la demande (sinon il tourne la nuit dans la maintenance).
+    Les reves nouveaux remontent en bulle (pensee type « reve »)."""
+    _gate_owner(authorization)
+    import subconscient as _s
+    n = int((corps or {}).get("n", 3) or 3)
+    return _s.cycle_reve(n=max(1, min(8, n)))
+
+
 # ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────
 
 @router.get("/evolution/ui.css")
