@@ -280,7 +280,13 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
             return {"ok": False, "etat": "refusee", "raison": f"préparation échouée : {e}"}
 
         # BOUCLE generate -> test -> valide -> repare (jusqu'a ce que ça marche, borne MAX_TENTATIVES).
+        # Memoire des forges : injecte les lecons des echecs passes pour eviter de les refaire.
         besoin_courant = besoin
+        try:
+            import forge_memoire
+            besoin_courant = besoin + forge_memoire.conseils_pour(besoin)
+        except Exception:
+            pass
         derniere_erreur = ""
         cell = decision = raison = score = test = None
         succes = False
@@ -304,6 +310,18 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
                     besoin, tentative, derniere_erreur,
                     "N'utilise JAMAIS input() ; reçois les données par paramètres de fonction.")
                 continue
+
+            # 2c. AUTO-CABLAGE : les cellules ancrees 'avant_validation_code' transforment le
+            # code genere AVANT son test (ex: auto-reparation des continuations de ligne).
+            # C'est la preuve qu'une capacite forgee AGIT dans le flux, pas seulement sur demande.
+            try:
+                import capacites_forgees as _cf
+                _anc = _cf.executer_ancrage("avant_validation_code", code=cell.code or "")
+                _code_repare = _anc.get("contexte", {}).get("code")
+                if _code_repare and _code_repare != cell.code:
+                    cell.code = _code_repare
+            except Exception:
+                pass
 
             # 3. Smoke-test sandbox + effets reels (quarantaine honnete).
             _set_job(job_id, etat="en_cours", etape="test", pct=min(pct_base + 12, 92),
@@ -340,6 +358,12 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
                      raison=derniere_erreur, tentative=MAX_TENTATIVES, tentatives_max=MAX_TENTATIVES)
             rob.journaliser(f"forge : echec apres {MAX_TENTATIVES} tentatives : {derniere_erreur}",
                             "alerte", source="forge_evolution")
+            # Capitalise l'echec : la prochaine forge similaire evitera ce piege.
+            try:
+                import forge_memoire
+                forge_memoire.memoriser_echec(besoin, derniere_erreur)
+            except Exception:
+                pass
             try:
                 import conscience
                 cid = re.sub(r"[^a-z0-9_]+", "_", (titre or "cellule").lower()).strip("_") or "cellule"

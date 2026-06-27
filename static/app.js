@@ -3774,6 +3774,7 @@ async function loadConscience(){
   const cont=document.getElementById('conscience-capacites');
   const jauge=document.getElementById('conscience-jauge');
   if(!cont)return;
+  await _chargerAncrages();
   try{
     const r=await fetch('/savoir/conscience');
     if(!r.ok)return;
@@ -3799,6 +3800,12 @@ async function loadConscience(){
       const sig=cap.signature?'<span style="opacity:.55;font-size:10px;font-family:ui-monospace,monospace"> '+esc(cap.signature)+'</span>':'';
       let inner='<span style="font-size:11px;padding:2px 9px;border-radius:99px;color:'+m.c+';background:rgba(0,0,0,.2);border:1px solid '+m.br+';white-space:nowrap">'+m.i+' '+m.l+'</span>'
         +'<span style="flex:1;min-width:140px"><b>'+esc(cap.titre||cap.id)+'</b> <span style="opacity:.45;font-size:10px">['+esc(cap.type||'?')+']</span>'+sig+consomme+'</span>';
+      // Auto-cablage : pour une cellule integree, choisir OU elle se declenche toute seule.
+      if(cap.type==='cellule'&&cap.statut==='integree'&&_ANCRAGES){
+        let opts='';
+        for(const k in _ANCRAGES){opts+='<option value="'+k+'"'+((cap.point_ancrage||'manuel')===k?' selected':'')+'>'+k+'</option>';}
+        inner+='<select title="Point d-ancrage : ou la cellule s-execute automatiquement" onchange="definirAncrage(\''+esc(cap.id)+'\',this.value,this)" style="font-size:10px;padding:3px 6px;background:rgba(0,0,0,.25);border:1px solid rgba(0,232,105,.25);color:#9fe6b8;border-radius:6px">'+opts+'</select>';
+      }
       if(cap.statut==='a_reparer'||cap.statut==='echouee'){
         inner+='<button onclick="reparerCapacite(\''+esc(cap.id)+'\',this)" style="font-size:11px;padding:4px 12px;background:rgba(251,146,60,.15);border:1px solid rgba(251,146,60,.4);color:#fb923c;border-radius:6px;cursor:pointer">&#128295; Reparer</button>';
       }
@@ -3806,6 +3813,34 @@ async function loadConscience(){
       cont.appendChild(el);
     }
   }catch(e){}
+}
+
+let _ANCRAGES=null;
+async function _chargerAncrages(){
+  if(_ANCRAGES)return _ANCRAGES;
+  try{const r=await fetch('/savoir/conscience/ancrages');if(r.ok){_ANCRAGES=(await r.json()).ancrages||{};}}catch(e){_ANCRAGES={};}
+  return _ANCRAGES;
+}
+
+async function definirAncrage(id,point,sel){
+  if(sel)sel.disabled=true;
+  try{
+    const r=await fetch('/savoir/conscience/'+encodeURIComponent(id)+'/ancrage',
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({point:point})});
+    const d=await r.json();
+    if(sel){sel.disabled=false;if(d.ok){sel.style.borderColor='rgba(0,232,105,.6)';setTimeout(function(){sel.style.borderColor='rgba(0,232,105,.25)';},1200);}}
+  }catch(e){if(sel)sel.disabled=false;}
+}
+
+async function autoReparerConscience(btn){
+  if(btn){btn.disabled=true;btn.textContent='Reparation…';}
+  try{
+    const r=await fetch('/savoir/conscience/auto-reparer',{method:'POST'});
+    const d=await r.json();
+    const n=(d.relancees||[]).length;
+    if(btn){btn.innerHTML=n?('&#128295; '+n+' relancee(s)'):'Rien a reparer';setTimeout(function(){btn.innerHTML='&#128295; Auto-reparer';btn.disabled=false;},2500);}
+    setTimeout(loadConscience,2500);
+  }catch(e){if(btn){btn.textContent='Erreur';btn.disabled=false;}}
 }
 
 async function diagnostiquerConscience(btn){

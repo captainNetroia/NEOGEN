@@ -48,6 +48,9 @@ async def _lifespan(app):
     # pour que le systeme sache des le demarrage ce qui est integre / en echec / a reparer.
     _rob.protege(lambda: __import__("capacites_forgees").recharger(), operation="charger capacites forgees", source="startup")
     _rob.protege(lambda: __import__("conscience").diagnostiquer(), operation="diagnostic conscience", source="startup")
+    # Le systeme se soigne seul : auto-reparation des capacites cassees + maintenance periodique.
+    _rob.protege(lambda: __import__("conscience").auto_reparer(), operation="auto-reparation conscience", source="startup")
+    _rob.protege(lambda: __import__("conscience").demarrer_maintenance(6.0), operation="maintenance conscience", source="startup")
     _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
     yield
 

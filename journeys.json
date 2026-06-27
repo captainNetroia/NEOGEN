@@ -57,9 +57,15 @@
         {"desc": "Etat de conscience (capacites + sante)", "methode": "check_route", "endpoint": "GET /savoir/conscience"},
         {"desc": "Diagnostiquer (reconcilier registre/realite)", "methode": "check_route", "endpoint": "POST /savoir/conscience/diagnostiquer"},
         {"desc": "Reparer une capacite cassee", "methode": "check_route", "endpoint": "POST /savoir/conscience/{id}/reparer"},
+        {"desc": "Auto-reparer toutes les capacites cassees", "methode": "check_route", "endpoint": "POST /savoir/conscience/auto-reparer"},
+        {"desc": "Controle de sante (non-regression)", "methode": "check_route", "endpoint": "POST /savoir/conscience/controle-sante"},
+        {"desc": "Catalogue des points d-ancrage", "methode": "check_route", "endpoint": "GET /savoir/conscience/ancrages"},
+        {"desc": "Definir le point d-ancrage d-une cellule", "methode": "check_route", "endpoint": "POST /savoir/conscience/{id}/ancrage"},
         {"desc": "Panneau conscience JS", "methode": "check_js", "js_fn": "loadConscience"},
         {"desc": "Action diagnostiquer JS", "methode": "check_js", "js_fn": "diagnostiquerConscience"},
         {"desc": "Action reparer JS", "methode": "check_js", "js_fn": "reparerCapacite"},
+        {"desc": "Action auto-reparer JS", "methode": "check_js", "js_fn": "autoReparerConscience"},
+        {"desc": "Action definir ancrage JS", "methode": "check_js", "js_fn": "definirAncrage"},
         {"desc": "Registre de conscience present", "methode": "check_data", "data_path": "data/registre_capacites.json"}
       ]
     }

@@ -51,6 +51,74 @@ def _charger_registre() -> dict:
     return {}
 
 
+def _sauver_registre(reg: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(_REGISTRE), exist_ok=True)
+        with open(_REGISTRE, "w", encoding="utf-8") as f:
+            json.dump(reg, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+# ── Points d'ancrage : OU une capacite forgee s'auto-declenche dans le flux ────────
+# C'est ce qui transforme « capacite appelable sur demande » en « capacite qui AGIT »
+# automatiquement au bon endroit, sans qu'un agent ait a y penser.
+ANCRAGES = {
+    "avant_validation_code": "Transforme le code genere avant son test (ex: auto-reparation syntaxe).",
+    "apres_erreur":          "Reagit a une erreur capturee (ex: diagnostic/correction).",
+    "avant_reponse_agent":   "Post-traite la reponse d'un agent avant affichage.",
+    "periodique":            "Execution periodique (cron de maintenance).",
+    "manuel":                "Aucun declenchement automatique (appel explicite uniquement).",
+}
+
+
+def definir_ancrage(nom: str, point: str) -> dict:
+    """Assigne un point d'ancrage a une cellule (ou 'manuel' pour la detacher). Ne leve jamais."""
+    if point not in ANCRAGES:
+        return {"ok": False, "raison": f"ancrage '{point}' inconnu (valides : {', '.join(ANCRAGES)})"}
+    reg = _charger_registre()
+    if nom not in reg:
+        return {"ok": False, "raison": f"cellule '{nom}' introuvable"}
+    reg[nom]["point_ancrage"] = point
+    _sauver_registre(reg)
+    # Reflete dans la conscience (le systeme sait OU chaque capacite agit).
+    try:
+        import conscience
+        if conscience.obtenir(nom):
+            conscience.enregistrer(nom, type="cellule", titre=reg[nom].get("description", nom)[:80],
+                                   statut=(conscience.obtenir(nom) or {}).get("statut", "integree"),
+                                   note=f"ancrage -> {point}", point_ancrage=point)
+    except Exception:
+        pass
+    return {"ok": True, "nom": nom, "point_ancrage": point}
+
+
+def executer_ancrage(point: str, **contexte) -> dict:
+    """Execute, EN CHAINE, toutes les cellules integrees ancrees a ce point. Si une cellule
+    renvoie un dict avec une cle 'code', cette valeur remplace contexte['code'] et est passee
+    a la suivante (chainage transform). Ne leve jamais. Renvoie {point, executees, contexte}."""
+    with rob.garde(f"executer ancrage {point}", source="capacites_forgees"):
+        if not CAPACITES:
+            recharger()
+        reg = _charger_registre()
+        executees = []
+        for nom, meta in reg.items():
+            if meta.get("point_ancrage") != point:
+                continue
+            if nom not in CAPACITES:
+                continue  # non integree (mur/erreur) -> ne s'auto-declenche pas
+            r = invoquer(nom, **contexte)
+            executees.append({"nom": nom, "ok": r.get("ok"), "erreur": r.get("erreur")})
+            res = r.get("resultat")
+            if isinstance(res, dict) and res.get("code"):
+                contexte["code"] = res["code"]
+        if executees:
+            rob.journaliser(f"ancrage '{point}' : {len(executees)} cellule(s) auto-declenchee(s)",
+                            "info", source="capacites_forgees")
+        return {"ok": True, "point": point, "executees": executees, "contexte": contexte}
+    return {"ok": False, "point": point, "executees": [], "contexte": contexte}
+
+
 def _integrable(meta: dict) -> tuple[bool, str]:
     """Porte fail-closed pour l'integration EN PROCESSUS. Une cellule presente dans le registre
     a DEJA passe la Membrane (les rejets ne sont jamais persistes). On gate donc sur les EFFETS
@@ -137,7 +205,9 @@ def lister() -> list[dict]:
     """Capacites integrees (chargees en processus) avec leur signature, pour l'UI/les agents."""
     if not CAPACITES:
         recharger()
-    return [{"nom": n, **_INFOS.get(n, {})} for n in CAPACITES]
+    reg = _charger_registre()
+    return [{"nom": n, "point_ancrage": reg.get(n, {}).get("point_ancrage", "manuel"),
+             **_INFOS.get(n, {})} for n in CAPACITES]
 
 
 # ── Verification d'integration : la PREUVE qu'une capacite est reellement branchee ─
@@ -237,6 +307,27 @@ if __name__ == "__main__":
     assert not r2["ok"], r2
     print(f"  invoquer capacite inexistante -> refus propre OK")
 
+    # 5. Auto-cablage : une cellule 'transform' ancree transforme le contexte en chaine.
+    with open(os.path.join(_CELLULES_DIR, "majuscule.py"), "w", encoding="utf-8") as f:
+        f.write("def majuscule(code=''):\n"
+                "    \"\"\"Met le code en majuscules (cellule transform de demo).\"\"\"\n"
+                "    return {'code': (code or '').upper()}\n")
+    reg = _charger_registre()
+    reg["majuscule"] = {"nom": "majuscule", "verdict": "ACCEPTE",
+                        "effets_reels": {"network_access": False, "deletes_data": False}}
+    _sauver_registre(reg)
+    recharger()
+    da = definir_ancrage("majuscule", "avant_validation_code")
+    assert da["ok"], da
+    anc = executer_ancrage("avant_validation_code", code="abc")
+    assert anc["contexte"]["code"] == "ABC", anc
+    assert any(e["nom"] == "majuscule" and e["ok"] for e in anc["executees"]), anc
+    # Ancrage sans cellule -> no-op sur, contexte inchange.
+    vide = executer_ancrage("apres_erreur", x=1)
+    assert vide["executees"] == [] and vide["contexte"]["x"] == 1, vide
+    print(f"  auto-cablage : cellule ancree 'avant_validation_code' transforme 'abc'->'ABC' OK")
+    print(f"  ancrage sans cellule -> no-op sur (contexte inchange) OK")
+
     print("=" * 64)
-    print("  TOUT VERT : les cellules forgees deviennent de vraies fonctions appelables.")
+    print("  TOUT VERT : cellules forgees appelables + auto-declenchables (ancrages).")
     print("=" * 64)

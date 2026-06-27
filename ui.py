@@ -971,7 +971,8 @@ def _section_evolution() -> str:
           Conscience du systeme
         </div>
         <span style="font-size:11px;opacity:.55;font-weight:400">ce que l'organisme sait de lui-meme : ce qui est integre, en echec, reparable</span>
-        <button id="btn-conscience-diag" onclick="diagnostiquerConscience(this)" style="margin-left:auto;font-size:12px;padding:6px 14px">Diagnostiquer</button>
+        <button id="btn-conscience-autorep" onclick="autoReparerConscience(this)" style="margin-left:auto;font-size:12px;padding:6px 14px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.35);color:#fb923c">&#128295; Auto-reparer</button>
+        <button id="btn-conscience-diag" onclick="diagnostiquerConscience(this)" style="font-size:12px;padding:6px 14px">Diagnostiquer</button>
       </div>
       <div id="conscience-jauge" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>
       <div id="conscience-capacites">

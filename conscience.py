@@ -266,6 +266,102 @@ def reparer(id_: str) -> dict:
     return {"ok": False, "raison": "erreur capturee"}
 
 
+# ── Auto-reparation : le systeme se soigne seul (garde anti-boucle) ────────────────
+
+_MAX_REPARS = 3   # au-dela, on n'auto-reforge plus (evite la boucle infinie de forge)
+
+
+def auto_reparer(max_par_passe: int = 3) -> dict:
+    """Relance la forge sur les capacites a_reparer/echouee, en bornant : on saute celles
+    qui ont deja ete tentees _MAX_REPARS fois (anti-boucle) ou recemment (rob.deja_fait).
+    Appele au boot et exposable a la main. Ne leve jamais. Renvoie {relancees, ignorees}."""
+    with rob.garde("conscience.auto_reparer", source="conscience"):
+        relancees, ignorees = [], []
+        for cap in lister():
+            if cap.get("statut") not in ("a_reparer", "echouee"):
+                continue
+            if len(relancees) >= max_par_passe:
+                break
+            cid = cap.get("id")
+            if int(cap.get("tentatives", 0)) >= _MAX_REPARS:
+                ignorees.append({"id": cid, "raison": f"{_MAX_REPARS} tentatives atteintes"})
+                continue
+            sig = f"autorepar:{cid}"
+            if rob.deja_fait(sig, ttl_s=3600):   # pas plus d'une auto-reparation/heure/capacite
+                ignorees.append({"id": cid, "raison": "deja tentee recemment"})
+                continue
+            rob.marquer_fait(sig)
+            r = reparer(cid)
+            (relancees if r.get("ok") else ignorees).append(
+                {"id": cid, "job_id": r.get("job_id"), "raison": r.get("raison")})
+        if relancees:
+            rob.journaliser(f"auto-reparation : {len(relancees)} capacite(s) relancee(s)",
+                            "info", source="conscience")
+        return {"ok": True, "relancees": relancees, "ignorees": ignorees}
+    return {"ok": False, "raison": "erreur capturee"}
+
+
+# ── Controle de sante : test de non-regression de chaque capacite integree ─────────
+
+def controle_sante() -> dict:
+    """Re-verifie chaque capacite 'integree' : se charge-t-elle encore + reste-t-elle
+    appelable ? Une capacite qui ne passe plus -> repassee en 'a_reparer'. C'est le test
+    de non-regression continu (a lancer en cron). Ne leve jamais. Renvoie {verifiees, regressions}."""
+    with rob.garde("conscience.controle_sante", source="conscience"):
+        import capacites_forgees as _cf
+        regressions = []
+        verifiees = 0
+        for cap in lister(type="cellule"):
+            if cap.get("statut") != "integree":
+                continue
+            verifiees += 1
+            v = _cf.verifier_integration(cap["id"])
+            if not v.get("ok"):
+                maj_statut(cap["id"], "a_reparer",
+                           note=f"regression detectee : {v.get('resume', 'verification echouee')}")
+                regressions.append({"id": cap["id"], "raison": v.get("resume")})
+        if regressions:
+            rob.journaliser(f"controle sante : {len(regressions)} regression(s) detectee(s)",
+                            "alerte", source="conscience")
+        return {"ok": True, "verifiees": verifiees, "regressions": regressions}
+    return {"ok": False, "raison": "erreur capturee"}
+
+
+# ── Maintenance autonome : cycle periodique diagnostic -> auto-reparation -> sante ─
+
+_MAINTENANCE_LANCEE = False
+
+
+def cycle_maintenance() -> dict:
+    """Un cycle complet de maintenance autonome : le systeme se regarde, se soigne, se teste.
+    diagnostiquer() (reconcilie) -> controle_sante() (non-regression) -> auto_reparer() (soin)."""
+    diag = diagnostiquer()
+    sante = controle_sante()
+    repar = auto_reparer()
+    return {"diagnostic": diag, "sante": sante, "reparation": repar}
+
+
+def demarrer_maintenance(intervalle_h: float = 6.0) -> None:
+    """Lance un thread daemon qui execute cycle_maintenance() toutes les intervalle_h heures.
+    Idempotent (une seule fois). Ne bloque jamais le demarrage. Doctrine planificateur/telegram."""
+    global _MAINTENANCE_LANCEE
+    if _MAINTENANCE_LANCEE:
+        return
+    _MAINTENANCE_LANCEE = True
+    import threading
+    import time as _t
+
+    def _boucle():
+        while True:
+            _t.sleep(max(600, int(intervalle_h * 3600)))
+            with rob.garde("cycle maintenance conscience", source="conscience"):
+                cycle_maintenance()
+
+    threading.Thread(target=_boucle, daemon=True).start()
+    rob.journaliser(f"maintenance conscience demarree (toutes les {intervalle_h}h)",
+                    "info", source="conscience")
+
+
 # ── Auto-verification offline ──────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -303,6 +399,34 @@ if __name__ == "__main__":
     assert not rr["ok"], rr
     print(f"  reparer(integree) -> refus propre ({rr['raison'][:40]}) OK")
 
+    # 5. auto_reparer : relance les a_reparer/echouee (forge mockee), borne anti-boucle.
+    # id unique par run : rob.deja_fait persiste hors du dossier temp, on evite la collision.
+    import sys as _sys, types as _types, uuid as _uuid
+    faux_forge = _types.ModuleType("forge_evolution")
+    faux_forge.lancer_forge_async = lambda besoin, titre="", pensee_id="": "job_test_123"
+    _sys.modules["forge_evolution"] = faux_forge
+    _cid = "cassee_" + _uuid.uuid4().hex[:8]
+    enregistrer(_cid, type="cellule", titre="Cassee unique", statut="a_reparer", note="import KO")
+    ar = auto_reparer()
+    assert ar["ok"] and any(x["id"] == _cid for x in ar["relancees"]), ar
+    print(f"  auto_reparer : {len(ar['relancees'])} relancee(s) (forge mockee) OK")
+    # La capacite echoue a nouveau (revenue a_reparer) -> 2e passe doit l'IGNORER (garde anti-boucle).
+    maj_statut(_cid, "a_reparer", note="echec a nouveau")
+    ar2 = auto_reparer()
+    assert any(x["id"] == _cid and "recemment" in (x.get("raison") or "")
+               for x in ar2["ignorees"]), ar2
+    print(f"  auto_reparer : capacite re-cassee ignoree (garde anti-boucle 1/h) OK")
+
+    # 6. controle_sante : une 'integree' dont la verif echoue repasse en a_reparer.
+    enregistrer("cell_x", type="cellule", titre="Cell X", statut="integree")
+    faux_cf = _types.ModuleType("capacites_forgees")
+    faux_cf.verifier_integration = lambda nom: {"ok": False, "resume": "import casse (dep manquante)"}
+    _sys.modules["capacites_forgees"] = faux_cf
+    cs = controle_sante()
+    assert cs["ok"] and any(r["id"] == "cell_x" for r in cs["regressions"]), cs
+    assert obtenir("cell_x")["statut"] == "a_reparer"
+    print(f"  controle_sante : regression detectee -> 'cell_x' repasse a_reparer OK")
+
     print("=" * 64)
-    print("  TOUT VERT : le systeme tient un registre vivant de ce qu'il sait de lui-meme.")
+    print("  TOUT VERT : conscience + auto-reparation bornee + controle de sante (non-regression).")
     print("=" * 64)

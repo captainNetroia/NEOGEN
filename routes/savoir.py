@@ -448,6 +448,42 @@ def conscience_reparer(id: str, authorization: str | None = Header(default=None)
     return r
 
 
+@router.get("/conscience/ancrages")
+def conscience_ancrages(authorization: str | None = Header(default=None)):
+    """Catalogue des points d'ancrage (ou une cellule peut s'auto-declencher dans le flux)."""
+    _gate_owner(authorization)
+    import capacites_forgees as _cf
+    return {"ancrages": _cf.ANCRAGES}
+
+
+@router.post("/conscience/{id}/ancrage")
+def conscience_ancrage(id: str, corps: dict = Body(default={}),
+                       authorization: str | None = Header(default=None)):
+    """Assigne le point d'ancrage d'une cellule (auto-cablage) : ou elle s'execute toute seule."""
+    _gate_owner(authorization)
+    import capacites_forgees as _cf
+    r = _cf.definir_ancrage(id, (corps or {}).get("point", ""))
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("raison", "ancrage impossible"))
+    return r
+
+
+@router.post("/conscience/auto-reparer")
+def conscience_auto_reparer(authorization: str | None = Header(default=None)):
+    """Relance la forge sur toutes les capacites a_reparer/echouee (garde anti-boucle)."""
+    _gate_owner(authorization)
+    import conscience as _c
+    return _c.auto_reparer()
+
+
+@router.post("/conscience/controle-sante")
+def conscience_controle_sante(authorization: str | None = Header(default=None)):
+    """Re-verifie chaque capacite integree (test de non-regression) et met a jour les statuts."""
+    _gate_owner(authorization)
+    import conscience as _c
+    return _c.controle_sante()
+
+
 # ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────
 
 @router.get("/evolution/ui.css")
