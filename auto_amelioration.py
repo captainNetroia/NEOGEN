@@ -225,6 +225,17 @@ def cycle(force: bool = False) -> dict:
                 if a:
                     actions_prises.append(a)
 
+        # 4) Règles requiert_code sans implémentation -> forge automatique (boucle fermée).
+        try:
+            import coherence_auto as _coh
+            for t in _coh._check_regles_code_requis():
+                a = _forger_regle_code(t.get("cle", ""), t.get("meta", {}))
+                if a:
+                    actions_prises.append(a)
+        except Exception as _e_coh:
+            rob.journaliser(f"auto-forge regles code : {_e_coh}", "erreur",
+                            source="auto_amelioration")
+
     # Transmission télémétrie centralisée (hebdomadaire, ON par défaut).
     # Opt-out : NEOGEN_TELEMETRIE_ENDPOINT="" dans l'env de l'instance.
     _endpoint_tele = os.environ.get(
@@ -317,6 +328,45 @@ def _appliquer_lecon(type_err: str, lecon: str, correction: str,
     except Exception as e:
         rob.journaliser(f"echec cristallisation leçon {type_err}", "erreur",
                         source="auto_amelioration", erreur=str(e))
+        return None
+
+
+def _forger_regle_code(cle: str, meta: dict) -> dict | None:
+    """Forge automatiquement l'implémentation d'une règle requiert_code. Idempotent 24h."""
+    sig = f"forge:regle:{cle}"
+    if rob.deja_fait(sig, ttl_s=86400):
+        return None
+    rob.marquer_fait(sig)
+    try:
+        import forge_evolution
+        titre = (meta.get("titre") or cle)[:80]
+        regles_path = os.path.join(_DATA, "regles_actives.json")
+        contexte_regle = ""
+        try:
+            with open(regles_path, encoding="utf-8") as f:
+                store = json.load(f)
+            val = store.get("regles", {}).get(cle)
+            if val:
+                contexte_regle = f" Valeur de la règle : {json.dumps(val, ensure_ascii=False)[:300]}."
+        except Exception:
+            pass
+        besoin = (
+            f"Implémenter la règle NEOGEN '{titre}' (clé : '{cle}')."
+            f"{contexte_regle}"
+            f" Cette règle est activée dans regles_actives.json mais n'a pas encore de code."
+            f" Créer une fonction Python autonome qui applique concrètement cette règle dans NEOGEN."
+            f" La fonction doit lire data/regles_actives.json, appliquer la règle, et retourner"
+            f" {{ok: bool, detail: str}}. Ne modifier aucun fichier hors de data/."
+        )
+        job_id = forge_evolution.lancer_forge_async(besoin, titre=f"impl_{cle}")
+        action = {"action": "forge_regle_code", "cle": cle, "titre": titre, "job_id": job_id}
+        _tracer_action(action)
+        rob.journaliser(f"forge auto déclenchée : règle '{cle}' → job {job_id}",
+                        "info", source="auto_amelioration")
+        return action
+    except Exception as e:
+        rob.journaliser(f"forge règle '{cle}' échouée : {e}", "erreur",
+                        source="auto_amelioration")
         return None
 
 

@@ -101,6 +101,8 @@ def _check_regles_code_requis() -> list[dict]:
                     "journey": f"Règle '{cle}' requiert implémentation code",
                     "etape": f"Ancrage code pour '{cle}'",
                     "raison": f"règle '{cle}' (requiert_code=true) introuvable dans les .py — implémentation manquante",
+                    "cle": cle,
+                    "meta": meta,
                 })
     except Exception:
         pass
