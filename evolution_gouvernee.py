@@ -118,14 +118,26 @@ def generation_courante() -> dict:
     return cur
 
 
-def _notifier_generation(type_: str, titre: str, detail: str) -> None:
-    """Notifie un changement applique au changelog de la generation courante."""
+def _notifier_generation(type_: str, titre: str, detail: str, cle: str = "") -> None:
+    """Notifie un changement applique au changelog de la generation courante.
+    Deduplication par (type, cle) : si une entree existe deja pour ce (type, cle),
+    elle est MIS A JOUR, pas dupliquee. Coherence : 1 entree par artefact."""
     gens = _charger("generations_neogen.json", None) or {
         "courante": {"numero": 1, "ouverte_le": time.time(), "changelog": []}, "historique": []}
     generation_courante()  # garantit l'echeance annuelle
     gens = _charger("generations_neogen.json", None)
-    gens["courante"].setdefault("changelog", []).append({
-        "ts": time.time(), "type": type_, "titre": titre[:120], "detail": detail[:300]})
+    changelog = gens["courante"].setdefault("changelog", [])
+    # Deduplication : cherche une entree existante par (type, cle)
+    if cle:
+        for entree in changelog:
+            if entree.get("type") == type_ and entree.get("cle") == cle:
+                entree["ts"] = time.time()
+                entree["titre"] = titre[:120]
+                entree["detail"] = detail[:300]
+                _sauver("generations_neogen.json", gens)
+                return
+    changelog.append({
+        "ts": time.time(), "type": type_, "cle": cle, "titre": titre[:120], "detail": detail[:300]})
     _sauver("generations_neogen.json", gens)
 
 
@@ -182,7 +194,10 @@ def appliquer(changement: dict, user: dict | None = None) -> dict:
 
         _ledger({"ts": time.time(), "type": type_, "titre": titre, "portee": p,
                  "detail": detail.get("detail", ""), "par": "admin" if p == "complet" else "public"})
-        _notifier_generation(type_, titre, detail.get("detail", ""))
+        # Cle d'identite pour la deduplication du changelog (1 entree par artefact)
+        _cle = (payload.get("cle") or payload.get("nom") or
+                payload.get("provider") or payload.get("cle_regle") or _slug(titre))
+        _notifier_generation(type_, titre, detail.get("detail", ""), cle=_cle)
         rob.journaliser(f"evolution appliquee [{type_}] {titre} (portee={p})", "succes",
                         source="evolution_gouvernee")
         return {"ok": True, "type": type_, "portee": p, "detail": detail.get("detail", ""),
@@ -386,13 +401,19 @@ def supprimer_agent(cle: str) -> dict:
     profils = profils_custom()
     if cle not in profils:
         return {"ok": False, "raison": f"agent '{cle}' introuvable"}
-    titre = profils[cle].get("titre", cle)
     del profils[cle]
     _sauver("agents_custom.json", profils)
     agent_core.rafraichir_profils()
     if cle in agent_core.PROFILS:
         del agent_core.PROFILS[cle]
-    _notifier_generation("agent", titre, f"bebe-agent '{cle}' supprime")
+    # Retire l'entree du changelog (deduplication : 1 entree par artefact, suppression = effacement)
+    gens = _charger("generations_neogen.json", None)
+    if gens and "courante" in gens:
+        gens["courante"]["changelog"] = [
+            e for e in gens["courante"].get("changelog", [])
+            if not (e.get("type") == "agent" and e.get("cle") == cle)
+        ]
+        _sauver("generations_neogen.json", gens)
     return {"ok": True, "detail": f"agent '{cle}' supprime"}
 
 
