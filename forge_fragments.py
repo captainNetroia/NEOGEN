@@ -223,7 +223,13 @@ def appliquer(html: str, zone: str, *, titre: str = "", user: dict | None = None
         # PROPRIO -> persiste dans la zone.
         store = _charger()
         liste = store.setdefault(zone, [])
-        fid = frag_id or _slug(titre) + "_" + format(int(time.time()) % 100000, "x")
+        # Déduplication : si un fragment avec le même titre (slug) existe dans la zone,
+        # réutiliser son ID (mise à jour) plutôt que créer un doublon timestamp.
+        slug_titre = _slug(titre) if titre else ""
+        fid = frag_id or next(
+            (f["id"] for f in liste if _slug(f.get("titre", "")) == slug_titre),
+            slug_titre + "_" + format(int(time.time()) % 100000, "x")
+        )
         existant = next((f for f in liste if f.get("id") == fid), None)
         if existant:
             existant["version"] = _bump_version(existant.get("version") or "1")
