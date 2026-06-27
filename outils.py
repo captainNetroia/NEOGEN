@@ -420,6 +420,194 @@ def outil_proposer_conversation(sujet: str = "", contexte: str = "", **kw) -> st
 
 
 # ---------------------------------------------------------------------------
+# Outils du Veilleur : scanner_tensions / remonter_alerte / ancrer_tension
+# ---------------------------------------------------------------------------
+
+def outil_scanner_tensions(**kw) -> str:
+    """Scanne les registres actifs pour détecter les tensions (skills vides, directives
+    contradictoires, règles sans code, artefacts non liés). Classe par sévérité."""
+    import pathlib, time as _time
+    racine = pathlib.Path(__file__).parent
+
+    tensions: list[dict] = []
+
+    # 1. Parcours utilisateur (coherence_auto)
+    try:
+        import coherence_auto
+        rapport = coherence_auto.audit_journeys()
+        for t in rapport.get("tensions", []):
+            tensions.append({"source": "parcours", "sev": "moyen",
+                             "desc": t.get("raison", "")})
+    except Exception:
+        pass
+
+    # 2. Skills sans instructions
+    try:
+        p = racine / "data" / "savoir.jsonl"
+        if p.exists():
+            for ligne in p.read_text(encoding="utf-8").splitlines():
+                ligne = ligne.strip()
+                if not ligne:
+                    continue
+                d = json.loads(ligne)
+                if d.get("type") == "skill" and not (d.get("instructions") or "").strip():
+                    tensions.append({"source": "skill", "sev": "faible",
+                                     "desc": f"skill '{d.get('nom','?')}' : instructions vides"})
+    except Exception:
+        pass
+
+    # 3. Agents custom avec rôle trop court (< 30 car)
+    try:
+        p = racine / "data" / "agents_custom.json"
+        if p.exists():
+            agents = json.loads(p.read_text(encoding="utf-8"))
+            for cle, a in agents.items():
+                role = (a.get("role") or "").strip()
+                if len(role) < 30:
+                    tensions.append({"source": "agent", "sev": "faible",
+                                     "desc": f"agent '{cle}' : role trop court ({len(role)} car)"})
+    except Exception:
+        pass
+
+    # 4. Règles requiert_code non ancrées dans le code
+    try:
+        p = racine / "data" / "regles_actives.json"
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            py_srcs = {f.stem: f.read_text(encoding="utf-8", errors="ignore")
+                       for f in racine.glob("*.py")}
+            for cle in data.get("regles_code_requis", {}):
+                if not any(cle in src for src in py_srcs.values()):
+                    tensions.append({"source": "regle", "sev": "bloquant",
+                                     "desc": f"regle '{cle}' requiert code — non ancrée"})
+    except Exception:
+        pass
+
+    if not tensions:
+        return "[scanner_tensions] aucune tension detectee — systeme coherent"
+
+    ordre = {"bloquant": 0, "moyen": 1, "faible": 2}
+    tensions.sort(key=lambda t: ordre.get(t["sev"], 9))
+    lignes = [f"[scanner_tensions] {len(tensions)} tension(s) :"]
+    for t in tensions:
+        lignes.append(f"  [{t['sev'].upper()}] [{t['source']}] {t['desc']}")
+    return nettoyer("\n".join(lignes))
+
+
+def outil_remonter_alerte(source: str = "", description: str = "",
+                          impact: str = "", suggestion: str = "", **kw) -> str:
+    """Formate une tension détectée en signal lisible pour Jordan.
+    Ne propose jamais d'action autonome — Jordan décide."""
+    if not description:
+        return "[remonter_alerte] description requise"
+    lignes = [
+        "ALERTE VEILLEUR",
+        f"  Source    : {source or 'non precisee'}",
+        f"  Probleme  : {description}",
+        f"  Impact    : {impact or 'a evaluer'}",
+        f"  Note      : {suggestion or 'aucune suggestion — Jordan decide'}",
+        "  Decision  : Jordan (le Veilleur ne fait rien sans accord)",
+    ]
+    return nettoyer("\n".join(lignes))
+
+
+def outil_ancrer_tension(cle: str = "", source: str = "", mots_cles: str = "",
+                         statut: str = "ouverte", **kw) -> str:
+    """Trace une tension dans le fil de memoire transversal avec son statut
+    (ouverte / prise_en_charge / resolue). Idempotent : met a jour si existe."""
+    import pathlib, time as _time
+    if not cle:
+        return "[ancrer_tension] cle requise"
+    if statut not in ("ouverte", "prise_en_charge", "resolue"):
+        statut = "ouverte"
+    racine = pathlib.Path(__file__).parent
+    p = racine / "data" / "tensions_veilleur.jsonl"
+    p.parent.mkdir(exist_ok=True)
+
+    existants: list[dict] = []
+    if p.exists():
+        for ligne in p.read_text(encoding="utf-8").splitlines():
+            ligne = ligne.strip()
+            if ligne:
+                try:
+                    existants.append(json.loads(ligne))
+                except Exception:
+                    pass
+
+    entree = {"cle": cle, "source": source, "mots_cles": mots_cles,
+              "statut": statut, "ts": _time.time()}
+    idx = next((i for i, e in enumerate(existants) if e.get("cle") == cle), None)
+    action = "mise a jour" if idx is not None else "ancree"
+    if idx is not None:
+        existants[idx] = entree
+    else:
+        existants.append(entree)
+
+    p.write_text(
+        "\n".join(json.dumps(e, ensure_ascii=False) for e in existants) + "\n",
+        encoding="utf-8")
+    return nettoyer(f"[ancrer_tension] tension '{cle}' {action} (statut: {statut})")
+
+
+def outil_proposer_evolution(type_evo: str = "", payload: str = "",
+                             titre: str = "", raison: str = "", **kw) -> str:
+    """Applique une evolution data-driven reelle : agent, regle, skill, modele, loi,
+    idee, capacite, esthetique. ECRIT VRAIMENT dans les stores — c'est le seul outil
+    qui modifie l'etat du systeme. payload = JSON string du changement.
+    Admin local -> applique direct. Non-admin -> soumet en proposition."""
+    TYPES_VALIDES = ("agent", "regle", "skill", "fonction", "modele", "loi",
+                     "idee", "capacite", "esthetique", "savoir", "integration")
+    type_evo = (type_evo or "").strip().lower()
+    if not type_evo:
+        return f"[proposer_evolution] type requis parmi : {', '.join(TYPES_VALIDES)}"
+    if type_evo not in TYPES_VALIDES:
+        return f"[proposer_evolution] type '{type_evo}' inconnu — valides : {', '.join(TYPES_VALIDES)}"
+
+    # Parse payload JSON (l'agent envoie souvent une chaine)
+    if isinstance(payload, dict):
+        payload_dict = payload
+    elif isinstance(payload, str) and payload.strip():
+        try:
+            payload_dict = json.loads(payload)
+        except json.JSONDecodeError as e:
+            return f"[proposer_evolution] payload JSON invalide : {e}\nRecu : {payload[:120]}"
+    else:
+        payload_dict = {}
+
+    import evolution_gouvernee as _evo
+    changement = {
+        "type": type_evo,
+        "payload": payload_dict,
+        "titre": (titre or type_evo)[:120],
+        "raison": (raison or "")[:300],
+    }
+    # 1. Application directe (admin = NEOGEN_OWNER_UNLIMITED=1 en local)
+    try:
+        res = _evo.appliquer(changement)
+    except Exception as e:
+        return f"[proposer_evolution] erreur interne : {e}"
+
+    if res.get("ok"):
+        return nettoyer(
+            f"[proposer_evolution] applique (portee={res.get('portee','?')}) — "
+            f"{res.get('detail', '')} [gen {res.get('generation', '?')}]")
+
+    raison_echec = res.get("raison", "inconnu")
+    # 2. Si refus parce que non-admin -> proposition en attente
+    if any(k in raison_echec for k in ("remonte", "reserve", "admin")):
+        try:
+            res2 = _evo.proposer(type_evo, payload_dict, titre=titre, raison=raison)
+            if res2.get("ok"):
+                return nettoyer(
+                    f"[proposer_evolution] soumis en proposition (validation Jordan requise) "
+                    f"— prop_id={res2.get('prop_id', '?')}")
+        except Exception as e2:
+            return f"[proposer_evolution] echec proposition : {e2}"
+
+    return f"[proposer_evolution] echec : {raison_echec}"
+
+
+# ---------------------------------------------------------------------------
 # nom outil -> (fonction, description courte pour le prompt)
 # ---------------------------------------------------------------------------
 OUTILS: dict[str, tuple[Callable, str]] = {
@@ -444,4 +632,8 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "forger_bloc":            (outil_forger_bloc,            "Genere et applique un fragment HTML dans l'interface (runtime, securise). params: {idee, zone?} — zone: cerveaux|creation|production|compte|analyse|evolution|integrations"),
     "donner_vie":             (outil_donner_vie,             "Active une pensee existante : route son evolution ou lance une conversation dediee. params: {pensee_id}"),
     "proposer_conversation":  (outil_proposer_conversation,  "Lance une conversation autonome sur un sujet (force un cycle pensee). params: {sujet, contexte?}"),
+    "scanner_tensions":       (outil_scanner_tensions,       "Scanne les registres NEOGEN pour détecter les tensions (skills vides, règles sans code, parcours KO, agents sans rôle). Classe par sévérité. params: {}"),
+    "remonter_alerte":        (outil_remonter_alerte,        "Formate une tension détectée en signal lisible pour Jordan. Ne propose jamais d'action autonome. params: {source, description, impact?, suggestion?}"),
+    "ancrer_tension":         (outil_ancrer_tension,         "Trace une tension dans le fil de mémoire transversal (ouverte/prise_en_charge/resolue). Idempotent. params: {cle, source?, mots_cles?, statut?}"),
+    "proposer_evolution":     (outil_proposer_evolution,     "ÉCRIT VRAIMENT dans le système : agent, regle, skill, modele, loi, idee, capacite. C'est le seul outil qui modifie les stores data-driven. Si admin (local) -> applique direct. Sinon -> propose en attente. params: {type_evo, payload (JSON string), titre?, raison?}"),
 }

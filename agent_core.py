@@ -155,7 +155,7 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
     "compte":       ["conseiller", "discerner", "proposer_conversation"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation"],
-    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport"],
+    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation"],
 }
 

@@ -270,7 +270,9 @@ def _appliquer_agent(payload: dict, titre: str) -> dict:
     cle = payload.get("cle") or _slug(payload.get("nom") or titre)
     outils_surs = {"conseiller", "lister_creations", "genealogie", "lister_skills",
                    "utiliser_skill", "memoriser", "rappeler", "lire_fichier", "creer_rapport",
-                   "forger_bloc", "donner_vie", "proposer_conversation"}
+                   "forger_bloc", "donner_vie", "proposer_conversation",
+                   "scanner_tensions", "remonter_alerte", "ancrer_tension",
+                   "proposer_evolution"}
     outils = [o for o in (payload.get("outils") or []) if o in outils_surs]
     existant = profils.get(cle)
     if existant:
