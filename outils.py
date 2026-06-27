@@ -549,6 +549,45 @@ def outil_ancrer_tension(cle: str = "", source: str = "", mots_cles: str = "",
     return nettoyer(f"[ancrer_tension] tension '{cle}' {action} (statut: {statut})")
 
 
+def outil_appeler_agent(cle: str = "", mission: str = "", **kw) -> str:
+    """Appelle un autre agent NEOGEN et retourne sa reponse directement dans le contexte.
+    Pair-a-pair : tout agent peut appeler tout autre (sauf lui-meme). Profondeur max 3.
+    Utile pour deleguer selon l'expertise : Architecte -> Veilleur (coherence),
+    Analyste -> Architecte (recommandation), Secretaire -> Architecte (skill technique).
+    params: {cle (nom agent), mission (texte de la tache)}"""
+    caller = kw.get("_caller", "")
+    profondeur = int(kw.get("_profondeur", 0))
+    ctx = kw.get("_ctx")
+    emit = kw.get("_emit")
+    user = kw.get("_user")
+
+    cle = (cle or "").strip().lower()
+    mission = (mission or "").strip()
+
+    if not cle:
+        return "[appeler_agent] cle requise — ex: {cle: 'veilleur', mission: '...'}"
+    if not mission:
+        return "[appeler_agent] mission requise"
+    if cle == caller:
+        return f"[appeler_agent] un agent ne peut pas s'appeler lui-meme ('{cle}')"
+    if profondeur >= 3:
+        return "[appeler_agent] profondeur maximale (3) atteinte — stoppe la cascade"
+
+    import agent_core as _ac
+    _ac.rafraichir_profils()
+    if cle not in _ac.PROFILS:
+        agents_dispo = sorted(_ac.PROFILS.keys())
+        return nettoyer(f"[appeler_agent] agent '{cle}' inconnu. Disponibles : {', '.join(agents_dispo)}")
+
+    try:
+        obs = _ac.dialoguer(cle, mission, ctx=ctx, emit=emit,
+                            _profondeur=profondeur + 1, eco=False, user=user)
+    except Exception as e:
+        return nettoyer(f"[appeler_agent] erreur lors de l'appel a '{cle}' : {e}")
+
+    return nettoyer(f"[Agent {cle}] {obs}")
+
+
 def outil_proposer_evolution(type_evo: str = "", payload: str = "",
                              titre: str = "", raison: str = "", **kw) -> str:
     """Applique une evolution data-driven reelle : agent, regle, skill, modele, loi,
@@ -636,4 +675,5 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "remonter_alerte":        (outil_remonter_alerte,        "Formate une tension détectée en signal lisible pour Jordan. Ne propose jamais d'action autonome. params: {source, description, impact?, suggestion?}"),
     "ancrer_tension":         (outil_ancrer_tension,         "Trace une tension dans le fil de mémoire transversal (ouverte/prise_en_charge/resolue). Idempotent. params: {cle, source?, mots_cles?, statut?}"),
     "proposer_evolution":     (outil_proposer_evolution,     "ÉCRIT VRAIMENT dans le système : agent, regle, skill, modele, loi, idee, capacite. C'est le seul outil qui modifie les stores data-driven. Si admin (local) -> applique direct. Sinon -> propose en attente. params: {type_evo, payload (JSON string), titre?, raison?}"),
+    "appeler_agent":          (outil_appeler_agent,          "Appelle un autre agent NEOGEN et retourne sa reponse directement (pair-a-pair, profondeur max 3, auto-appel interdit). Pour deleguer selon expertise : Architecte->Veilleur, Analyste->Architecte, etc. params: {cle (nom agent), mission}"),
 }

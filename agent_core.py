@@ -150,13 +150,13 @@ _PROFILS_NOYAU = frozenset(PROFILS.keys())
 
 # Outils accordes aux bebe-agents selon leur section deduite (sauf Soutenir = aucun).
 _OUTILS_PAR_SECTION: dict[str, list[str]] = {
-    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation"],
+    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent"],
     "creation":     ["creer_application", "lister_creations", "creer_skill", "lister_skills", "utiliser_skill", "forger_bloc", "proposer_conversation"],
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
     "compte":       ["conseiller", "discerner", "proposer_conversation"],
-    "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation"],
-    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution"],
-    "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation"],
+    "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent"],
+    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "appeler_agent"],
+    "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent"],
 }
 
 _SECTION_KEYWORDS = {
@@ -558,7 +558,8 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         _emit({"type": "action", "agent": role, "outil": outil, "parametres": params})
         fn = OUTILS[outil][0]
         try:
-            obs = fn(_ctx=ctx, _emit=emit, _user=user, **params)
+            obs = fn(_ctx=ctx, _emit=emit, _user=user,
+                     _caller=role, _profondeur=_profondeur, **params)
         except Exception as e:
             obs = nettoyer(f"Erreur outil {outil} : {e}")
         obs = nettoyer(str(obs))[:2000]
