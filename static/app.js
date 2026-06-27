@@ -3156,7 +3156,7 @@ async function donnerVie(id,btn){
 function _bulleProgression(jobId,titre,btn){
   const el=document.createElement('div');
   el.id='forge-bubble-'+jobId;
-  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:340px;z-index:10000;padding:16px 18px;background:rgba(16,22,30,.98);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.65);backdrop-filter:blur(10px)';
+  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:340px;z-index:10000;padding:16px 18px;background:rgba(16,22,30,.98);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.65);backdrop-filter:blur(10px);color:#e2e8f0';
   el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Votre idee prend vie</div>'
     +'<div id="fp-etape-'+jobId+'" style="font-size:13px;font-weight:600;margin-bottom:8px">Initialisation…</div>'
     +'<div style="height:6px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden">'
@@ -3199,7 +3199,7 @@ function _bulleApercuInterface(d,btn){
   const id='ui-apercu-'+Math.random().toString(36).slice(2);
   const el=document.createElement('div');
   el.id=id;
-  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:420px;z-index:10001;padding:18px;background:rgba(16,22,30,.99);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.7);backdrop-filter:blur(10px)';
+  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:420px;z-index:10001;padding:18px;background:rgba(16,22,30,.99);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.7);backdrop-filter:blur(10px);color:#e2e8f0';
   el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Apercu : ton interface va changer</div>'
     +'<div style="font-size:13px;font-weight:600;margin-bottom:6px">'+esc(d.titre||'')+'</div>'
     +'<div style="font-size:12px;opacity:.75;line-height:1.45;margin-bottom:8px">'+esc(d.explication||'')+'</div>'
@@ -3256,7 +3256,7 @@ function _bulleApercuInterface(d,btn){
     if(document.getElementById('pensee-bubble-'+b.id))return;
     const el=document.createElement('div');
     el.id='pensee-bubble-'+b.id;
-    el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:300px;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px)';
+    el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:300px;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px);color:#e2e8f0';
     el.innerHTML='<div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:4px">&#128173; Une pensee a emerge</div>'
       +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+esc(b.titre||'')+'</div>'
       +'<div style="font-size:11px;opacity:.6;line-height:1.4">'+esc((b.synthese||'').slice(0,110))+'</div>';

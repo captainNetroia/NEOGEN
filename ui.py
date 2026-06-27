@@ -547,6 +547,7 @@ def _section_integrations() -> str:
       <span class="prov-tab" data-prov="deepseek">DeepSeek</span>
       <span class="prov-tab" data-prov="mistral">Mistral</span>
       <span class="prov-tab" data-prov="moonshot">Kimi</span>
+      <span class="prov-tab" data-prov="glm">GLM-5.2</span>
       <span class="prov-tab" data-prov="local">Local</span>
     </div>
     <div class="integ-model-row">
