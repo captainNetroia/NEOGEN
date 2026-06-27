@@ -3264,7 +3264,7 @@ function _activerForgeBlocs(d){
   if(explEl)explEl.textContent=d.explication||'';
   if(zoneEl)zoneEl.value=_fragApercuCourant.zone;
   if(apZone)apZone.style.display='';
-  const forgeSection=document.getElementById('forge-section')||document.querySelector('[data-section="forge"]');
+  const forgeSection=document.getElementById('forge-frag-panel');
   if(forgeSection)forgeSection.scrollIntoView({behavior:'smooth',block:'start'});
   else if(apZone)apZone.scrollIntoView({behavior:'smooth',block:'nearest'});
 }

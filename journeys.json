@@ -17,7 +17,7 @@
       "etapes": [
         {"desc": "Declencher la forge async", "methode": "check_route", "endpoint": "POST /savoir/pensees/{pensee_id}/donner-vie"},
         {"desc": "Polling progression job", "methode": "check_route", "endpoint": "GET /savoir/evolution/forge/{job_id}"},
-        {"desc": "Bulle de progression JS (loadForgeJob)", "methode": "check_js", "js_fn": "loadForgeJob"},
+        {"desc": "Bulle de progression JS (_bulleProgression)", "methode": "check_js", "js_fn": "_bulleProgression"},
         {"desc": "Liste cellules forgees", "methode": "check_route", "endpoint": "GET /savoir/evolution/cellules"},
         {"desc": "Bloc cellules forgees JS", "methode": "check_js", "js_fn": "loadEvolutionCellules"}
       ]
