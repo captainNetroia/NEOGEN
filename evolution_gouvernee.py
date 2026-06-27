@@ -198,11 +198,54 @@ def appliquer(changement: dict, user: dict | None = None) -> dict:
         _cle = (payload.get("cle") or payload.get("nom") or
                 payload.get("provider") or payload.get("cle_regle") or _slug(titre))
         _notifier_generation(type_, titre, detail.get("detail", ""), cle=_cle)
+        _enregistrer_conscience(type_, _cle, titre, detail.get("detail", ""), payload)
         rob.journaliser(f"evolution appliquee [{type_}] {titre} (portee={p})", "succes",
                         source="evolution_gouvernee")
         return {"ok": True, "type": type_, "portee": p, "detail": detail.get("detail", ""),
                 "generation": generation_courante().get("numero")}
     return {"ok": False, "raison": "erreur capturee (voir journal)"}
+
+
+# Types reellement consommes par du code vivant (donc « integre »), vs simplement « stocke ».
+_TYPES_INTEGRES = {"agent", "modele"}          # PROFILS / gateway : actifs immediatement
+_TYPES_STOCKES = {"regle", "loi", "idee", "savoir", "skill", "fonction",
+                  "esthetique", "section", "integration", "capacite"}
+
+
+def _enregistrer_conscience(type_: str, cle: str, titre: str, detail: str, payload: dict) -> None:
+    """Inscrit l'evolution appliquee dans le registre d'auto-connaissance (conscience).
+    Statut « integre » si un consommateur runtime le lit immediatement, sinon « stocke ».
+    Une regle qui requiert du code reste « a_reparer » jusqu'a ce qu'une cellule l'implemente.
+    Ne leve jamais."""
+    try:
+        import conscience
+        if type_ in _TYPES_INTEGRES:
+            statut = "integree"
+        elif type_ == "regle" and payload.get("requiert_code"):
+            statut = "a_reparer"
+        else:
+            statut = "stockee"
+        store = _STORES.get(type_, "")
+        conscience.enregistrer(cle or _slug(titre), type=type_, titre=titre or cle,
+                               statut=statut, note=detail[:160], store=store,
+                               consomme_par=_consommateurs(type_))
+    except Exception:
+        pass
+
+
+def _consommateurs(type_: str) -> list:
+    """Qui LIT ce type de store dans le code vivant (pour tracer les vrais liens)."""
+    return {
+        "regle": ["agent_core._directives_actives", "pensee._charger_fil_contextuel"],
+        "loi":   ["agent_core._directives_actives"],
+        "idee":  ["agent_core._directives_actives"],
+        "agent": ["agent_core.PROFILS"],
+        "modele": ["gateway"],
+        "savoir": ["memoire_agent", "savoir.HUB"],
+        "skill": ["competences"],
+        "fonction": ["competences"],
+        "integration": ["integ_hub"],
+    }.get(type_, [])
 
 
 def _dispatch(type_: str, payload: dict, titre: str) -> dict:
@@ -458,6 +501,10 @@ if __name__ == "__main__":
     print("=" * 64)
     _DATA = tempfile.mkdtemp()
     _LEDGER = os.path.join(_DATA, "evolutions.jsonl")
+    # Redirige conscience vers le temp (le hook _enregistrer_conscience ne doit pas polluer le reel).
+    import conscience as _co
+    _co._DATA = _DATA
+    _co._REGISTRE = os.path.join(_DATA, "registre_capacites.json")
 
     # 1. Generation 1 creee, 0 changement.
     g = generation_courante()

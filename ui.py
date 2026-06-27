@@ -25,10 +25,17 @@ def _head() -> str:
 </head>
 <body class="dark">
 
-<!-- VIDEO BACKGROUND (fond fixe, Matrix) -->
+<!-- VIDEO BACKGROUND (fond fixe, Matrix) — dark = vert/noir, light = vert/blanc -->
 <video id="bg-video" autoplay loop muted playsinline>
   <source src="/static/video-logo-matrix.mp4" type="video/mp4">
 </video>
+<video id="bg-video-light-1" autoplay loop muted playsinline>
+  <source src="/static/video-matrix-light.mp4" type="video/mp4">
+</video>
+<video id="bg-video-light-2" autoplay loop muted playsinline>
+  <source src="/static/video-matrix-light-2.mp4" type="video/mp4">
+</video>
+<div id="bg-vignette"></div>
 
 <header>
   <h1 onclick="showLanding()">NEO<b>GEN</b></h1>
@@ -954,6 +961,22 @@ def _section_evolution() -> str:
     </div>
     <div id="evo-changelog">
       <div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucun changement applique cette annee.</div>
+    </div>
+
+    <!-- CONSCIENCE DU SYSTEME : ce que NEOGEN sait de lui-meme (statut reel de chaque capacite) -->
+    <div id="conscience-panel" style="margin:22px 0 8px;border:1px solid rgba(0,232,105,.18);border-radius:14px;padding:16px;background:rgba(0,20,8,.35)">
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:#00e869;box-shadow:0 0 10px #00e869"></span>
+          Conscience du systeme
+        </div>
+        <span style="font-size:11px;opacity:.55;font-weight:400">ce que l'organisme sait de lui-meme : ce qui est integre, en echec, reparable</span>
+        <button id="btn-conscience-diag" onclick="diagnostiquerConscience(this)" style="margin-left:auto;font-size:12px;padding:6px 14px">Diagnostiquer</button>
+      </div>
+      <div id="conscience-jauge" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div id="conscience-capacites">
+        <div style="text-align:center;padding:18px;opacity:.4;font-size:12px">Clique « Diagnostiquer » : le systeme va se regarder lui-meme.</div>
+      </div>
     </div>
 
     <!-- Cellules forgees : le VRAI code genere par "donner vie" sur une idee technique -->

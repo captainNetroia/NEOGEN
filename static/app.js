@@ -1,9 +1,9 @@
 ﻿/* ===== VIDEO BACKGROUND (Matrix loop) ===== */
 (function(){
-  const vid = document.getElementById('bg-video');
-  if(vid){ vid.play().catch(()=>{}); }
-  const cas = document.getElementById('cascade-video');
-  if(cas){ cas.play().catch(()=>{}); }
+  ['bg-video','bg-video-light-1','bg-video-light-2','cascade-video'].forEach(id=>{
+    const v=document.getElementById(id);
+    if(v) v.play().catch(()=>{});
+  });
   window._setShaderDark = function(){};
 })();
 
@@ -2194,8 +2194,10 @@ function buildChat(mount){
 document.querySelectorAll('.agent-chat-mount').forEach(buildChat);
 
 // ===== PREFERENCES (dark mode + consentement + agent local) =====
-// Dark mode persistant au chargement
-if(localStorage.getItem('neogen_dark_mode')==='1'){
+// Dark mode = DEFAUT. Clair uniquement si choisi explicitement.
+if(localStorage.getItem('neogen_dark_mode')==='0'){
+  document.body.classList.remove('dark');
+}else{
   document.body.classList.add('dark');
   if(window._setShaderDark)window._setShaderDark(true);
 }
@@ -3277,6 +3279,11 @@ async function donnerVie(id,btn){
       // Idee technique : la forge genere du VRAI code (asynchrone). Bulle de progression vivante.
       btn.textContent='Forge en cours...';
       _bulleProgression(d.job_id,(btn.closest('div')&&'idee')||'idee',btn);
+    }else if(d.voie==='data+forge'&&d.job_id){
+      // Regle comportementale : stockee dans JSON + AUSSI forgee en code.
+      btn.textContent='Stockee + Forge...';btn.style.color='#10b981';
+      _bulleProgression(d.job_id,'regle',btn);
+      if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,800);
     }else if(d.ok||d.prop_id){
       btn.textContent=d.voie==='note'?'Notee':'Proposee dans Evolution';
       btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';
@@ -3454,6 +3461,7 @@ async function loadEvolutionSysteme(){
     }
   }catch(e){}
   loadEvolutionChangelog();
+  loadConscience();
   loadEvolutionCellules();
   loadFragments();
   if(_evoWired)return; _evoWired=true;
@@ -3748,4 +3756,83 @@ async function loadEvolutionCellules(){
       c.appendChild(el);
     }
   }catch(e){}
+}
+
+/* ===== CONSCIENCE DU SYSTEME : ce que NEOGEN sait de lui-meme ===== */
+const _STATUT_META={
+  integree:{l:'integree',c:'#00e869',b:'rgba(0,232,105,.14)',br:'rgba(0,232,105,.4)',i:'&#9889;'},
+  stockee:{l:'stockee',c:'#38bdf8',b:'rgba(56,189,248,.12)',br:'rgba(56,189,248,.35)',i:'&#128190;'},
+  forgee:{l:'forgee (sur disque)',c:'#fbbf24',b:'rgba(251,191,36,.12)',br:'rgba(251,191,36,.35)',i:'&#9881;'},
+  a_reparer:{l:'a reparer',c:'#fb923c',b:'rgba(251,146,60,.14)',br:'rgba(251,146,60,.4)',i:'&#128295;'},
+  echouee:{l:'en echec',c:'#ef4444',b:'rgba(239,68,68,.12)',br:'rgba(239,68,68,.4)',i:'&#10007;'},
+  proposee:{l:'proposee',c:'#9ca3af',b:'rgba(156,163,175,.1)',br:'rgba(156,163,175,.3)',i:'&#8230;'},
+  obsolete:{l:'obsolete',c:'#6b7280',b:'rgba(107,114,128,.1)',br:'rgba(107,114,128,.25)',i:'&#9866;'}
+};
+function _statutMeta(s){return _STATUT_META[s]||_STATUT_META.proposee;}
+
+async function loadConscience(){
+  const cont=document.getElementById('conscience-capacites');
+  const jauge=document.getElementById('conscience-jauge');
+  if(!cont)return;
+  try{
+    const r=await fetch('/savoir/conscience');
+    if(!r.ok)return;
+    const d=await r.json();
+    const etat=d.etat||{};const caps=d.capacites||[];
+    // Jauge : sante globale + repartition par statut.
+    if(jauge){
+      const ps=etat.par_statut||{};
+      let chips='<div style="font-size:22px;font-weight:800;color:'+(etat.sante_pct>=70?'#00e869':etat.sante_pct>=40?'#fbbf24':'#ef4444')+'">'
+        +(etat.sante_pct!=null?etat.sante_pct:100)+'%<span style="font-size:11px;font-weight:400;opacity:.6"> sain</span></div>';
+      chips+='<div style="font-size:11px;opacity:.7;align-self:center">'+(etat.total||0)+' capacite(s)</div>';
+      for(const s in ps){const m=_statutMeta(s);
+        chips+='<div style="align-self:center;font-size:11px;padding:3px 9px;border-radius:99px;color:'+m.c+';background:'+m.b+';border:1px solid '+m.br+'">'+m.i+' '+ps[s]+' '+m.l+'</div>';}
+      jauge.innerHTML=chips;
+    }
+    if(!caps.length){cont.innerHTML='<div style="text-align:center;padding:18px;opacity:.4;font-size:12px">Aucune capacite enregistree. Donne vie a une idee : elle apparaitra ici avec son statut reel.</div>';return;}
+    cont.innerHTML='';
+    for(const cap of caps){
+      const m=_statutMeta(cap.statut);
+      const el=document.createElement('div');
+      el.style.cssText='padding:9px 12px;background:'+m.b+';border:1px solid '+m.br+';border-radius:8px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+      const consomme=(cap.consomme_par&&cap.consomme_par.length)?'<span style="opacity:.5;font-size:10px"> &rarr; '+esc(cap.consomme_par.join(', '))+'</span>':'';
+      const sig=cap.signature?'<span style="opacity:.55;font-size:10px;font-family:ui-monospace,monospace"> '+esc(cap.signature)+'</span>':'';
+      let inner='<span style="font-size:11px;padding:2px 9px;border-radius:99px;color:'+m.c+';background:rgba(0,0,0,.2);border:1px solid '+m.br+';white-space:nowrap">'+m.i+' '+m.l+'</span>'
+        +'<span style="flex:1;min-width:140px"><b>'+esc(cap.titre||cap.id)+'</b> <span style="opacity:.45;font-size:10px">['+esc(cap.type||'?')+']</span>'+sig+consomme+'</span>';
+      if(cap.statut==='a_reparer'||cap.statut==='echouee'){
+        inner+='<button onclick="reparerCapacite(\''+esc(cap.id)+'\',this)" style="font-size:11px;padding:4px 12px;background:rgba(251,146,60,.15);border:1px solid rgba(251,146,60,.4);color:#fb923c;border-radius:6px;cursor:pointer">&#128295; Reparer</button>';
+      }
+      el.innerHTML=inner;
+      cont.appendChild(el);
+    }
+  }catch(e){}
+}
+
+async function diagnostiquerConscience(btn){
+  if(btn){btn.disabled=true;btn.textContent='Le systeme se regarde…';}
+  try{
+    const r=await fetch('/savoir/conscience/diagnostiquer',{method:'POST'});
+    const d=await r.json();
+    if(btn){
+      const nb=(d.changements||[]).length;
+      btn.textContent=nb?(nb+' changement(s) detecte(s)'):'A jour';
+      setTimeout(function(){btn.textContent='Diagnostiquer';btn.disabled=false;},2200);
+    }
+    loadConscience();
+  }catch(e){if(btn){btn.textContent='Erreur';btn.disabled=false;}}
+}
+
+async function reparerCapacite(id,btn){
+  if(btn){btn.disabled=true;btn.textContent='Forge…';}
+  try{
+    const r=await fetch('/savoir/conscience/'+encodeURIComponent(id)+'/reparer',{method:'POST'});
+    const d=await r.json();
+    if(d.ok&&d.job_id){
+      if(typeof _bulleProgression==='function')_bulleProgression(d.job_id,'cellule',btn);
+      else if(btn){btn.textContent='Forge lancee';}
+      setTimeout(loadConscience,2500);
+    }else{
+      if(btn){btn.textContent='Echec : '+((d.detail||d.raison||'')+'').slice(0,30);btn.disabled=false;}
+    }
+  }catch(e){if(btn){btn.textContent='Erreur';btn.disabled=false;}}
 }

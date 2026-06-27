@@ -33,13 +33,42 @@ body{
 
 /* ── 3. VIDEO BACKGROUND ── */
 #bg-canvas{display:none;}
-#bg-video{
+#bg-video,#bg-video-light-1,#bg-video-light-2{
   position:fixed;inset:0;z-index:0;
   width:100%;height:100%;object-fit:cover;
-  pointer-events:none;opacity:.06;
-  transition:opacity .6s;
+  pointer-events:none;opacity:0;
+  transition:opacity 1s ease;
 }
-body.dark #bg-video{opacity:.17;}
+/* Dark video : contain pour voir le logo entier (fond noir = pas de letterbox visible) */
+#bg-video{object-fit:contain;}
+body.dark #bg-video{opacity:.22;}
+
+/* Mode clair : permutation douce entre les 2 vidéos (cycle 22s) */
+body:not(.dark) #bg-video-light-1{animation:lv1 22s ease-in-out infinite;}
+body:not(.dark) #bg-video-light-2{animation:lv2 22s ease-in-out infinite;}
+@keyframes lv1{
+  0%,3%{opacity:0;}
+  7%,44%{opacity:.15;}
+  50%,100%{opacity:0;}
+}
+@keyframes lv2{
+  0%,50%{opacity:0;}
+  56%,93%{opacity:.15;}
+  97%,100%{opacity:0;}
+}
+
+/* Vignette dark — fondu gauche/droite (masque les bords du logo contain) */
+#bg-vignette{
+  position:fixed;inset:0;z-index:1;
+  pointer-events:none;opacity:0;
+  transition:opacity 1s ease;
+  background:
+    linear-gradient(to right,  rgba(0,0,0,.96) 0%, rgba(0,0,0,.60) 7%, transparent 20%),
+    linear-gradient(to left,   rgba(0,0,0,.96) 0%, rgba(0,0,0,.60) 7%, transparent 20%),
+    linear-gradient(to bottom, rgba(0,0,0,.55) 0%, transparent 14%),
+    linear-gradient(to top,    rgba(0,0,0,.55) 0%, transparent 14%);
+}
+body.dark #bg-vignette{opacity:1;}
 
 /* Cascade video (sidebar décoration, derrière les nav items) */
 #cascade-video{
@@ -107,10 +136,9 @@ header h1 b{font-weight:900;}
 .layer{
   position:relative;border-radius:18px;cursor:pointer;
   transform-style:preserve-3d;transform:translateZ(var(--z,0px));
-  background:linear-gradient(135deg,rgba(255,255,255,.68),rgba(255,255,255,.24) 52%,rgba(255,255,255,.42));
-  border:1px solid rgba(255,255,255,.72);
-  box-shadow:inset 0 2px 0 rgba(255,255,255,.95),inset 0 -16px 30px rgba(255,255,255,.10),
-    0 26px 50px rgba(15,23,42,.18),0 8px 16px rgba(15,23,42,.10);
+  background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(236,255,242,.04) 52%,rgba(255,255,255,.07));
+  border:1px solid rgba(22,198,94,.22);
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.50),0 20px 44px rgba(15,23,42,.10),0 6px 14px rgba(15,23,42,.05);
   display:flex;align-items:center;gap:14px;padding:0 22px;
   transition:transform .45s cubic-bezier(.23,1,.32,1),box-shadow .3s;overflow:hidden;
 }
@@ -121,12 +149,13 @@ body.dark .layer{
     0 22px 44px rgba(0,0,0,.55),0 7px 14px rgba(0,0,0,.40);
 }
 
-/* specular reflet suit la souris */
+/* specular reflet suit la souris — désactivé en mode clair (inutile sur fond blanc) */
 .layer::before{
   content:'';position:absolute;inset:0;border-radius:18px;pointer-events:none;
-  background:radial-gradient(220px 220px at var(--mx,30%) var(--my,0%),rgba(255,255,255,.6),transparent 62%);
-  opacity:.5;mix-blend-mode:screen;transition:opacity .3s;
+  background:radial-gradient(200px 200px at var(--mx,30%) var(--my,0%),rgba(255,255,255,.32),transparent 64%);
+  opacity:0;mix-blend-mode:screen;transition:opacity .3s;
 }
+body:not(.dark) .layer:hover::before{opacity:0!important;}
 body.dark .layer::before{
   background:radial-gradient(200px 200px at var(--mx,30%) var(--my,0%),rgba(0,255,65,.22),transparent 65%);
   opacity:.4;

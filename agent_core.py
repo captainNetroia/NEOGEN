@@ -166,7 +166,7 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
                      "objectif_rpa", "executer_mission_rpa", "remote_control",
                      "contexte_navigateur", "controler_ecran", "regarder_ecran"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent"],
-    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "appeler_agent"],
+    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "appeler_agent"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],
 }
 

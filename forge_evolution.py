@@ -44,13 +44,17 @@ _GENOME = os.path.join(BASE, "genome.json")
 # Marqueur imprime par le smoke-test si le module se charge proprement en conteneur.
 _MARQUEUR_CHARGE = "___FORGE_CHARGE_OK___"
 
+# Nombre maximal de tentatives generate->test->repare (boucle « jusqu'a ce que ça marche »).
+MAX_TENTATIVES = 3
+
 # Etapes lisibles (pour la bulle de progression cote UI).
 _ETAPES = {
     "demarre":    "Initialisation…",
     "generation": "Génération du code…",
     "test":       "Test en sandbox isolée…",
     "validation": "Contrôle des murs…",
-    "termine":    "Code généré & testé",
+    "integration": "Intégration au système…",
+    "termine":    "Code généré, testé & intégré",
     "refuse":     "Refusé",
 }
 
@@ -227,6 +231,26 @@ def _refus_si_mur(cell):
     return (False, "necessite revue manuelle (cellule au contact d'un mur)")
 
 
+def _integrer(nom: str) -> dict:
+    """Branche reellement la cellule persistee dans le systeme (la rend appelable) et
+    VERIFIE que ça marche. C'est ce qui transforme 'forgee' (code sur disque) en
+    'integree' (vraie porte d'acces ouverte). Ne leve jamais."""
+    try:
+        import capacites_forgees as cf
+        cf.recharger()
+        return cf.verifier_integration(nom)
+    except Exception as e:
+        return {"ok": False, "resume": f"integration impossible : {e}"}
+
+
+def _besoin_repare(besoin: str, tentative: int, erreur: str, conseil: str = "") -> str:
+    """Reinjecte l'erreur de la tentative precedente dans le besoin pour la generation suivante."""
+    return (f"{besoin}\n\n[TENTATIVE {tentative} ÉCHOUÉE] {erreur}. "
+            f"{conseil or 'Corrige précisément ce problème.'} "
+            f"Le code doit être une fonction Python autonome, sans input()/stdin, "
+            f"sans accès réseau ni suppression de fichiers, et retourner un dict.")
+
+
 def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "",
            user: dict | None = None) -> dict:
     """Genere une cellule de code reel a partir d'un besoin, la teste, la valide contre les murs.
@@ -245,61 +269,125 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
             rob.journaliser(f"forge refusee par le noyau : {motif}", "alerte", source="forge_evolution")
             return {"ok": False, "etat": "refusee", "raison": motif}
 
-        # 2. Generation du vrai code par Claude.
-        _set_job(job_id, etat="en_cours", etape="generation", pct=20)
+        # Prepare les briques de generation/validation (une seule fois).
         try:
             import generator
             from vivarium import Genome, Ledger, Membrane
             genome = Genome(_GENOME)
-            cell = generator.generate_cell(besoin, genome, origin="forge")
         except Exception as e:
             _set_job(job_id, etat="refusee", etape="refuse", pct=100,
-                     raison=f"génération échouée : {e}")
-            rob.journaliser(f"forge : generation echouee : {e}", "erreur", source="forge_evolution")
-            return {"ok": False, "etat": "refusee", "raison": f"génération échouée : {e}"}
+                     raison=f"préparation échouée : {e}")
+            return {"ok": False, "etat": "refusee", "raison": f"préparation échouée : {e}"}
 
-        # 3. Smoke-test en sandbox + analyse des effets reels (quarantaine honnete).
-        _set_job(job_id, etat="en_cours", etape="test", pct=55)
-        test = _smoke_test(cell.code or "")
-        cell.actual_effects = _effets_reels(cell.code or "")
-        if not test.get("ok"):
+        # BOUCLE generate -> test -> valide -> repare (jusqu'a ce que ça marche, borne MAX_TENTATIVES).
+        besoin_courant = besoin
+        derniere_erreur = ""
+        cell = decision = raison = score = test = None
+        succes = False
+        for tentative in range(1, MAX_TENTATIVES + 1):
+            pct_base = 10 + (tentative - 1) * 25
+
+            # 2. Generation du vrai code par Claude (besoin enrichi des echecs precedents).
+            _set_job(job_id, etat="en_cours", etape="generation", pct=min(pct_base, 90),
+                     tentative=tentative, tentatives_max=MAX_TENTATIVES)
+            try:
+                cell = generator.generate_cell(besoin_courant, genome, origin="forge")
+            except Exception as e:
+                derniere_erreur = f"génération échouée : {e}"
+                besoin_courant = _besoin_repare(besoin, tentative, derniere_erreur)
+                continue
+
+            # 2b. Règle interdire_input : pas de stdin -> on reforge avec consigne explicite.
+            if re.search(r'\binput\s*\(|\bsys\.stdin\b|\braw_input\s*\(', cell.code or ""):
+                derniere_erreur = "code contient input()/sys.stdin (interdit)"
+                besoin_courant = _besoin_repare(
+                    besoin, tentative, derniere_erreur,
+                    "N'utilise JAMAIS input() ; reçois les données par paramètres de fonction.")
+                continue
+
+            # 3. Smoke-test sandbox + effets reels (quarantaine honnete).
+            _set_job(job_id, etat="en_cours", etape="test", pct=min(pct_base + 12, 92),
+                     tentative=tentative, tentatives_max=MAX_TENTATIVES)
+            test = _smoke_test(cell.code or "")
+            cell.actual_effects = _effets_reels(cell.code or "")
+            if not test.get("ok"):
+                derniere_erreur = f"test échoué : {test.get('resume')}"
+                besoin_courant = _besoin_repare(besoin, tentative, derniere_erreur)
+                continue
+
+            # 4. Membrane : quarantaine adversariale + murs + escalade fail-closed.
+            _set_job(job_id, etat="en_cours", etape="validation", pct=min(pct_base + 18, 95),
+                     tentative=tentative, tentatives_max=MAX_TENTATIVES)
+            try:
+                membrane = Membrane(genome, Ledger(), human_decision=_refus_si_mur)
+                decision, raison, score = membrane.evaluate(cell)
+            except Exception as e:
+                derniere_erreur = f"validation échouée : {e}"
+                besoin_courant = _besoin_repare(besoin, tentative, derniere_erreur)
+                continue
+            if decision != "ACCEPTE":
+                derniere_erreur = f"murs : {raison}"
+                besoin_courant = _besoin_repare(
+                    besoin, tentative, derniere_erreur,
+                    "Reste loin des murs : aucun accès réseau, aucune suppression de données.")
+                continue
+
+            succes = True
+            break
+
+        if not succes:
             _set_job(job_id, etat="refusee", etape="refuse", pct=100,
-                     raison=f"test échoué : {test.get('resume')}")
-            rob.journaliser(f"forge : test echoue : {test.get('resume')}", "alerte",
-                            source="forge_evolution")
-            return {"ok": False, "etat": "refusee", "raison": test.get("resume"), "test": test}
-
-        # 4. Membrane : quarantaine adversariale + murs + escalade fail-closed.
-        _set_job(job_id, etat="en_cours", etape="validation", pct=80)
-        try:
-            membrane = Membrane(genome, Ledger(), human_decision=_refus_si_mur)
-            decision, raison, score = membrane.evaluate(cell)
-        except Exception as e:
-            _set_job(job_id, etat="refusee", etape="refuse", pct=100,
-                     raison=f"validation échouée : {e}")
-            return {"ok": False, "etat": "refusee", "raison": f"validation échouée : {e}"}
-
-        if decision != "ACCEPTE":
-            _set_job(job_id, etat="refusee", etape="refuse", pct=100, raison=raison, verdict=decision)
-            rob.journaliser(f"forge : cellule rejetee par la Membrane : {raison}", "alerte",
-                            source="forge_evolution")
-            return {"ok": False, "etat": "refusee", "raison": raison, "verdict": decision}
+                     raison=derniere_erreur, tentative=MAX_TENTATIVES, tentatives_max=MAX_TENTATIVES)
+            rob.journaliser(f"forge : echec apres {MAX_TENTATIVES} tentatives : {derniere_erreur}",
+                            "alerte", source="forge_evolution")
+            try:
+                import conscience
+                cid = re.sub(r"[^a-z0-9_]+", "_", (titre or "cellule").lower()).strip("_") or "cellule"
+                conscience.enregistrer(cid, type="cellule", titre=titre or cid, statut="echouee",
+                                       note=derniere_erreur, pensee_id=pensee_id, tentatives=MAX_TENTATIVES)
+            except Exception:
+                pass
+            return {"ok": False, "etat": "refusee", "raison": derniere_erreur,
+                    "tentatives": MAX_TENTATIVES, "test": test}
 
         # 5. Acceptee + testee -> persiste le code reel (avec lien vers la pensee d'origine).
         nom = _persister_cellule(cell, score, raison, test,
                                  pensee_id=pensee_id, pensee_titre=titre)
+
+        # 6. INTEGRATION REELLE : branche la cellule + verifie qu'elle est appelable.
+        _set_job(job_id, etat="en_cours", etape="integration", pct=97,
+                 nom=nom, tentative=tentative, tentatives_max=MAX_TENTATIVES)
+        integ = _integrer(nom)
+        statut_final = "integree" if integ.get("ok") else "forgee"
+
         try:
             import evolution_gouvernee
             evolution_gouvernee._notifier_generation(
                 "cellule", titre or nom, f"cellule '{nom}' forgee (score {score}) : {cell.description}")
         except Exception:
             pass
-        _set_job(job_id, etat="generee", etape="termine", pct=100,
-                 nom=nom, score=score, verdict=decision)
-        rob.journaliser(f"forge : cellule '{nom}' generee & testee (score {score})", "succes",
-                        source="forge_evolution")
-        return {"ok": True, "etat": "generee", "nom": nom, "score": score,
-                "verdict": decision, "raison": raison, "test": test}
+
+        # 7. CONSCIENCE : le systeme sait desormais que cette capacite existe et son statut reel.
+        try:
+            import conscience
+            conscience.enregistrer(
+                nom, type="cellule", titre=titre or nom, statut=statut_final,
+                note=integ.get("resume", ""), cellule=nom, fonction=integ.get("fonction"),
+                signature=integ.get("signature"), score=score, verdict=decision,
+                hook_point="capacites_forgees.CAPACITES", consomme_par=["outils.capacite_forgee"],
+                pensee_id=pensee_id, tentatives=tentative)
+        except Exception:
+            pass
+
+        _set_job(job_id, etat=statut_final, etape="termine", pct=100,
+                 nom=nom, score=score, verdict=decision, integ=integ.get("ok"),
+                 signature=integ.get("signature"), tentative=tentative, tentatives_max=MAX_TENTATIVES)
+        rob.journaliser(
+            f"forge : cellule '{nom}' {statut_final} (score {score}, {tentative} tentative(s), "
+            f"integration={'ok' if integ.get('ok') else 'differee'})", "succes", source="forge_evolution")
+        return {"ok": True, "etat": statut_final, "nom": nom, "score": score,
+                "verdict": decision, "raison": raison, "test": test,
+                "integration": integ, "tentatives": tentative}
 
     # rob.garde a absorbe une exception -> job en echec propre, jamais de zombie.
     _set_job(job_id, etat="refusee", etape="refuse", pct=100, raison="erreur capturée (voir journal)")
@@ -349,6 +437,23 @@ if __name__ == "__main__":
     _REGISTRE = os.path.join(_tmp, "cellules_forgees.json")
     _JOBS = os.path.join(_tmp, "forge_jobs.json")
 
+    # Rediriger AUSSI capacites_forgees + conscience vers le temp (integration reelle isolee).
+    import capacites_forgees as _cf
+    import conscience as _co
+    _cf._DATA = _tmp
+    _cf._CELLULES_DIR = _CELLULES_DIR
+    _cf._REGISTRE = _REGISTRE
+    _co._DATA = _tmp
+    _co._REGISTRE = os.path.join(_tmp, "registre_capacites.json")
+
+    def _attendre(job, n=80):
+        for _ in range(n):
+            st = statut_job(job)
+            if st.get("etat") in ("integree", "forgee", "generee", "refusee"):
+                return st
+            time.sleep(0.05)
+        return statut_job(job)
+
     from vivarium import Cell
 
     # generator factice : renvoie une Cell propre (code sain, aucun effet).
@@ -379,53 +484,66 @@ if __name__ == "__main__":
     faux_exe.executer_en_conteneur = lambda code, timeout=20: (0, _MARQUEUR_CHARGE, "", "<test>")
     sys.modules["executeur_conteneur"] = faux_exe
 
-    # 1. Cas propre : ACCEPTE -> code persiste + registre + job termine.
+    # 1. Cas propre : ACCEPTE -> code persiste + INTEGRE + connu de la conscience.
     job = lancer_forge_async("Repare les continuations de ligne", titre="Auto-reparation")
-    # le thread est synchrone-ish ; on attend qu'il finisse.
-    for _ in range(50):
-        st = statut_job(job)
-        if st.get("etat") in ("generee", "refusee"):
-            break
-        time.sleep(0.05)
-    st = statut_job(job)
-    assert st["etat"] == "generee", st
+    st = _attendre(job)
+    assert st["etat"] == "integree", st
     assert lister_cellules(), "la cellule doit etre persistee"
-    c = cellule(lister_cellules()[0]["nom"])
+    nom_cell = st["nom"]
+    c = cellule(nom_cell)
     assert c and "def executer" in c["code"], c
-    print(f"  cas propre : ACCEPTE -> cellule '{st['nom']}' persistee (score {st.get('score')}) OK")
+    # Integration reelle : la cellule est devenue une fonction appelable.
+    r_inv = _cf.invoquer(nom_cell)
+    assert r_inv["ok"] and r_inv["resultat"] == {"ok": True}, r_inv
+    # Conscience : le systeme SAIT que cette capacite est integree.
+    cap = _co.obtenir(nom_cell)
+    assert cap and cap["statut"] == "integree", cap
+    print(f"  cas propre : '{nom_cell}' integree + invocable + connue de la conscience OK")
 
-    # 2. Cas mur : code qui touche au reseau -> effets reels divergents -> REJET, pas de persistance.
+    # 2. Cas mur : code reseau -> rejete apres {MAX} tentatives, aucune persistance.
     faux_gen.generate_cell = _faux_generate(False)
     n_avant = len(lister_cellules())
     job2 = lancer_forge_async("Recupere le nom d'hote via le reseau", titre="Acces reseau")
-    for _ in range(50):
-        st2 = statut_job(job2)
-        if st2.get("etat") in ("generee", "refusee"):
-            break
-        time.sleep(0.05)
-    st2 = statut_job(job2)
+    st2 = _attendre(job2)
     assert st2["etat"] == "refusee", st2
     assert len(lister_cellules()) == n_avant, "une cellule au contact d'un mur ne doit pas etre persistee"
-    print(f"  cas mur : REJET fail-closed ({st2.get('raison')}) -> aucune persistance OK")
+    print(f"  cas mur : REJET fail-closed apres {st2.get('tentative')} tentative(s) -> 0 persistance OK")
 
-    # 3. Syntaxe invalide -> refuse au smoke-test.
+    # 3. Boucle de reparation : echec a la tentative 1 (syntaxe), succes a la 2.
+    _cpt = {"n": 0}
+    def _gen_repare(need, genome, origin="forge"):
+        _cpt["n"] += 1
+        c = Cell(name="repare_au_second_essai", description="Repare au 2e essai", origin=origin,
+                 declared_effects={"deletes_data": False, "asks_confirmation": False,
+                                   "network_access": False, "authorized_network": False},
+                 cursor_scores={"simplicite": 80, "vitesse": 80, "lisibilite": 80})
+        c.code = ("def executer(:\n  return" if _cpt["n"] == 1
+                  else "def executer(donnees=None):\n    return {'ok': True}\n")
+        return c
+    faux_gen.generate_cell = _gen_repare
+    job4 = lancer_forge_async("Capacite qui se repare", titre="Repare au second essai")
+    st4 = _attendre(job4)
+    assert st4["etat"] == "integree", st4
+    assert st4.get("tentative") == 2, f"doit reussir a la 2e tentative : {st4}"
+    print(f"  boucle de reparation : echec t1 -> succes t2 -> integree (tentative {st4['tentative']}) OK")
+
+    # 4. Syntaxe toujours invalide -> refuse apres MAX tentatives + conscience = echouee.
     def _gen_casse(need, genome, origin="forge"):
-        c = Cell(name="casse", description="x", origin=origin,
+        c = Cell(name="casse_total", description="x", origin=origin,
                  declared_effects={"deletes_data": False, "asks_confirmation": False,
                                    "network_access": False, "authorized_network": False},
                  cursor_scores={"simplicite": 50, "vitesse": 50, "lisibilite": 50})
-        c.code = "def executer(:\n  return"  # syntaxe invalide
+        c.code = "def executer(:\n  return"  # toujours invalide
         return c
     faux_gen.generate_cell = _gen_casse
-    job3 = lancer_forge_async("Code casse", titre="Casse")
-    for _ in range(50):
-        st3 = statut_job(job3)
-        if st3.get("etat") in ("generee", "refusee"):
-            break
-        time.sleep(0.05)
-    assert statut_job(job3)["etat"] == "refusee"
-    print("  cas syntaxe invalide : refuse au smoke-test OK")
+    job3 = lancer_forge_async("Code casse", titre="Casse total")
+    st3 = _attendre(job3)
+    assert st3["etat"] == "refusee", st3
+    assert st3.get("tentative") == MAX_TENTATIVES, st3
+    cap_echec = _co.obtenir("casse_total")
+    assert cap_echec and cap_echec["statut"] == "echouee", cap_echec
+    print(f"  echec persistant : refuse apres {MAX_TENTATIVES} tentatives + conscience='echouee' OK")
 
     print("=" * 64)
-    print("  TOUT VERT : le pont forge fonctionne sans aucun appel reseau.")
+    print("  TOUT VERT : forge avec boucle de reparation + integration reelle + conscience.")
     print("=" * 64)

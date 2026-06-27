@@ -248,6 +248,15 @@ def appliquer(html: str, zone: str, *, titre: str = "", user: dict | None = None
                 "section", titre or f"fragment {zone}", f"fragment '{fid}' {action} (zone {zone})")
         except Exception:
             pass
+        # CONSCIENCE : un fragment applique est une capacite d'interface VIVANTE (integree a l'ecran).
+        try:
+            import conscience
+            conscience.enregistrer(f"frag:{zone}:{fid}", type="interface",
+                                   titre=titre or f"Bloc {zone}", statut="integree",
+                                   note=f"fragment {action} en zone {zone}", store="fragments_ui.json",
+                                   hook_point=f"UI/zone:{zone}", consomme_par=["ui (injection HTML)"])
+        except Exception:
+            pass
         rob.journaliser(f"forge fragment : '{fid}' {action} (zone {zone})", "succes",
                         source="forge_fragments")
         return {"ok": True, "portee": "complet", "id": fid, "zone": zone, "action": action}
@@ -319,6 +328,13 @@ def supprimer(zone: str, frag_id: str) -> dict:
     if len(store[z]) == avant:
         return {"ok": False, "raison": "fragment introuvable"}
     _sauver(store)
+    # CONSCIENCE : la capacite d'interface n'est plus vivante -> obsolete (coherence honnete).
+    try:
+        import conscience
+        if conscience.obtenir(f"frag:{z}:{frag_id}"):
+            conscience.maj_statut(f"frag:{z}:{frag_id}", "obsolete", note="fragment supprime de l'ecran")
+    except Exception:
+        pass
     rob.journaliser(f"forge fragment : '{frag_id}' supprime (zone {z})", "info", source="forge_fragments")
     return {"ok": True}
 

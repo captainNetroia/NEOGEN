@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import json as _json
+
 from fastapi import APIRouter, Body, Header, HTTPException, Query, Response
 
 import quotas as _quotas
 import savoir as _savoir
 import proposeur_hub as _proposeur
+
+# Clés de payload qui signalent qu'une règle nécessite du code runtime (pas juste JSON).
+_CLES_COMPORTEMENTALES = {"controle", "action", "etapes", "increment", "verification",
+                           "algorithme", "detecter", "scanner", "rejeter", "appliquer"}
+
+def _regle_necessite_code(payload: dict) -> bool:
+    return bool(_CLES_COMPORTEMENTALES & {str(k).lower() for k in payload})
 
 router = APIRouter(prefix="/savoir", tags=["savoir"])
 
@@ -238,6 +247,21 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
         r = _evo.proposer(evo["type"], payload, titre=p.get("titre", ""),
                           raison=evo.get("raison", "") or p.get("synthese", ""))
         r["voie"] = "data"
+
+        # Règle comportementale : AUSSI lancer la forge pour générer le code d'implémentation.
+        if r.get("ok") and evo.get("type") == "regle" and _regle_necessite_code(payload):
+            import forge_evolution as _fe
+            payload_visible = {k: v for k, v in payload.items() if not k.startswith("_")}
+            besoin = (
+                f"Implémenter la règle NEOGEN '{p.get('titre','')}' : "
+                f"{_json.dumps(payload_visible, ensure_ascii=False)[:400]}. "
+                f"Générer une fonction Python autonome testable qui applique cette règle "
+                f"et retourne {{\"ok\": bool, \"detail\": str}}. "
+                f"Ne modifier aucun fichier hors de data/."
+            )
+            job_id = _fe.lancer_forge_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
+            r["voie"] = "data+forge"
+            r["job_id"] = job_id
         return r
 
     # VOIE 3 : idee pure -> notee honnetement (proposition idee).
@@ -391,6 +415,37 @@ def evolution_cellule(nom: str, authorization: str | None = Header(default=None)
     if not c:
         raise HTTPException(status_code=404, detail="cellule introuvable")
     return c
+
+
+# ── Conscience du systeme : ce que NEOGEN sait de lui-meme ────────────────────────
+
+@router.get("/conscience")
+def conscience_etat(authorization: str | None = Header(default=None)):
+    """Vue d'auto-connaissance : etat global (sante %) + liste des capacites avec statut reel."""
+    _gate_owner(authorization)
+    import conscience as _c
+    return {"etat": _c.etat_systeme(), "capacites": _c.lister()}
+
+
+@router.post("/conscience/diagnostiquer")
+def conscience_diagnostiquer(authorization: str | None = Header(default=None)):
+    """Le systeme se regarde lui-meme : reconcilie le registre avec la realite
+    (cellules verifiees, regles sans code, tensions) et met a jour chaque statut."""
+    _gate_owner(authorization)
+    import conscience as _c
+    return _c.diagnostiquer()
+
+
+@router.post("/conscience/{id}/reparer")
+def conscience_reparer(id: str, authorization: str | None = Header(default=None)):
+    """Relance la forge sur une capacite a_reparer/echouee, avec le contexte d'echec injecte.
+    Renvoie {ok, job_id} -> l'UI poll /evolution/forge/{job_id} comme une forge normale."""
+    _gate_owner(authorization)
+    import conscience as _c
+    r = _c.reparer(id)
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("raison", "reparation impossible"))
+    return r
 
 
 # ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────

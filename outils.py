@@ -859,6 +859,34 @@ def _outil_integration_proxy(service: str = "", action: str = "", params: str = 
     return outil_integration(service=service, action=action, params=params, **kw)
 
 
+def outil_capacite_forgee(nom: str = "", params: str = "", **kw) -> str:
+    """Liste ou INVOQUE une capacite forgee (fonction Python generee, testee et integree
+    par la forge). Sans 'nom' -> liste les capacites integrees. Avec 'nom' -> appelle la
+    fonction. C'est le pont qui rend une cellule forgee REELLEMENT utilisable par les agents."""
+    import capacites_forgees as _cf
+    if not nom:
+        caps = _cf.lister()
+        if not caps:
+            return ("Aucune capacite forgee integree pour l'instant. "
+                    "Donne vie a une idee technique pour en generer une.")
+        return nettoyer("Capacites forgees integrees (appelables) :\n" + "\n".join(
+            f"- {c['nom']} : {c.get('signature','?')} — {c.get('resume','')}" for c in caps[:20]))
+    # Invocation : params peut etre un JSON string ou un dict.
+    if isinstance(params, dict):
+        params_dict = params
+    elif isinstance(params, str) and params.strip():
+        try:
+            params_dict = json.loads(params)
+        except json.JSONDecodeError as e:
+            return f"[capacite_forgee] params JSON invalide : {e}"
+    else:
+        params_dict = {}
+    r = _cf.invoquer(nom, **params_dict)
+    if r.get("ok"):
+        return nettoyer(f"[capacite_forgee] '{nom}' -> {r.get('resultat')}")
+    return f"[capacite_forgee] echec : {r.get('erreur', 'inconnu')}"
+
+
 # ---------------------------------------------------------------------------
 # nom outil -> (fonction, description courte pour le prompt)
 # ---------------------------------------------------------------------------
@@ -894,4 +922,5 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "proposer_evolution":     (outil_proposer_evolution,     "ÉCRIT VRAIMENT dans le système : agent, regle, skill, modele, loi, idee, capacite. C'est le seul outil qui modifie les stores data-driven. Si admin (local) -> applique direct. Sinon -> propose en attente. params: {type_evo, payload (JSON string), titre?, raison?}"),
     "appeler_agent":          (outil_appeler_agent,          "Appelle un autre agent NEOGEN et retourne sa reponse directement (pair-a-pair, profondeur max 3, auto-appel interdit). Pour deleguer selon expertise : Architecte->Veilleur, Analyste->Architecte, etc. params: {cle (nom agent), mission}"),
     "integration":            (_outil_integration_proxy,     "Appelle un service integre par l'utilisateur (Notion, Slack, GitHub, Telegram, Discord, HubSpot, Brevo, Airtable, Todoist, Calendly, Figma, Vercel, Perplexity, Tavily, ElevenLabs...). params: {service, action, params}"),
+    "capacite_forgee":        (outil_capacite_forgee,        "Liste ou invoque une capacite forgee (fonction Python generee+testee+integree par la forge). Sans nom -> liste ; avec nom -> appelle. params: {nom?, params? (JSON)}"),
 }

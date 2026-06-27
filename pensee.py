@@ -37,6 +37,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(BASE, "data")
 _PENSEES_PATH = os.path.join(_DATA, "pensees.jsonl")
 _CONFIG_PATH = os.path.join(_DATA, "pensee_config.json")
+_REUSE_PATH = os.path.join(_DATA, "pensee_reuse_counts.json")
 
 # Ollama (mode eco/local) : dans le conteneur, l'hote est joignable via
 # host.docker.internal. Surchargeable par env pour le dev local.
@@ -177,6 +178,27 @@ def _amorce(n: int = 3) -> list[dict]:
         return []
 
 
+def _incrementer_reuse_count(ids: list) -> None:
+    """Règle compteur_de_reutilisation_des_pensees : +1 par pensée chargée en rappel contextuel."""
+    if not ids:
+        return
+    try:
+        try:
+            with open(_REUSE_PATH, encoding="utf-8") as f:
+                counts = json.load(f)
+        except (FileNotFoundError, ValueError):
+            counts = {}
+        for pid in ids:
+            if not pid:
+                continue
+            entry = counts.setdefault(pid, {"count": 0})
+            entry["count"] = entry.get("count", 0) + 1
+        with open(_REUSE_PATH, "w", encoding="utf-8") as f:
+            json.dump(counts, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
 def _charger_fil_contextuel(sujet: str | None, n: int = 5) -> list[str]:
     """Charge les N syntheses passees dont les mots-cles recoupent le sujet courant,
     creant une 'lignee de reflexion'. Active uniquement si la regle rappel_contextuel_actif
@@ -208,9 +230,9 @@ def _charger_fil_contextuel(sujet: str | None, n: int = 5) -> list[str]:
         return recoupement * 2 + float(p.get("score", 0))
 
     tries = sorted(passees, key=_score_fil, reverse=True)
-    return [(p.get("synthese") or p.get("titre") or "")[:200]
-            for p in tries[:n]
-            if (p.get("synthese") or p.get("titre"))]
+    selectionnes = [p for p in tries[:n] if (p.get("synthese") or p.get("titre"))]
+    _incrementer_reuse_count([p.get("id") for p in selectionnes if p.get("id")])
+    return [(p.get("synthese") or p.get("titre") or "")[:200] for p in selectionnes]
 
 
 def _participants(sujet: str | None = None) -> list[dict]:
