@@ -5,7 +5,7 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from .deps import _auth, _est_admin, _exiger_byok, _verifier_quota
+from .deps import _auth, _est_admin, _exiger_byok
 
 router = APIRouter()
 
@@ -25,6 +25,13 @@ class SkillBody(BaseModel):
 
 class ImportSkillBody(BaseModel):
     skills: list[dict]
+
+
+class PublierSkillBody(BaseModel):
+    nom: str
+    description: str = ""
+    categorie: str = "General"
+    tags: list[str] = Field(default_factory=list)
 
 
 class TacheBody(BaseModel):
@@ -127,6 +134,41 @@ def importer_skills(body: ImportSkillBody):
     import competences
     result = competences.importer_depuis_registry(body.skills)
     return {"ok": True, **result}
+
+
+@router.post("/skills/publier")
+def publier_skill(body: PublierSkillBody):
+    """Propose un skill local pour la bibliothèque communautaire.
+    Sauvegarde dans la file de curation locale ; Jordan valide avant publication."""
+    import competences, pathlib, json, datetime
+    # Vérifier que le skill existe localement
+    sk = competences.charger(body.nom)
+    if not sk:
+        raise HTTPException(status_code=404, detail=f"Skill '{body.nom}' non trouvé localement.")
+    # File de curation : data/skills_curation.json
+    curation_file = pathlib.Path(__file__).parent.parent / "data" / "skills_curation.json"
+    try:
+        queue: list = json.loads(curation_file.read_text(encoding="utf-8")) if curation_file.exists() else []
+    except Exception:
+        queue = []
+    # Éviter les doublons en attente
+    if any(e.get("nom") == body.nom for e in queue):
+        raise HTTPException(status_code=409, detail="Ce skill est déjà en attente de validation.")
+    entry = {
+        "nom": body.nom,
+        "titre": sk.get("titre", body.nom),
+        "description": body.description or sk.get("description", ""),
+        "instructions": sk.get("instructions", ""),
+        "outils": sk.get("outils", []),
+        "categorie": body.categorie,
+        "tags": body.tags,
+        "date_soumission": datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+        "statut": "en_attente",
+    }
+    queue.append(entry)
+    curation_file.parent.mkdir(parents=True, exist_ok=True)
+    curation_file.write_text(json.dumps(queue, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "message": "Skill soumis pour curation.", "nom": body.nom}
 
 
 # ── Auto-amélioration ───────────────────────────────────────────────────────────

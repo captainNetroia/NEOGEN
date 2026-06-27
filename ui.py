@@ -23,10 +23,12 @@ def _head() -> str:
 <title>NEOGEN</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
+<body class="dark">
 
-<!-- SHADER CANVAS (fond fixe) -->
-<canvas id="bg-canvas"></canvas>
+<!-- VIDEO BACKGROUND (fond fixe, Matrix) -->
+<video id="bg-video" autoplay loop muted playsinline>
+  <source src="/static/video-logo-matrix.mp4" type="video/mp4">
+</video>
 
 <header>
   <h1 onclick="showLanding()">NEO<b>GEN</b></h1>
@@ -43,6 +45,10 @@ def _head() -> str:
 def _sidebar() -> str:
     return r"""<!-- SIDEBAR (flottant, visible en mode section) -->
 <nav class="sidebar" id="sidebar">
+  <!-- Cascade Matrix (derriere les nav items) -->
+  <video id="cascade-video" autoplay loop muted playsinline>
+    <source src="/static/video-cascade-matrix.mp4" type="video/mp4">
+  </video>
   <div class="side-home" onclick="showLanding()">
     <span class="side-back">←</span>
     <span class="side-title">NEO<b>GEN</b></span>
@@ -89,6 +95,7 @@ def _landing() -> str:
     return r"""<!-- LANDING -->
 <div id="landing">
   <div class="landing-title">
+    <img src="/static/Logo-Neogen-transparent.png" alt="NEOGEN" class="neogen-logo">
     <h2>NEO<b>GEN</b></h2>
     <p>Une intention devient une application gouvernee, generee et executee en conteneur durci.</p>
   </div>
@@ -97,7 +104,7 @@ def _landing() -> str:
     <div class="bento-3d">
 
     <div class="layer" onclick="showSection('cerveau')">
-      <span class="layer-marker" style="--lc:#a855f7"></span>
+      <span class="layer-marker" style="--lc:#16c65e"></span>
       <div class="layer-label"><h3>Cerveaux</h3><p>Le super-agent qui coordonne les autres et agit pour toi</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
@@ -333,12 +340,41 @@ def _section_cerveau() -> str:
     <div id="skills-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
   </div>
 
-  <!-- Modal bibliotheque de skills -->
+  <!-- Modal bibliotheque de skills communautaires -->
   <div id="skills-lib-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
-    <div class="glass panel" style="width:min(540px,95vw);max-height:80vh;overflow-y:auto;padding:22px 24px;position:relative">
+    <div class="glass panel" style="width:min(680px,96vw);max-height:88vh;overflow-y:auto;padding:22px 24px;position:relative">
       <button onclick="document.getElementById('skills-lib-modal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--mut)">&times;</button>
-      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);margin-bottom:14px">Bibliotheque communautaire</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut)">Bibliotheque communautaire</div>
+        <button class="ghost" style="font-size:12px;padding:4px 12px;color:var(--acc)" onclick="openPublishSkillForm()">+ Proposer un skill</button>
+      </div>
+      <input type="text" id="skills-lib-search" class="skill-lib-search" placeholder="Rechercher un skill..." oninput="_renderSkillsLibList(this.value)">
+      <div class="skill-lib-filter" id="skills-lib-filters"></div>
       <div id="skills-lib-list"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+      <!-- Sous-formulaire publication -->
+      <div id="skills-publish-form" style="display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+        <div style="font-size:12px;font-weight:700;color:var(--mut);margin-bottom:10px;text-transform:uppercase;letter-spacing:.7px">Proposer un skill</div>
+        <select id="spf-skill-select" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px">
+          <option value="">-- Choisir un skill local --</option>
+        </select>
+        <input type="text" id="spf-desc" placeholder="Description publique (max 200 caracteres)..." style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px;outline:none">
+        <select id="spf-cat" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px">
+          <option value="General">General</option>
+          <option value="Analyse">Analyse</option>
+          <option value="Production">Production</option>
+          <option value="RPA">RPA</option>
+          <option value="Recherche">Recherche</option>
+          <option value="Communication">Communication</option>
+          <option value="E-commerce">E-commerce</option>
+          <option value="Juridique">Juridique</option>
+        </select>
+        <input type="text" id="spf-tags" placeholder="Tags separes par virgule (ex: analyse,pdf,rapport)..." style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:10px;outline:none">
+        <div style="display:flex;gap:8px">
+          <button class="ghost" style="font-size:12px;flex:1" onclick="submitPublishSkill()">Proposer</button>
+          <button class="ghost" style="font-size:12px;color:var(--mut)" onclick="document.getElementById('skills-publish-form').style.display='none'">Annuler</button>
+        </div>
+        <div id="spf-status" style="font-size:12px;margin-top:8px;color:var(--mut)"></div>
+      </div>
     </div>
   </div>
 
@@ -458,7 +494,7 @@ def _section_compte() -> str:
   <!-- Telemetrie RGPD -->
   <div class="panel glass" style="margin-bottom:18px" id="telemetrie-panel">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Amelioration communautaire (opt-in)</div>
-    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Contribue a rendre NEOGEN plus intelligent. Donnees anonymisees. <b style="color:#f59e0b">+5 GEN/mois</b> si tu participes.</div>
+    <div style="font-size:12px;color:var(--mut);margin-bottom:10px">Contribue a rendre NEOGEN plus intelligent. Donnees anonymisees. <b style="color:#f59e0b">+200 GEN/mois</b> si tu participes.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap" id="tele-consent-btns">
       <button class="ghost tele-btn" data-niveau="aucun" style="font-size:12px;padding:5px 12px">Aucun</button>
       <button class="ghost tele-btn" data-niveau="erreurs" style="font-size:12px;padding:5px 12px">Erreurs only</button>

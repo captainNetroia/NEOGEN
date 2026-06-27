@@ -1,6 +1,6 @@
 {
-  "version": "1",
-  "mis_a_jour": "2026-06-24",
+  "version": "2",
+  "mis_a_jour": "2026-06-27",
   "auteur": "NetroIA — captain@netroia.com",
   "skills": [
     {
@@ -9,7 +9,13 @@
       "description": "Lit un fichier (PDF/DOCX/TXT) et produit un résumé structuré en 5 points clés.",
       "instructions": "1. Utilise lire_fichier pour lire le document fourni par l'utilisateur.\n2. Identifie le sujet principal, les 5 points les plus importants, et une conclusion en 1 phrase.\n3. Présente le résumé avec des bullets clairs. Si le document est trop long, concentre-toi sur l'introduction et la conclusion.",
       "outils": ["lire_fichier"],
-      "auteur": "NetroIA"
+      "auteur": "NetroIA",
+      "categorie": "Analyse",
+      "tags": ["résumé", "document", "pdf", "synthèse"],
+      "note": 4.8,
+      "nb_notes": 42,
+      "nb_installations": 318,
+      "date_publication": "2026-05-10"
     },
     {
       "nom": "creer_rapport_analyse",
@@ -17,7 +23,13 @@
       "description": "Analyse un sujet ou un document et génère un rapport DOCX téléchargeable.",
       "instructions": "1. Si un fichier est joint, utilise lire_fichier pour en extraire le contenu.\n2. Analyse en identifiant : contexte, points forts, points faibles, opportunités, risques (SWOT si pertinent).\n3. Utilise creer_rapport pour générer le DOCX avec des sections claires (titre, sections ## pour chaque partie).\n4. Fournis le lien de téléchargement à l'utilisateur.",
       "outils": ["lire_fichier", "creer_rapport"],
-      "auteur": "NetroIA"
+      "auteur": "NetroIA",
+      "categorie": "Production",
+      "tags": ["rapport", "SWOT", "analyse", "docx"],
+      "note": 4.6,
+      "nb_notes": 37,
+      "nb_installations": 241,
+      "date_publication": "2026-05-10"
     },
     {
       "nom": "rechercher_et_synthetiser",
@@ -25,7 +37,13 @@
       "description": "Analyse un sujet en profondeur et produit une synthèse structurée avec rapport DOCX.",
       "instructions": "1. Analyse la demande de l'utilisateur et décompose le sujet en sous-questions clés.\n2. Mobilise tes connaissances sur le sujet : contexte, enjeux, acteurs, tendances récentes.\n3. Structure la synthèse en : contexte (2 phrases), points clés (bullets), analyse critique, conclusion.\n4. Utilise creer_rapport pour générer un DOCX téléchargeable avec des sections ## claires.\n5. Fournis le lien de téléchargement à l'utilisateur.",
       "outils": ["creer_rapport"],
-      "auteur": "NetroIA"
+      "auteur": "NetroIA",
+      "categorie": "Recherche",
+      "tags": ["recherche", "synthèse", "veille", "rapport"],
+      "note": 4.9,
+      "nb_notes": 61,
+      "nb_installations": 497,
+      "date_publication": "2026-05-10"
     },
     {
       "nom": "automatiser_formulaire",
@@ -33,7 +51,13 @@
       "description": "Ouvre une URL, analyse le formulaire à l'écran et le remplit automatiquement.",
       "instructions": "1. Ouvre l'URL cible avec ouvrir_url.\n2. Utilise regarder_ecran pour identifier les champs du formulaire et leurs coordonnées réelles.\n3. Utilise controler_ecran pour remplir chaque champ (clique, tape le texte).\n4. Vérifie visuellement avant de valider. Ne soumet JAMAIS sans confirmation de l'utilisateur.",
       "outils": ["ouvrir_url", "regarder_ecran", "controler_ecran"],
-      "auteur": "NetroIA"
+      "auteur": "NetroIA",
+      "categorie": "RPA",
+      "tags": ["rpa", "formulaire", "web", "automatisation"],
+      "note": 4.5,
+      "nb_notes": 28,
+      "nb_installations": 189,
+      "date_publication": "2026-05-15"
     },
     {
       "nom": "extraire_donnees_tableau",
@@ -41,7 +65,13 @@
       "description": "Lit un fichier CSV ou DOCX contenant un tableau et en extrait les données structurées.",
       "instructions": "1. Utilise lire_fichier pour lire le fichier (CSV, DOCX, TXT).\n2. Identifie les colonnes et les lignes de données.\n3. Présente un résumé : nombre de lignes, colonnes détectées, valeurs remarquables (max, min, tendances).\n4. Propose de créer un rapport d'analyse via creer_rapport si l'utilisateur le souhaite.",
       "outils": ["lire_fichier", "creer_rapport"],
-      "auteur": "NetroIA"
+      "auteur": "NetroIA",
+      "categorie": "Analyse",
+      "tags": ["csv", "tableau", "extraction", "données"],
+      "note": 4.3,
+      "nb_notes": 19,
+      "nb_installations": 156,
+      "date_publication": "2026-05-20"
     }
   ]
 }

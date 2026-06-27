@@ -23,21 +23,24 @@ _LOCK = threading.Lock()
 # Coût des fonctions par palier (GEN).
 # None = interdit sur ce palier.
 COUTS: dict[str, dict[str, int | None]] = {
-    "mode_juge":            {"gratuit": 5,    "essential": 1, "pro": 1, "power": 0, "enterprise": 0},
-    "deploiement":          {"gratuit": None, "essential": 10,"pro": 5, "power": 3, "enterprise": 0},
-    "delegation_complete":  {"gratuit": None, "essential": None,"pro": 15,"power": 5,"enterprise": 0},
-    "apprentissage_continu":{"gratuit": None, "essential": None,"pro": 5, "power": 0,"enterprise": 0},
-    "skill_communautaire":  {"gratuit": 2,    "essential": 2, "pro": 1, "power": 0, "enterprise": 0},
-    "flash_24h":            {"gratuit": 30,   "essential": 20,"pro": 15,"power": 10,"enterprise": 0},
-    "flash_7j":             {"gratuit": 150,  "essential": 100,"pro": 75,"power": 50,"enterprise": 0},
+    "mode_juge":            {"gratuit": None, "essential": 60, "pro": 60, "power": 30, "enterprise": 0},
+    "deploiement":          {"gratuit": None, "essential": 100,"pro": 100,"power": 50, "enterprise": 0},
+    "delegation_complete":  {"gratuit": None, "essential": 15, "pro": 10, "power": 5,  "enterprise": 0},
+    "apprentissage_continu":{"gratuit": None, "essential": 10, "pro": 5,  "power": 0,  "enterprise": 0},
+    "donner_vie":           {"gratuit": None, "essential": 50, "pro": 50, "power": 25, "enterprise": 0},
+    "creation_app_forge":   {"gratuit": None, "essential": 100,"pro": 100,"power": 50, "enterprise": 0},
+    "deploiement_gere":     {"gratuit": None, "essential": 100,"pro": 100,"power": 50, "enterprise": 0},
+    "skill_communautaire":  {"gratuit": 2,    "essential": 2,  "pro": 1,  "power": 0,  "enterprise": 0},
+    "flash_24h":            {"gratuit": 30,   "essential": 20, "pro": 15, "power": 10, "enterprise": 0},
+    "flash_7j":             {"gratuit": 150,  "essential": 100,"pro": 75, "power": 50, "enterprise": 0},
 }
 
 # GEN offerts mensuellement selon le palier (rechargé au 1er du mois via cron ou à la connexion).
 GEN_MENSUEL: dict[str, int] = {
-    "gratuit": 0,
-    "essential": 200,
-    "pro": 600,
-    "power": 1500,
+    "gratuit": 200,
+    "essential": 1500,
+    "pro": 4500,
+    "power": 12000,
     "enterprise": 99999,  # illimité en pratique
 }
 

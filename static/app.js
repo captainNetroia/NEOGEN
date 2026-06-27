@@ -1,100 +1,10 @@
-﻿/* ===== SHADER GLSL (domain-warped fBm, pastels fluides) ===== */
+﻿/* ===== VIDEO BACKGROUND (Matrix loop) ===== */
 (function(){
-  const canvas = document.getElementById('bg-canvas');
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  if (!gl) { canvas.style.background='linear-gradient(135deg,#f0f4ff,#fef9ff,#f0fff4)'; return; }
-
-  const vert = `attribute vec2 a;void main(){gl_Position=vec4(a,0,1);}`;
-
-  const frag = `
-precision mediump float;
-uniform vec2 res;
-uniform float t;
-uniform float dark;
-
-float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-
-float n(vec2 p){
-  vec2 i=floor(p),f=fract(p);
-  f=f*f*(3.-2.*f);
-  return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);
-}
-
-float fbm(vec2 p){
-  return .5*n(p)+.25*n(p*2.1+vec2(1.7,9.2))+.125*n(p*4.3+vec2(8.3,2.8));
-}
-
-void main(){
-  vec2 uv=gl_FragCoord.xy/res;
-  float tt=t*.08;
-
-  /* Domain warping a 2 niveaux */
-  vec2 q=vec2(fbm(uv+tt*.5),fbm(uv+vec2(5.2,1.3)+tt*.4));
-  vec2 r=vec2(fbm(uv+1.6*q+vec2(1.7+tt*.25,9.2)),
-              fbm(uv+1.6*q+vec2(8.3+tt*.18,2.8)));
-  float f=fbm(uv+1.9*r);
-
-  /* Palette vivante : violet / bleu vif / rose / corail */
-  vec3 c1=vec3(.62,.42,.97); /* violet profond */
-  vec3 c2=vec3(.42,.68,.98); /* bleu vif */
-  vec3 c3=vec3(.97,.55,.88); /* rose */
-  vec3 c4=vec3(.99,.72,.56); /* corail */
-
-  f=clamp(f,0.,1.);
-  vec3 col;
-  if(f<.33)col=mix(c1,c2,f/.33);
-  else if(f<.66)col=mix(c2,c3,(f-.33)/.33);
-  else col=mix(c3,c4,(f-.66)/.34);
-
-  /* Mode clair : couleurs pastel sur fond blanc.
-     Mode sombre : couleurs profondes assombries sur fond nuit (glassmorphism nocturne). */
-  vec3 clair=mix(vec3(1.),col,.52);
-  vec3 sombre=mix(vec3(.05,.04,.12),col*.55,.40);
-  col=mix(clair,sombre,dark);
-
-  gl_FragColor=vec4(col,1.);
-}`;
-
-  function sh(type,src){
-    const s=gl.createShader(type);
-    gl.shaderSource(s,src);gl.compileShader(s);return s;
-  }
-  const prog=gl.createProgram();
-  gl.attachShader(prog,sh(gl.VERTEX_SHADER,vert));
-  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,frag));
-  gl.linkProgram(prog);gl.useProgram(prog);
-
-  const buf=gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-  const al=gl.getAttribLocation(prog,'a');
-  gl.enableVertexAttribArray(al);
-  gl.vertexAttribPointer(al,2,gl.FLOAT,false,0,0);
-
-  const uRes=gl.getUniformLocation(prog,'res');
-  const uTime=gl.getUniformLocation(prog,'t');
-  const uDark=gl.getUniformLocation(prog,'dark');
-
-  function resize(){
-    canvas.width=innerWidth;canvas.height=innerHeight;
-    gl.viewport(0,0,canvas.width,canvas.height);
-  }
-  resize();
-  window.addEventListener('resize',resize);
-
-  const start=Date.now();
-  let _darkTarget=document.body.classList.contains('dark')?1:0;
-  let _darkCur=_darkTarget;
-  window._setShaderDark=function(v){_darkTarget=v?1:0;};
-  function draw(){
-    _darkCur+=(_darkTarget-_darkCur)*.08; /* transition douce */
-    gl.uniform2f(uRes,canvas.width,canvas.height);
-    gl.uniform1f(uTime,(Date.now()-start)/1000);
-    gl.uniform1f(uDark,_darkCur);
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
-    requestAnimationFrame(draw);
-  }
-  draw();
+  const vid = document.getElementById('bg-video');
+  if(vid){ vid.play().catch(()=>{}); }
+  const cas = document.getElementById('cascade-video');
+  if(cas){ cas.play().catch(()=>{}); }
+  window._setShaderDark = function(){};
 })();
 
 /* ===== BENTO 3D : parallaxe souris + float idle ===== */
@@ -2378,14 +2288,44 @@ function _initTelemetrie(){
 // ===== TARIFS MULTI-PALIERS =====
 var _tarifPeriod='mensuel';
 var _PALIERS=[
-  {cle:'essential',label:'Essential',prix:{mensuel:'14,99',annuel:'10,49'},couleur:'#6366f1',
-   features:['Productions illimitees','1 provider IA','Mode Juge 1 GEN','200 GEN/mois']},
-  {cle:'pro',label:'Pro',prix:{mensuel:'29,99',annuel:'20,99'},couleur:'#8b5cf6',
-   features:['3 providers IA','RPA + Apprentissage','10 crons, Telegram','600 GEN/mois']},
-  {cle:'power',label:'Power',prix:{mensuel:'49,99',annuel:'34,99'},couleur:'#a855f7',
-   features:['Delegation multi-agents','Vision activee','Cron illimite','1 500 GEN/mois']},
-  {cle:'enterprise',label:'Enterprise',prix:{mensuel:'99,99',annuel:'69,99'},couleur:'#d946ef',
-   features:['GEN illimites','Telemetrie privee','Webhooks API','SLA 99,9%']},
+  {cle:'essential',label:'Essential',prix:{mensuel:'14,99',annuel:'10,49'},couleur:'#16c65e',
+   features:[
+     '1 500 GEN/mois',
+     '4 providers IA + local',
+     'Multi-agents · RPA · Apprentissage',
+     'Vision active · Crons',
+     '5 "Donner vie"/mois (puis 50 GEN)',
+     '15 applis + 7 deploiements geres',
+     'Mode Juge 60 GEN · Plugin Hostinger',
+   ]},
+  {cle:'pro',label:'Pro',prix:{mensuel:'29,99',annuel:'20,99'},couleur:'#00c4a7',
+   features:[
+     '4 500 GEN/mois',
+     '6 providers IA + local',
+     'Multi-agents · RPA · Apprentissage',
+     'Vision active · Crons illimites',
+     '15 "Donner vie"/mois (puis 50 GEN)',
+     '50 applis + 25 deploiements geres',
+     'Mode Juge 60 GEN · Webhook & API',
+   ]},
+  {cle:'power',label:'Power',prix:{mensuel:'49,99',annuel:'34,99'},couleur:'#4ade80',
+   features:[
+     '12 000 GEN/mois',
+     'Tous providers IA + local',
+     'Multi-agents · RPA · Apprentissage',
+     'Vision active · Crons illimites',
+     '"Donner vie" illimite',
+     'Applis illimitees',
+     'Webhook & API · Telemetrie privee',
+   ]},
+  {cle:'enterprise',label:'Enterprise',prix:{mensuel:'Sur mesure',annuel:'Sur mesure'},couleur:'#00ffaa',contact:true,
+   features:[
+     'GEN illimites',
+     'Infrastructure isolee',
+     'SLA 99,9% garanti',
+     'Support dedie',
+     'Contrat personnalise',
+   ]},
 ];
 
 function renderTarifs(palierActuel){
@@ -2395,12 +2335,17 @@ function renderTarifs(palierActuel){
     var actif=p.cle===palierActuel;
     var prix=p.prix[_tarifPeriod];
     var per=_tarifPeriod==='annuel'?'/mois (annuel)':'/mois';
-    return '<div style="border:1px solid '+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+';border-radius:12px;padding:12px;background:rgba(0,0,0,.2)">'
+    var prixHtml=p.contact
+      ?'<div style="font-size:16px;font-weight:700;color:'+p.couleur+';margin-bottom:6px">Sur mesure</div>'
+      :'<div style="font-size:18px;font-weight:800;color:var(--txt);margin-bottom:6px">'+prix+'&#8364;<span style="font-size:10px;font-weight:400;color:var(--mut)">'+per+'</span></div>';
+    var btnHtml=actif?'<button class="ghost" disabled style="width:100%;font-size:11px;opacity:.5">Plan actuel</button>'
+      :p.contact?'<a href="mailto:captain@netroia.com?subject=NEOGEN%20Enterprise" style="display:block;text-align:center;padding:7px 0;border-radius:8px;font-size:11px;font-weight:600;color:'+p.couleur+';border:1px solid '+p.couleur+';text-decoration:none">Nous contacter</a>'
+      :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>';
+    return '<div class="plan-card" style="border-color:'+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+'">'
       +'<div style="font-size:12px;font-weight:700;color:'+p.couleur+';margin-bottom:4px">'+esc(p.label)+'</div>'
-      +'<div style="font-size:18px;font-weight:800;color:var(--txt);margin-bottom:6px">'+prix+'&#8364;<span style="font-size:10px;font-weight:400;color:var(--mut)">'+per+'</span></div>'
+      +prixHtml
       +'<ul style="font-size:11px;color:var(--mut);padding:0 0 0 14px;margin:0 0 10px">'+p.features.map(function(f){return'<li>'+esc(f)+'</li>';}).join('')+'</ul>'
-      +(actif?'<button class="ghost" disabled style="width:100%;font-size:11px;opacity:.5">Plan actuel</button>'
-        :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>')
+      +btnHtml
       +'</div>';
   }).join('');
   // Bind upgrade btns
@@ -2616,46 +2561,141 @@ window.deleteSkill=async function(nom){
   if(libBtn)libBtn.onclick=openSkillsLibrary;
 })();
 
+function _starsHtml(note){
+  if(!note)return '';
+  var full=Math.floor(note),half=(note-full)>=0.3?1:0,empty=5-full-half;
+  return '<span class="skill-stars">'+'★'.repeat(full)+(half?'½':'')+('☆'.repeat(empty))+'</span>'
+    +'<span class="skill-note-count">('+note.toFixed(1)+')</span>';
+}
+
+var _libAllSkills=[];
+var _libCatFilter='all';
+
 async function openSkillsLibrary(){
   const modal=document.getElementById('skills-lib-modal');
-  const listEl=document.getElementById('skills-lib-list');
+  if(!modal)return;
   modal.style.display='flex';
-  listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Chargement du registry...</div>';
+  _renderSkillsLibContent();
+}
+
+async function _loadSkillsLibData(){
+  const d=await(await fetch('/skills/registry')).json();
+  const installed=await(await fetch('/skills')).json();
+  const installedNames=new Set((installed.skills||[]).map(function(s){return s.nom;}));
+  _libAllSkills=(d.skills||[]).map(function(s,i){return Object.assign({},s,{_idx:i,_installed:installedNames.has(s.nom)||installedNames.has((s.nom||'').replace(/\s+/g,'_').toLowerCase())});});
+}
+
+async function _renderSkillsLibContent(){
+  const listEl=document.getElementById('skills-lib-list');
+  const filterEl=document.getElementById('skills-lib-filters');
+  const searchEl=document.getElementById('skills-lib-search');
+  if(!listEl)return;
+  listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Chargement...</div>';
   try{
-    const d=await(await fetch('/skills/registry')).json();
-    const list=d.skills||[];
-    if(!list.length){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Aucun skill disponible.</div>';return;}
-    // Charger les skills deja installes pour griser les boutons.
-    const installed=await(await fetch('/skills')).json();
-    const installedNames=new Set((installed.skills||[]).map(function(s){return s.nom;}));
-    listEl.innerHTML=list.map(function(s,i){
-      const already=installedNames.has(s.nom)||installedNames.has(s.nom.replace(/\s+/g,'_').toLowerCase());
-      return '<div class="hist-item" style="align-items:flex-start;margin-bottom:8px">'
-        +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
-        +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
-        +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
-        +'</span>'
-        +(already
-          ?'<span class="tag ok" style="font-size:11px;flex-shrink:0">installe</span>'
-          :'<button class="ghost" style="font-size:12px;padding:3px 10px;flex-shrink:0" onclick="installSkill('+i+')">Installer</button>')
-        +'</div>';
-    }).join('');
-    window._libSkills=list;
+    await _loadSkillsLibData();
+    if(!_libAllSkills.length){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Aucun skill communautaire disponible.</div>';return;}
+    // Filtres categories
+    const cats=['all',...new Set(_libAllSkills.map(function(s){return s.categorie||'General';}))];
+    if(filterEl){
+      filterEl.innerHTML=cats.map(function(c){
+        return '<button class="'+(c===_libCatFilter?'active':'')+'" onclick="setSkillLibCat(\''+esc(c)+'\')">'+esc(c==='all'?'Tous':c)+'</button>';
+      }).join('');
+    }
+    _renderSkillsLibList(searchEl?searchEl.value:'');
   }catch(e){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur : '+esc(String(e))+'</div>';}
 }
 
+window.setSkillLibCat=function(cat){
+  _libCatFilter=cat;
+  const filterEl=document.getElementById('skills-lib-filters');
+  if(filterEl)filterEl.querySelectorAll('button').forEach(function(b){b.classList.toggle('active',b.textContent===(cat==='all'?'Tous':cat));});
+  _renderSkillsLibList(document.getElementById('skills-lib-search')?document.getElementById('skills-lib-search').value:'');
+};
+
+function _renderSkillsLibList(query){
+  const listEl=document.getElementById('skills-lib-list');if(!listEl)return;
+  query=(query||'').toLowerCase().trim();
+  var list=_libAllSkills.filter(function(s){
+    if(_libCatFilter!=='all'&&(s.categorie||'General')!==_libCatFilter)return false;
+    if(query&&!(s.titre||s.nom||'').toLowerCase().includes(query)&&!(s.description||'').toLowerCase().includes(query))return false;
+    return true;
+  });
+  if(!list.length){listEl.innerHTML='<div style="color:var(--mut);font-size:13px">Aucun skill dans cette categorie.</div>';return;}
+  listEl.innerHTML=list.map(function(s){
+    var i=s._idx;
+    return '<div class="hist-item" style="align-items:flex-start;margin-bottom:10px;gap:10px">'
+      +'<div style="flex:1">'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +(s.categorie?'<span class="skill-cat-badge">'+esc(s.categorie)+'</span>':'')
+      +'<b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
+      +'</div>'
+      +'<div style="font-size:12px;color:var(--mut);margin-top:3px">'+esc(s.description||'')+'</div>'
+      +'<div class="skill-meta-row">'
+      +(s.note?_starsHtml(s.note):'')
+      +(s.auteur?'<span>par <b>'+esc(s.auteur)+'</b></span>':'')
+      +(s.date_publication?'<span>'+esc(s.date_publication.slice(0,10))+'</span>':'')
+      +(s.nb_installations?'<span>'+s.nb_installations+' installations</span>':'')
+      +(s.outils&&s.outils.length?'<span style="color:var(--acc)">outils: '+esc(s.outils.join(', '))+'</span>':'')
+      +'</div>'
+      +'</div>'
+      +(s._installed
+        ?'<span class="tag ok" style="font-size:11px;flex-shrink:0;align-self:center">installe</span>'
+        :'<button class="ghost" style="font-size:12px;padding:4px 12px;flex-shrink:0;align-self:center" onclick="installSkill('+i+')">+ Installer</button>')
+      +'</div>';
+  }).join('');
+}
+
 window.installSkill=async function(idx){
-  const s=window._libSkills&&window._libSkills[idx];if(!s)return;
+  const s=_libAllSkills[idx];if(!s)return;
   try{
     const r=await(await fetch('/skills/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({skills:[s]})})).json();
     if(r.importes&&r.importes.length){
-      openSkillsLibrary();loadSkills();
+      s._installed=true;
+      _renderSkillsLibList(document.getElementById('skills-lib-search')?document.getElementById('skills-lib-search').value:'');
+      loadSkills();
     }else if(r.ignores&&r.ignores.length){
       alert('Deja installe.');
     }else{
       alert('Erreur : '+(r.erreurs||[]).join(', '));
     }
   }catch(e){alert('Erreur reseau.');}
+};
+
+window.openPublishSkillForm=async function(){
+  const form=document.getElementById('skills-publish-form');
+  const sel=document.getElementById('spf-skill-select');
+  if(!form||!sel)return;
+  // Charger les skills locaux
+  try{
+    const d=await(await fetch('/skills')).json();
+    const list=d.skills||[];
+    sel.innerHTML='<option value="">-- Choisir un skill local --</option>'
+      +list.map(function(s){return '<option value="'+esc(s.nom)+'">'+esc(s.titre||s.nom)+'</option>';}).join('');
+  }catch(e){}
+  form.style.display='block';
+  form.scrollIntoView({behavior:'smooth'});
+};
+
+window.submitPublishSkill=async function(){
+  const sel=document.getElementById('spf-skill-select');
+  const desc=document.getElementById('spf-desc');
+  const cat=document.getElementById('spf-cat');
+  const tags=document.getElementById('spf-tags');
+  const st=document.getElementById('spf-status');
+  if(!sel||!sel.value){if(st)st.innerHTML='<span style="color:var(--ko)">Selectionnez un skill.</span>';return;}
+  if(st)st.textContent='Envoi en cours...';
+  try{
+    const r=await fetch('/skills/publier',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({nom:sel.value,description:(desc?desc.value:'').slice(0,200),
+        categorie:cat?cat.value:'General',tags:(tags?tags.value:'').split(',').map(function(t){return t.trim();}).filter(Boolean)})});
+    const d=await r.json();
+    if(d.ok){
+      if(st)st.innerHTML='<span style="color:var(--ok)">Skill propose pour curation. Tu recevras +100 GEN si approuve.</span>';
+      sel.value='';if(desc)desc.value='';if(tags)tags.value='';
+    }else{
+      if(st)st.innerHTML='<span style="color:var(--ko)">'+(d.detail||'Erreur')+'</span>';
+    }
+  }catch(e){if(st)st.innerHTML='<span style="color:var(--ko)">Erreur reseau.</span>';}
 };
 
 // ===== MEMOIRE cross-session =====

@@ -29,22 +29,26 @@ def rang_palier(palier: str) -> int:
 
 # Limites mensuelles par palier (None = illimité).
 LIMITES: dict[str, dict[str, int | None]] = {
-    "gratuit":    {"creations": 5,    "mode_juge": 2,    "integrations": 3, "modeles": 1},
-    "essential":  {"creations": None, "mode_juge": None, "integrations": None, "modeles": 5},
-    "pro":        {"creations": None, "mode_juge": None, "integrations": None, "modeles": None},
-    "power":      {"creations": None, "mode_juge": None, "integrations": None, "modeles": None},
-    "enterprise": {"creations": None, "mode_juge": None, "integrations": None, "modeles": None},
+    "gratuit":    {"creations": 3,    "mode_juge": 0,    "integrations": 2,    "modeles": 1, "donner_vie": 0, "creation_app_forge": 0, "deploiement_gere": 0},
+    "essential":  {"creations": None, "mode_juge": None, "integrations": None, "modeles": 4, "donner_vie": 5, "creation_app_forge": 15, "deploiement_gere": 7},
+    "pro":        {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": 15,"creation_app_forge": 50, "deploiement_gere": 25},
+    "power":      {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": None,"creation_app_forge": None,"deploiement_gere": None},
+    "enterprise": {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": None,"creation_app_forge": None,"deploiement_gere": None},
 }
 
 # Palier minimum requis pour certaines fonctions.
 PALIER_REQUIS: dict[str, str] = {
     "deploiement":           "essential",
-    "apprentissage_continu": "pro",
-    "delegation_complete":   "pro",
-    "vision":                "power",
-    "cron_illimite":         "power",
+    "rpa":                   "essential",
+    "apprentissage_continu": "essential",
+    "delegation_complete":   "essential",
+    "vision":                "essential",
+    "donner_vie":            "essential",
+    "creation_app_forge":    "essential",
+    "deploiement_gere":      "essential",
+    "cron_illimite":         "pro",
+    "webhooks_api":          "pro",
     "telemetrie_privee":     "enterprise",
-    "webhooks_api":          "enterprise",
     "gen_illimites":         "enterprise",
 }
 
