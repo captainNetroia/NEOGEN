@@ -484,6 +484,39 @@ def conscience_controle_sante(authorization: str | None = Header(default=None)):
     return _c.controle_sante()
 
 
+# ── Resolveur d'objectif : les 3 etats appliques a toute demande ───────────────────
+
+@router.post("/objectif/analyser")
+def objectif_analyser(corps: dict = Body(default={}), authorization: str | None = Header(default=None)):
+    """Analyse un objectif -> classe chaque element en CERTAIN/INCONNU/ANGLE_MORT (sans agir)."""
+    _gate_owner(authorization)
+    import resolveur as _r
+    r = _r.analyser((corps or {}).get("objectif", ""))
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("raison", "analyse impossible"))
+    return r
+
+
+@router.post("/objectif/resoudre")
+def objectif_resoudre(corps: dict = Body(default={}), authorization: str | None = Header(default=None)):
+    """Analyse PUIS agit : forge les INCONNUS, collecte questions + donnees sensibles a demander."""
+    _gate_owner(authorization)
+    import resolveur as _r
+    c = corps or {}
+    r = _r.resoudre(c.get("objectif", ""), auto_forge=bool(c.get("auto_forge", True)))
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("raison", "resolution impossible"))
+    return r
+
+
+@router.get("/objectif")
+def objectif_lister(authorization: str | None = Header(default=None)):
+    """Liste des objectifs en cours de resolution (plus recents d'abord)."""
+    _gate_owner(authorization)
+    import resolveur as _r
+    return {"objectifs": _r.lister_objectifs()}
+
+
 # ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────
 
 @router.get("/evolution/ui.css")

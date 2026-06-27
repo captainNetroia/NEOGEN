@@ -975,6 +975,17 @@ def _section_evolution() -> str:
         <button id="btn-conscience-diag" onclick="diagnostiquerConscience(this)" style="font-size:12px;padding:6px 14px">Diagnostiquer</button>
       </div>
       <div id="conscience-jauge" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+      <!-- ATTEINDRE UN OBJECTIF : les 3 etats appliques a toute demande -->
+      <div style="margin:6px 0 14px;padding:12px;border:1px dashed rgba(0,232,105,.28);border-radius:12px;background:rgba(0,16,6,.3)">
+        <div style="font-size:12px;font-weight:700;margin-bottom:7px">&#127919; Atteindre un objectif <span style="font-size:10px;opacity:.5;font-weight:400">— NEOGEN classe CERTAIN / INCONNU / ANGLE MORT, forge les manques, demande les donnees sensibles</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="obj-input" placeholder="ex: un outil qui calcule mes charges sociales d'auto-entrepreneur" style="flex:1;min-width:240px;font-size:12px;padding:7px 11px;background:rgba(0,0,0,.25);border:1px solid rgba(0,232,105,.25);color:#e8ffe8;border-radius:8px">
+          <button id="obj-btn" onclick="resoudreObjectif(this)" style="font-size:12px;padding:7px 16px">Resoudre</button>
+        </div>
+        <div id="obj-resultat" style="margin-top:10px;display:none"></div>
+      </div>
+
       <div id="conscience-capacites">
         <div style="text-align:center;padding:18px;opacity:.4;font-size:12px">Clique « Diagnostiquer » : le systeme va se regarder lui-meme.</div>
       </div>

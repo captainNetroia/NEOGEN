@@ -68,6 +68,16 @@
         {"desc": "Action definir ancrage JS", "methode": "check_js", "js_fn": "definirAncrage"},
         {"desc": "Registre de conscience present", "methode": "check_data", "data_path": "data/registre_capacites.json"}
       ]
+    },
+    {
+      "id": "resolveur-objectif",
+      "titre": "Atteindre un objectif -> 3 etats -> forge des manques + demandes",
+      "etapes": [
+        {"desc": "Analyser un objectif (3 etats)", "methode": "check_route", "endpoint": "POST /savoir/objectif/analyser"},
+        {"desc": "Resoudre : forge + questions + donnees", "methode": "check_route", "endpoint": "POST /savoir/objectif/resoudre"},
+        {"desc": "Lister les objectifs en cours", "methode": "check_route", "endpoint": "GET /savoir/objectif"},
+        {"desc": "Boite objectif JS", "methode": "check_js", "js_fn": "resoudreObjectif"}
+      ]
     }
   ]
 }

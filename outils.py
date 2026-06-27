@@ -887,6 +887,34 @@ def outil_capacite_forgee(nom: str = "", params: str = "", **kw) -> str:
     return f"[capacite_forgee] echec : {r.get('erreur', 'inconnu')}"
 
 
+def outil_resoudre_objectif(objectif: str = "", auto_forge: bool = True, **kw) -> str:
+    """Face a un objectif, applique les 3 etats (CERTAIN/INCONNU/ANGLE_MORT), FORGE les
+    briques manquantes, et signale les donnees sensibles a demander + les ambiguites a lever.
+    C'est le moteur qui adapte NEOGEN a n'importe quelle demande."""
+    if not objectif or not objectif.strip():
+        return "[resoudre_objectif] donne un objectif a atteindre."
+    import resolveur as _r
+    res = _r.resoudre(objectif, auto_forge=bool(auto_forge))
+    if not res.get("ok"):
+        return f"[resoudre_objectif] echec : {res.get('raison', 'inconnu')}"
+    an = res["analyse"]
+    lignes = [f"[resoudre_objectif] {objectif[:80]}",
+              f"  faisable : {an['faisable']} — {an['resume'][:160]}",
+              f"  etats : {an['compteurs']}"]
+    for e in an["elements"]:
+        marque = {"CERTAIN": "[OK]", "INCONNU": "[FORGE]", "ANGLE_MORT": "[?]"}.get(e["etat"], "-")
+        detail = (e["capacite_existante"] or e["besoin_forge"] or e["question"] or "")[:90]
+        lignes.append(f"  {marque} {e['description'][:70]} : {detail}")
+    if res["forges"]:
+        lignes.append(f"  -> {len(res['forges'])} brique(s) en cours de forge (vrai code teste).")
+    if res["donnees_a_demander"]:
+        lignes.append("  DONNEES A FOURNIR (sensibles, je ne les invente pas) : "
+                      + " ; ".join(res["donnees_a_demander"]))
+    if res["questions"]:
+        lignes.append("  A CLARIFIER : " + " ; ".join(res["questions"]))
+    return nettoyer("\n".join(lignes))
+
+
 # ---------------------------------------------------------------------------
 # nom outil -> (fonction, description courte pour le prompt)
 # ---------------------------------------------------------------------------
@@ -923,4 +951,5 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "appeler_agent":          (outil_appeler_agent,          "Appelle un autre agent NEOGEN et retourne sa reponse directement (pair-a-pair, profondeur max 3, auto-appel interdit). Pour deleguer selon expertise : Architecte->Veilleur, Analyste->Architecte, etc. params: {cle (nom agent), mission}"),
     "integration":            (_outil_integration_proxy,     "Appelle un service integre par l'utilisateur (Notion, Slack, GitHub, Telegram, Discord, HubSpot, Brevo, Airtable, Todoist, Calendly, Figma, Vercel, Perplexity, Tavily, ElevenLabs...). params: {service, action, params}"),
     "capacite_forgee":        (outil_capacite_forgee,        "Liste ou invoque une capacite forgee (fonction Python generee+testee+integree par la forge). Sans nom -> liste ; avec nom -> appelle. params: {nom?, params? (JSON)}"),
+    "resoudre_objectif":      (outil_resoudre_objectif,      "Face a un objectif, applique les 3 etats (CERTAIN/INCONNU/ANGLE_MORT), FORGE les briques manquantes, signale les donnees sensibles a demander + les ambiguites a lever. S'adapte a n'importe quelle demande. params: {objectif, auto_forge?}"),
 }

@@ -3843,6 +3843,35 @@ async function autoReparerConscience(btn){
   }catch(e){if(btn){btn.textContent='Erreur';btn.disabled=false;}}
 }
 
+/* Resoudre un objectif : les 3 etats appliques, forge des manques, demandes de donnees. */
+const _ETAT_META={CERTAIN:{c:'#00e869',i:'&#10003;'},INCONNU:{c:'#fbbf24',i:'&#9881;'},ANGLE_MORT:{c:'#fb923c',i:'?'}};
+async function resoudreObjectif(btn){
+  const inp=document.getElementById('obj-input');const out=document.getElementById('obj-resultat');
+  const obj=(inp&&inp.value||'').trim();
+  if(!obj){if(inp)inp.focus();return;}
+  if(btn){btn.disabled=true;btn.textContent='Analyse…';}
+  if(out){out.style.display='block';out.innerHTML='<div style="opacity:.6;font-size:12px;padding:8px">NEOGEN applique les 3 etats a ton objectif…</div>';}
+  try{
+    const r=await fetch('/savoir/objectif/resoudre',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({objectif:obj})});
+    const d=await r.json();
+    if(!d.ok){if(out)out.innerHTML='<div style="color:#ef4444;font-size:12px">Echec : '+esc(d.detail||d.raison||'')+'</div>';return;}
+    const an=d.analyse;let h='';
+    h+='<div style="font-size:12px;margin-bottom:8px"><b>'+(an.faisable?'<span style=\"color:#00e869\">Faisable</span>':'<span style=\"color:#fb923c\">A clarifier</span>')+'</b> &middot; '+esc(an.resume||'')+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:11px">';
+    for(const k in an.compteurs){const m=_ETAT_META[k]||{c:'#888',i:'-'};h+='<span style="padding:2px 9px;border-radius:99px;color:'+m.c+';background:rgba(0,0,0,.25);border:1px solid '+m.c+'55">'+m.i+' '+an.compteurs[k]+' '+k.replace('_',' ')+'</span>';}
+    h+='</div>';
+    for(const e of an.elements){const m=_ETAT_META[e.etat]||{c:'#888',i:'-'};
+      const det=esc(e.capacite_existante||e.besoin_forge||e.question||'');
+      h+='<div style="font-size:11px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05)"><span style="color:'+m.c+'">'+m.i+' '+e.etat.replace('_',' ')+'</span> &middot; '+esc(e.description)+(det?' <span style="opacity:.55">— '+det+'</span>':'')+'</div>';}
+    if((d.forges||[]).length)h+='<div style="font-size:11px;margin-top:8px;color:#fbbf24">&#9881; '+d.forges.length+' brique(s) en cours de forge (vrai code teste, integre si OK).</div>';
+    if((d.donnees_a_demander||[]).length)h+='<div style="font-size:11px;margin-top:8px;padding:8px;border-radius:8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#7dd3fc"><b>&#128274; Donnees a fournir</b> (je ne les invente pas) : '+esc(d.donnees_a_demander.join(' ; '))+'</div>';
+    if((d.questions||[]).length)h+='<div style="font-size:11px;margin-top:8px;padding:8px;border-radius:8px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);color:#fdba74"><b>? A clarifier</b> : '+esc(d.questions.join(' ; '))+'</div>';
+    if(out)out.innerHTML=h;
+    setTimeout(loadConscience,3000);
+  }catch(e){if(out)out.innerHTML='<div style="color:#ef4444;font-size:12px">Erreur : '+esc(e.message)+'</div>';}
+  finally{if(btn){btn.disabled=false;btn.textContent='Resoudre';}}
+}
+
 async function diagnostiquerConscience(btn){
   if(btn){btn.disabled=true;btn.textContent='Le systeme se regarde…';}
   try{

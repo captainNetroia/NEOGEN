@@ -159,14 +159,14 @@ _PROFILS_NOYAU = frozenset(PROFILS.keys())
 
 # Outils accordes aux bebe-agents selon leur section deduite (sauf Soutenir = aucun).
 _OUTILS_PAR_SECTION: dict[str, list[str]] = {
-    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent"],
+    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent", "resoudre_objectif"],
     "creation":     ["creer_application", "lister_creations", "creer_skill", "lister_skills", "utiliser_skill", "forger_bloc", "proposer_conversation"],
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
     "compte":       ["conseiller", "discerner", "proposer_conversation",
                      "objectif_rpa", "executer_mission_rpa", "remote_control",
                      "contexte_navigateur", "controler_ecran", "regarder_ecran"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent"],
-    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "appeler_agent"],
+    "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "resoudre_objectif", "appeler_agent"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],
 }
 
