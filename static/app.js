@@ -2039,6 +2039,7 @@ function buildChat(mount){
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input" style="flex-direction:column;align-items:stretch">'
     +'<div class="ac-img-prev" id="acimgprev-'+role+'"></div>'
+    +'<div id="acadv-'+role+'" class="model-advisor" style="display:none"></div>'
     +'<div style="display:flex;gap:8px;align-items:flex-end">'
     +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller image)"></textarea>'
     +'<input type="file" id="acfile-'+role+'" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.txt,.md,.csv" style="display:none">'
@@ -2145,6 +2146,30 @@ function buildChat(mount){
   btn.onclick=envoyer;
   inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,130)+'px';});
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();envoyer();}});
+  // Model advisor — recommandation proactive avant envoi (debounce 600ms)
+  var _advTimer=null;
+  var _adv=$('#acadv-'+role);
+  function _conseillerModele(txt){
+    if(!_adv)return;
+    if(!txt||txt.length<15){_adv.style.display='none';_adv.className='model-advisor';return;}
+    fetch('/llm/recommander',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({demande:txt})}).then(function(r){return r.json();}).then(function(d){
+      if(!_adv)return;
+      var tier=d.tier||'moyen';
+      var eco=localStorage.getItem('neogen_eco')!=='0';
+      if(tier==='fort'&&eco){
+        _adv.textContent='⚡ Tâche complexe — Eco actif. Désactiver Eco pour un meilleur résultat ?';
+        _adv.className='model-advisor warn';_adv.style.display='block';
+      }else if(tier==='leger'&&!eco){
+        _adv.textContent='💡 Tâche simple — activer Eco pour économiser des tokens.';
+        _adv.className='model-advisor';_adv.style.display='block';
+      }else{_adv.style.display='none';}
+    }).catch(function(){if(_adv)_adv.style.display='none';});
+  }
+  inp.addEventListener('input',function(){
+    clearTimeout(_advTimer);
+    _advTimer=setTimeout(function(){_conseillerModele((inp.value||'').trim());},600);
+  });
 }
 document.querySelectorAll('.agent-chat-mount').forEach(buildChat);
 

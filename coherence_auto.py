@@ -109,6 +109,37 @@ def _check_regles_code_requis() -> list[dict]:
     return tensions
 
 
+def _check_outils_registration() -> list[dict]:
+    """Détecte les outils dans OUTILS non enregistrés dans au moins un profil agent.
+    Empêche la livraison silencieuse d'un outil invisible (pattern récurrent)."""
+    tensions = []
+    try:
+        from outils import OUTILS  # noqa: PLC0415
+        from agent_core import PROFILS, _OUTILS_PAR_SECTION  # noqa: PLC0415
+        enregistres: set[str] = set()
+        for p in PROFILS.values():
+            enregistres.update(p.get("outils", []))
+        for lst in _OUTILS_PAR_SECTION.values():
+            enregistres.update(lst)
+        for nom in OUTILS:
+            if nom not in enregistres:
+                tensions.append({
+                    "journey": "Enregistrement outils agents",
+                    "etape": f"'{nom}' dans agent_core.py PROFILS",
+                    "raison": (
+                        f"outil '{nom}' défini dans OUTILS mais absent de tous les profils — "
+                        "invisible pour les agents. Ajouter dans PROFILS + _OUTILS_PAR_SECTION."
+                    ),
+                })
+    except Exception as exc:
+        tensions.append({
+            "journey": "Enregistrement outils agents",
+            "etape": "import OUTILS/PROFILS",
+            "raison": f"vérification impossible : {exc}",
+        })
+    return tensions
+
+
 def audit_journeys() -> dict:
     """Audite tous les parcours déclarés. Retourne {ok, tensions, journeys, total, ko}.
     Jamais d'exception : fail-closed sur toute erreur interne."""
@@ -139,6 +170,7 @@ def audit_journeys() -> dict:
             })
         # Règles qui requièrent du code mais sans ancrage détecté.
         tensions += _check_regles_code_requis()
+        tensions += _check_outils_registration()
         return {"ok": len(tensions) == 0, "tensions": tensions,
                 "journeys": results, "total": len(results), "ko": len(tensions)}
     except Exception as exc:
