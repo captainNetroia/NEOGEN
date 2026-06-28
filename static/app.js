@@ -3637,6 +3637,17 @@ async function graverFragment(zone,id,titre){
   }catch(e){alert('Erreur : '+e.message);}
 }
 
+const _STATUT_BADGE={
+  actif:   {txt:'actif',   c:'#00e869',bg:'rgba(0,232,105,.12)', br:'rgba(0,232,105,.3)',  i:'&#9679;'},
+  erreur:  {txt:'erreur',  c:'#ef4444',bg:'rgba(239,68,68,.12)',  br:'rgba(239,68,68,.3)',   i:'&#9888;'},
+  inactif: {txt:'inactif', c:'#9ca3af',bg:'rgba(156,163,175,.1)', br:'rgba(156,163,175,.2)',i:'&#9675;'},
+  inconnu: {txt:'?',       c:'#6b7280',bg:'rgba(107,114,128,.08)',br:'rgba(107,114,128,.2)',i:'&#8943;'},
+};
+function _statutBadge(s){
+  const m=_STATUT_BADGE[s]||_STATUT_BADGE.inconnu;
+  return '<span title="Statut : '+m.txt+'" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 6px;border-radius:99px;color:'+m.c+';background:'+m.bg+';border:1px solid '+m.br+';white-space:nowrap;vertical-align:middle">'+m.i+' '+m.txt+'</span>';
+}
+
 async function loadEvolutionChangelog(){
   const c=document.getElementById('evo-changelog');
   if(!c)return;
@@ -3650,20 +3661,23 @@ async function loadEvolutionChangelog(){
     const _CL_COL={interface:'#06b6d4',regle:'#10b981',loi:'#f59e0b',idee:'#a855f7',agent:'#3b82f6',modele:'#ec4899',savoir:'#f97316',cellule:'#22d3ee',skill:'#fb923c',fonction:'#fb923c'};
     for(const e of log){
       const el=document.createElement('div');
-      el.style.cssText='padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(255,255,255,.07)';
+      const sr=e.statut_reel||'inconnu';
+      const borderCol=sr==='actif'?'rgba(0,232,105,.18)':sr==='erreur'?'rgba(239,68,68,.18)':'rgba(255,255,255,.07)';
+      el.style.cssText='padding:8px 12px;background:rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid '+borderCol;
       el.dataset.ctype=(e.type||'').toLowerCase();
       const dt=e.ts?new Date(e.ts*1000).toLocaleDateString():'';
       const col=_CL_COL[el.dataset.ctype]||'#10b981';
-      // Extraire la version du detail (ex: "bebe-agent 'x' mis a jour v1.2 ...")
       const _vmatch=(e.detail||'').match(/\bv(\d+(?:\.\d+)*)\b/);
       const _vbadge=_vmatch?'<span style="display:inline-block;margin-left:6px;font-size:10px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.1);color:#e2e8f0;vertical-align:middle">v'+esc(_vmatch[1])+'</span>':'';
       const _isMaj=(e.detail||'').includes('mis a jour');
       const _actionBadge=_isMaj?'<span style="display:inline-block;margin-left:4px;font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(251,146,60,.15);color:#fb923c;vertical-align:middle">MAJ</span>':'';
-      el.innerHTML='<span style="font-weight:700;color:'+col+'">['+esc(e.type||'')+']</span> '
+      el.innerHTML='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        +'<span style="font-weight:700;color:'+col+'">['+esc(e.type||'')+']</span> '
         +'<span style="font-weight:600">'+esc(e.titre||'')+'</span>'+_vbadge+_actionBadge
-        +'<span style="float:right;opacity:.4">'+esc(dt)+'</span>'
-        +'<div style="opacity:.6;margin-top:2px">'+esc(e.detail||'')+'</div>';
-      // Appliquer le filtre courant immediatement
+        +' '+_statutBadge(sr)
+        +'<span style="margin-left:auto;opacity:.4;font-size:10px">'+esc(dt)+'</span>'
+        +'</div>'
+        +(e.detail?'<div style="opacity:.55;margin-top:3px;font-size:11px">'+esc(e.detail||'')+'</div>':'');
       if(_filtreChangelogCourant!=='tous'&&el.dataset.ctype!==_filtreChangelogCourant)
         el.style.display='none';
       c.appendChild(el);

@@ -887,6 +887,103 @@ def outil_capacite_forgee(nom: str = "", params: str = "", **kw) -> str:
     return f"[capacite_forgee] echec : {r.get('erreur', 'inconnu')}"
 
 
+def outil_sante_appli(detail: bool = False, **kw) -> str:
+    """Rapport de sante complet de NEOGEN : conscience systeme (integrite capacites + % sain),
+    journeys OK/KO, alertes recentes, cron actif, battements vivants. Le Veilleur l'utilise
+    pour sa ronde journaliere. Sans detail -> resume court. Avec detail=True -> tout."""
+    import urllib.request, json as _json
+    lines = []
+    try:
+        with urllib.request.urlopen("http://localhost:8000/health", timeout=5) as resp:
+            h = _json.loads(resp.read())
+        # Coherence journeys
+        coh = h.get("coherence", {})
+        total_j = coh.get("total", 0)
+        ko_j = coh.get("ko", 0)
+        lines.append(f"[sante_appli] Journeys : {total_j - ko_j}/{total_j} OK"
+                     + (f" | {ko_j} KO !" if ko_j else ""))
+        if ko_j and detail:
+            for j in coh.get("journeys", []):
+                if not j.get("ok"):
+                    etapes_ko = [e["desc"] for e in j.get("etapes", []) if not e.get("ok")]
+                    lines.append(f"  KO: {j['titre']} -> {', '.join(etapes_ko[:3])}")
+        # Sante des services
+        sante = h.get("sante", {})
+        for svc, sv in sante.items():
+            vivant = sv.get("vivant", False)
+            age = sv.get("age_s", 0)
+            lines.append(f"  {svc}: {'vivant' if vivant else 'endormi'} (age {age:.0f}s)")
+        # Alertes recentes
+        alertes = h.get("alertes_recentes", [])
+        n_alerte = len([a for a in alertes if a.get("niveau") == "alerte"])
+        lines.append(f"  Alertes recentes : {n_alerte} alerte(s) dans les journaux")
+        if detail and n_alerte:
+            for a in alertes[:3]:
+                lines.append(f"    [{a.get('source','?')}] {a.get('evenement','')[:80]}")
+    except Exception as e:
+        lines.append(f"[sante_appli] Inaccessible : {e}")
+    # Conscience du systeme
+    try:
+        import conscience as _c
+        d = _c.etat_systeme()
+        lines.append(f"  Conscience : {d.get('sante_pct', '?')}% sain, "
+                     f"{d.get('total', 0)} capacite(s)")
+        a_rep = d.get("a_reparer", [])
+        if a_rep:
+            lines.append(f"  A reparer : {', '.join(str(x) for x in a_rep[:5])}")
+    except Exception:
+        pass
+    return nettoyer("\n".join(lines))
+
+
+def outil_coherence_appli(detail: bool = False, **kw) -> str:
+    """Verifie la coherence complete de NEOGEN : tous les journeys (parcours fonctionnels),
+    tensions dans les registres, cellules orphelines, regles sans code. Retourne un rapport
+    structure avec severite pour chaque anomalie. Ideal pour la ronde du Veilleur."""
+    import urllib.request, json as _json
+    lines = ["[coherence_appli]"]
+    try:
+        with urllib.request.urlopen("http://localhost:8000/health", timeout=5) as resp:
+            h = _json.loads(resp.read())
+        coh = h.get("coherence", {})
+        journeys = coh.get("journeys", [])
+        ok_j = [j for j in journeys if j.get("ok")]
+        ko_j = [j for j in journeys if not j.get("ok")]
+        lines.append(f"Journeys : {len(ok_j)} OK / {len(ko_j)} KO")
+        for j in ko_j:
+            etapes_ko = [e["desc"] for e in j.get("etapes", []) if not e.get("ok")]
+            lines.append(f"  KO [{j['id']}] : {', '.join(etapes_ko[:4 if detail else 2])}")
+        tensions = coh.get("tensions", [])
+        if tensions:
+            lines.append(f"Tensions : {len(tensions)}")
+            for t in tensions[:8 if detail else 3]:
+                lines.append(f"  [{t.get('severite','?')}] {t.get('message','')[:80]}")
+        else:
+            lines.append("Tensions : aucune")
+    except Exception as e:
+        lines.append(f"  Health inaccessible : {e}")
+    # Scanner les tensions des registres
+    try:
+        from outils import outil_scanner_tensions
+        scan = outil_scanner_tensions()
+        lines.append(f"Scanner registres : {scan[:300]}")
+    except Exception:
+        pass
+    # Changelog statuts
+    try:
+        import evolution_gouvernee as _eg
+        cl = _eg.statuts_changelog()
+        en_erreur = [e for e in cl if e.get("statut_reel") == "erreur"]
+        inactifs = [e for e in cl if e.get("statut_reel") == "inactif"]
+        lines.append(f"Changelog : {len(cl)} entrees | {len(en_erreur)} erreur(s) | {len(inactifs)} inactif(s)")
+        if en_erreur:
+            for e in en_erreur[:3]:
+                lines.append(f"  ERREUR: [{e.get('type')}] {e.get('titre','')[:60]}")
+    except Exception:
+        pass
+    return nettoyer("\n".join(lines))
+
+
 def outil_explorer_graphe(requete: str = "", top_ponts: int = 5, **kw) -> str:
     """Interroge la memoire-graphe associative de NEOGEN (reseau de concepts, pensees, savoirs,
     cellules, erreurs). Sans requete -> etat global + noeuds-ponts (concepts qui relient des
@@ -1006,4 +1103,6 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "resoudre_objectif":      (outil_resoudre_objectif,      "Face a un objectif, applique les 3 etats (CERTAIN/INCONNU/ANGLE_MORT), FORGE les briques manquantes, signale les donnees sensibles a demander + les ambiguites a lever. S'adapte a n'importe quelle demande. params: {objectif, auto_forge?}"),
     "explorer_graphe":        (outil_explorer_graphe,        "Interroge la memoire-graphe associative de NEOGEN (295+ concepts, liens ponderés, ponts). Sans requete -> etat global + noeuds-ponts. Avec requete -> voisinage conceptuel. params: {requete?, top_ponts?}"),
     "rever":                  (outil_rever,                  "Declenche un cycle de REVE (subconscient) : fusionne des concepts eloignes (bisociation + blend LLM), score la nouveaute. Les reves suffisamment nouveaux (>= 0.62) remontent en bulle type « reve ». params: {n? (1-5 reves)}"),
+    "sante_appli":            (outil_sante_appli,            "Rapport de sante NEOGEN : journeys OK/KO, conscience systeme (% sain), battements services, alertes recentes. Outil principal du Veilleur. params: {detail? (bool, defaut False)}"),
+    "coherence_appli":        (outil_coherence_appli,        "Coherence complete : tous les journeys, tensions registres, cellules orphelines, changelog erreurs/inactifs. Rapport structure severite. params: {detail? (bool, defaut False)}"),
 }

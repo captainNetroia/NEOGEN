@@ -149,23 +149,59 @@ PROFILS: dict[str, dict] = {
             "qu'il peut enrichir le registre communautaire et le systeme NEOGEN."
         ),
     },
+    "veilleur": {
+        "titre": "Le Veilleur",
+        "tier": "moyen",
+        "delegue": False,
+        "outils": [
+            "sante_appli", "coherence_appli",
+            "scanner_tensions", "remonter_alerte", "ancrer_tension",
+            "explorer_graphe", "lire_fichier", "creer_rapport",
+            "rappeler", "memoriser", "appeler_agent",
+        ],
+        "role": (
+            "Tu es LE VEILLEUR de NEOGEN — le gardien silencieux qui surveille l'integrite "
+            "et le bon fonctionnement de l'application en permanence. Tu n'agis PAS : tu OBSERVES "
+            "et SIGNALES avec precision.\n"
+            "RONDE JOURNALIERE (quand declenche) :\n"
+            "1. Lancer 'sante_appli' -> journeys OK/KO, services vivants, alertes recentes.\n"
+            "2. Lancer 'coherence_appli' -> tensions, changelog erreurs/inactifs.\n"
+            "3. Lancer 'scanner_tensions' -> registres NEOGEN (skills vides, regles sans code, "
+            "agents sans role).\n"
+            "4. Pour CHAQUE anomalie : 'remonter_alerte' avec source + description + impact "
+            "CONCRET + suggestion d'action. Jamais vague ('quelque chose ne va pas' est interdit).\n"
+            "5. 'ancrer_tension' pour tracer chaque anomalie dans le fil transversal.\n"
+            "6. Produire un rapport synthetique via 'creer_rapport' : ce qui va bien en premier, "
+            "puis ce qui necessite attention, classe par severite.\n"
+            "REGLES DU VEILLEUR :\n"
+            "- Jamais de modification autonome. Tu signales, Jordan decide.\n"
+            "- Chaque alerte = source + description + impact + suggestion. Les alertes vagues "
+            "ne servent a rien.\n"
+            "- Si tu ne peux pas acceder a une info : le noter explicitement comme ANGLE MORT.\n"
+            "- 'explorer_graphe' pour voir si des concepts-ponts importants ont disparu du graphe.\n"
+            "- 'lire_fichier' si tu as besoin d'auditer un fichier specifique.\n"
+            "- 'appeler_agent' pour deleguer une analyse approfondie a un specialiste.\n"
+            "STYLE : concis, technique, sans fioritures. Titre de rapport : "
+            "« Rapport Veilleur — [date] — [N anomalies] »."
+        ),
+    },
 }
 
 # Le Cerveau peut deleguer a ces agents.
-_DELEGABLES = ("createur", "genealogiste", "secretaire")
+_DELEGABLES = ("createur", "genealogiste", "secretaire", "veilleur")
 
 # Agents du NOYAU : jamais ecrases par un bebe-agent custom (evolution gouvernee).
 _PROFILS_NOYAU = frozenset(PROFILS.keys())
 
 # Outils accordes aux bebe-agents selon leur section deduite (sauf Soutenir = aucun).
 _OUTILS_PAR_SECTION: dict[str, list[str]] = {
-    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent", "resoudre_objectif", "explorer_graphe", "rever"],
+    "cerveaux":     ["rappeler", "memoriser", "lister_skills", "creer_skill", "utiliser_skill", "discerner", "proposer_conversation", "appeler_agent", "resoudre_objectif", "explorer_graphe", "rever", "sante_appli", "coherence_appli"],
     "creation":     ["creer_application", "lister_creations", "creer_skill", "lister_skills", "utiliser_skill", "forger_bloc", "proposer_conversation"],
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
     "compte":       ["conseiller", "discerner", "proposer_conversation",
                      "objectif_rpa", "executer_mission_rpa", "remote_control",
                      "contexte_navigateur", "controler_ecran", "regarder_ecran"],
-    "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent", "explorer_graphe", "scanner_tensions", "remonter_alerte"],
+    "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent", "explorer_graphe", "scanner_tensions", "remonter_alerte", "sante_appli", "coherence_appli"],
     "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "resoudre_objectif", "appeler_agent", "explorer_graphe", "rever", "scanner_tensions", "remonter_alerte"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],
 }

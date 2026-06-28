@@ -339,13 +339,28 @@ def cycle_maintenance() -> dict:
     diag = diagnostiquer()
     sante = controle_sante()
     repar = auto_reparer()
+    # Rafraîchir les statuts réels du changelog à chaque cycle (badge actif/erreur/inactif).
+    statuts_refresh = {"ok": False, "raison": "evolution_gouvernee indisponible"}
+    try:
+        import evolution_gouvernee
+        statuts = evolution_gouvernee.statuts_changelog()
+        n_erreur = sum(1 for e in statuts if e.get("statut_reel") == "erreur")
+        n_inactif = sum(1 for e in statuts if e.get("statut_reel") == "inactif")
+        statuts_refresh = {"ok": True, "total": len(statuts),
+                           "erreur": n_erreur, "inactif": n_inactif}
+        if n_erreur:
+            rob.journaliser(f"cycle maintenance : {n_erreur} entree(s) changelog en erreur",
+                            "alerte", source="conscience")
+    except Exception as e:
+        rob.journaliser(f"cycle maintenance : refresh changelog ({e})", "info", source="conscience")
     reve = {"ok": False, "raison": "subconscient indisponible"}
     try:
         import subconscient
         reve = subconscient.cycle_reve(n=3)
     except Exception as e:
         rob.journaliser(f"cycle maintenance : reve avorte ({e})", "info", source="conscience")
-    return {"diagnostic": diag, "sante": sante, "reparation": repar, "reve": reve}
+    return {"diagnostic": diag, "sante": sante, "reparation": repar,
+            "statuts_changelog": statuts_refresh, "reve": reve}
 
 
 def demarrer_maintenance(intervalle_h: float = 6.0) -> None:

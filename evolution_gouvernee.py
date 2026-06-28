@@ -120,25 +120,53 @@ def generation_courante() -> dict:
 
 def _notifier_generation(type_: str, titre: str, detail: str, cle: str = "") -> None:
     """Notifie un changement applique au changelog de la generation courante.
-    Deduplication par (type, cle) : si une entree existe deja pour ce (type, cle),
-    elle est MIS A JOUR, pas dupliquee. Coherence : 1 entree par artefact."""
+    Deduplication par (type, cle) si cle non vide, sinon par (type, titre).
+    Coherence : 1 entree max par artefact identifiable. Ne leve jamais."""
     gens = _charger("generations_neogen.json", None) or {
         "courante": {"numero": 1, "ouverte_le": time.time(), "changelog": []}, "historique": []}
-    generation_courante()  # garantit l'echeance annuelle
+    generation_courante()
     gens = _charger("generations_neogen.json", None)
     changelog = gens["courante"].setdefault("changelog", [])
-    # Deduplication : cherche une entree existante par (type, cle)
-    if cle:
-        for entree in changelog:
-            if entree.get("type") == type_ and entree.get("cle") == cle:
-                entree["ts"] = time.time()
-                entree["titre"] = titre[:120]
-                entree["detail"] = detail[:300]
-                _sauver("generations_neogen.json", gens)
-                return
+    # Deduplication : (type, cle) si cle present, sinon (type, titre normalisé).
+    def _match(e):
+        if cle:
+            return e.get("type") == type_ and e.get("cle") == cle
+        return e.get("type") == type_ and e.get("titre", "").strip() == titre.strip()[:120]
+    for entree in changelog:
+        if _match(entree):
+            entree["ts"] = time.time()
+            entree["titre"] = titre[:120]
+            entree["detail"] = detail[:300]
+            if cle:
+                entree["cle"] = cle
+            _sauver("generations_neogen.json", gens)
+            return
     changelog.append({
         "ts": time.time(), "type": type_, "cle": cle, "titre": titre[:120], "detail": detail[:300]})
     _sauver("generations_neogen.json", gens)
+
+
+def nettoyer_doublons_changelog() -> dict:
+    """Supprime les doublons existants dans le changelog : garde la version la plus recente
+    par (type, titre normalisé). Idempotent. Retourne {supprimés, restants}."""
+    gens = _charger("generations_neogen.json", None)
+    if not gens:
+        return {"ok": False, "raison": "pas de generations"}
+    changelog = gens.get("courante", {}).get("changelog", [])
+    vus: dict[tuple, dict] = {}
+    for e in sorted(changelog, key=lambda x: x.get("ts", 0)):
+        cle = e.get("cle", "").strip()
+        if cle:
+            key = (e.get("type", ""), cle)
+        else:
+            key = (e.get("type", ""), e.get("titre", "").strip()[:80])
+        vus[key] = e  # ecrase -> garde le plus recent
+    propre = list(vus.values())
+    avant = len(changelog)
+    apres = len(propre)
+    gens["courante"]["changelog"] = propre
+    _sauver("generations_neogen.json", gens)
+    return {"ok": True, "avant": avant, "apres": apres, "supprimes": avant - apres}
 
 
 # ── Proposer un changement (passe par le gardien + le consentement) ──────────────
@@ -463,6 +491,83 @@ def supprimer_agent(cle: str) -> dict:
 def changelog_generation() -> list[dict]:
     gen = generation_courante()
     return sorted(gen.get("changelog", []), key=lambda c: c.get("ts", 0), reverse=True)
+
+
+def _statut_entree(e: dict) -> str:
+    """Vérifie le statut réel d'une entrée du changelog selon son type.
+    Retourne : 'actif' | 'erreur' | 'inactif' | 'inconnu'."""
+    type_ = e.get("type", "")
+    cle = e.get("cle", "").strip()
+    titre = e.get("titre", "").strip()
+    nom = cle or titre  # identifiant préféré
+    try:
+        if type_ == "cellule":
+            import capacites_forgees as _cf
+            caps = {c["nom"]: c for c in _cf.lister()}
+            # Cherche par nom normalisé
+            import re
+            slug = re.sub(r"[^a-z0-9_]+", "_", nom.lower()).strip("_")[:40]
+            cap = caps.get(slug) or caps.get(nom)
+            if cap:
+                return "actif" if cap.get("statut") == "integree" else "erreur"
+            # Cherche aussi dans registre conscience
+            import conscience as _c
+            item = _c.obtenir(slug) or _c.obtenir(nom)
+            if item:
+                s = item.get("statut", "")
+                return "actif" if s == "integree" else ("erreur" if s in ("a_reparer", "echouee") else "inactif")
+            return "inactif"
+        elif type_ in ("interface", "section"):
+            return "actif"  # appliqué = actif par définition
+        elif type_ == "regle":
+            import re as _re
+            ra = regles_actives()
+            regles = ra.get("regles", {})
+            versions = ra.get("versions_regles", {})
+            # Slugifier le nom pour matcher les clés de règles (ex: "Interdire input()" -> "interdire_input_")
+            slug = _re.sub(r"[^a-z0-9]+", "_", nom.lower()).strip("_")[:60]
+            if (nom in regles or slug in regles or slug in versions or
+                    any(slug in k or k in slug for k in regles)):
+                return "actif"
+            return "inactif"
+        elif type_ == "agent":
+            customs = profils_custom()
+            return "actif" if nom in customs else "inactif"
+        elif type_ == "skill":
+            import savoir as _s
+            try:
+                skills = _s.HUB.chercher(nom, k=10) or []
+                return "actif" if skills else "inactif"
+            except Exception:
+                return "inconnu"
+        elif type_ == "modele":
+            import gateway
+            return "actif" if nom in gateway.TIERS else "inactif"
+        elif type_ in ("savoir", "idee", "loi"):
+            return "actif"  # appliqué dans le store
+    except Exception:
+        pass
+    return "inconnu"
+
+
+def statuts_changelog() -> list[dict]:
+    """Enrichit le changelog avec le statut réel de chaque entrée.
+    Retourne la liste avec champ 'statut_reel' + 'statut_ts'. Ne leve jamais."""
+    try:
+        cl = changelog_generation()
+        now = time.time()
+        result = []
+        for e in cl:
+            enrichi = dict(e)
+            try:
+                enrichi["statut_reel"] = _statut_entree(e)
+            except Exception:
+                enrichi["statut_reel"] = "inconnu"
+            enrichi["statut_ts"] = now
+            result.append(enrichi)
+        return result
+    except Exception:
+        return changelog_generation()
 
 
 def _ledger(entree: dict) -> None:

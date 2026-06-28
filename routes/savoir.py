@@ -341,10 +341,26 @@ def evolution_supprimer_agent(cle: str, authorization: str | None = Header(defau
 
 @router.get("/evolution/generation")
 def evolution_generation(authorization: str | None = Header(default=None)):
-    """Generation NEOGEN courante (1 an) + changelog des changements de l'annee."""
+    """Generation NEOGEN courante (1 an) + changelog enrichi des statuts reels."""
     _gate_owner(authorization)
     import evolution_gouvernee as _evo
-    return {"generation": _evo.generation_courante(), "changelog": _evo.changelog_generation()}
+    return {"generation": _evo.generation_courante(), "changelog": _evo.statuts_changelog()}
+
+
+@router.post("/evolution/generation/nettoyer")
+def evolution_nettoyer_doublons(authorization: str | None = Header(default=None)):
+    """Supprime les doublons du changelog (1 entree par artefact). Idempotent."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    return _evo.nettoyer_doublons_changelog()
+
+
+@router.post("/evolution/generation/statuts/refresh")
+def evolution_statuts_refresh(authorization: str | None = Header(default=None)):
+    """Recalcule les statuts réels de toutes les entrées du changelog. Cron journalier."""
+    _gate_owner(authorization)
+    import evolution_gouvernee as _evo
+    return {"ok": True, "changelog": _evo.statuts_changelog()}
 
 
 @router.get("/evolution/types")

@@ -37,7 +37,7 @@ INTERVALLE_MIN_MINUTES = 5      # garde-fou : pas plus fréquent que toutes les 
 MAX_LOG = 5                     # on garde les N derniers résultats par tâche
 MAX_ECHECS_AVANT_PAUSE = 3      # après N échecs consécutifs -> tâche auto-pausée
 PROVIDERS_VALIDES = ("local", "anthropic", "openai", "gemini", "deepseek", "mistral")
-AGENTS_VALIDES = ("cerveau", "createur", "genealogiste", "secretaire")
+AGENTS_VALIDES = ("cerveau", "createur", "genealogiste", "secretaire", "veilleur")
 
 # Résolution des clés système : centralisée dans credentials_loader.PROVIDER_CRED (dette F003).
 
