@@ -382,6 +382,201 @@ def outil_diagnostic_ingenieur(**kw) -> str:
     return nettoyer("\n".join(lignes))
 
 
+# ── INSPECTER / REPARER une capacite forgee ──────────────────────────────────────
+
+def outil_inspecter_capacite(nom: str = "", **kw) -> str:
+    """Lit DIRECTEMENT le code source d'une capacite forgee depuis le registre
+    (data/cellules_forgees.json + data/cellules_forgees/<nom>.py). En UNE etape
+    tu obtiens : signature, resume, code complet, verdict sandbox, ancrage.
+    UTILISER EN PREMIER quand une capacite echoue — pas besoin de chercher dans
+    tous les fichiers source. Sans nom -> liste toutes les capacites avec leur statut.
+    params: {nom? (nom exact de la capacite)}"""
+    _REGISTRE = os.path.join(_DATA, "cellules_forgees.json")
+    _CELLS_DIR = os.path.join(_DATA, "cellules_forgees")
+    if not nom:
+        if not os.path.isfile(_REGISTRE):
+            return "[inspecter_capacite] registre data/cellules_forgees.json introuvable"
+        try:
+            with open(_REGISTRE, encoding="utf-8") as f:
+                reg = json.load(f)
+        except Exception as e:
+            return f"[inspecter_capacite] erreur lecture registre : {e}"
+        if not reg:
+            return "[inspecter_capacite] registre vide — aucune capacite forgee"
+        lignes_out = ["Capacites forgees (registre data/cellules_forgees.json) :"]
+        for n, v in (reg.items() if isinstance(reg, dict) else {str(i): v for i, v in enumerate(reg)}.items()):
+            sig = v.get("signature") or v.get("nom") or n
+            resume = v.get("description") or v.get("resume", "")[:60]
+            verdict = v.get("verdict", "?")
+            ancrage = v.get("ancrage", "manuel")
+            lignes_out.append(f"  - {n} : {sig} | verdict={verdict} ancrage={ancrage} — {resume}")
+        return nettoyer("\n".join(lignes_out))
+    # Inspecter une capacite specifique.
+    if not os.path.isfile(_REGISTRE):
+        return "[inspecter_capacite] registre data/cellules_forgees.json introuvable"
+    try:
+        with open(_REGISTRE, encoding="utf-8") as f:
+            reg = json.load(f)
+    except Exception as e:
+        return f"[inspecter_capacite] erreur lecture registre : {e}"
+    entree = reg.get(nom) if isinstance(reg, dict) else None
+    if entree is None:
+        # Cherche par nom dans une liste ou comme valeur imbriquee.
+        if isinstance(reg, list):
+            for item in reg:
+                if isinstance(item, dict) and item.get("nom") == nom:
+                    entree = item
+                    break
+    if entree is None:
+        disponibles = list(reg.keys()) if isinstance(reg, dict) else [str(i) for i in range(len(reg))]
+        return f"[inspecter_capacite] '{nom}' absent du registre. Disponibles : {disponibles}"
+    # Retourner les metadonnees.
+    lignes_out = [f"CAPACITE : {nom}",
+                  f"Signature : {entree.get('signature', '?')}",
+                  f"Resume : {entree.get('description') or entree.get('resume', '?')}",
+                  f"Verdict sandbox : {entree.get('verdict', '?')}",
+                  f"Ancrage : {entree.get('ancrage', 'manuel')}",
+                  f"Fichier : {entree.get('fichier', '?')}"]
+    # Lire le code source si disponible.
+    fichier = entree.get("fichier") or ""
+    chemin_code = os.path.join(_CELLS_DIR, fichier) if fichier and not os.path.isabs(fichier) else fichier
+    if chemin_code and os.path.isfile(chemin_code):
+        try:
+            with open(chemin_code, encoding="utf-8", errors="replace") as f:
+                code = f.read()
+            lignes_out.append(f"\nCODE SOURCE ({len(code.splitlines())} lignes) :\n{code[:6000]}")
+            if len(code) > 6000:
+                lignes_out.append("[…code tronque — fichier complet via lire_source]")
+        except Exception as e:
+            lignes_out.append(f"\nCode inaccessible : {e}")
+    else:
+        # Essayer le chemin direct nom.py
+        alt = os.path.join(_CELLS_DIR, f"{nom}.py")
+        if os.path.isfile(alt):
+            try:
+                with open(alt, encoding="utf-8", errors="replace") as f:
+                    code = f.read()
+                lignes_out.append(f"\nCODE SOURCE :\n{code[:6000]}")
+            except Exception as e:
+                lignes_out.append(f"\nCode inaccessible : {e}")
+        else:
+            lignes_out.append("\nPas de fichier source trouve — la capacite peut etre in-memory uniquement.")
+    return nettoyer("\n".join(lignes_out))
+
+
+# ── MEMOIRE INTER-SESSION : journal des erreurs et resolutions de l'Ingenieur ────
+
+_JOURNAL = os.path.join(_DATA, "journal_agents.json")  # shared across all agents
+_MAX_JOURNAL = 500   # entrees max (FIFO)
+
+
+def _mots_cles_journal(texte: str) -> list[str]:
+    """Extrait les mots-cles significatifs pour la recherche de similarite."""
+    stop = {"le", "la", "les", "de", "du", "des", "un", "une", "et", "ou",
+            "est", "sont", "dans", "sur", "avec", "pour", "par", "que", "qui",
+            "ne", "pas", "je", "tu", "il", "on", "nous", "vous", "ils", "ca",
+            "the", "a", "an", "is", "in", "of", "to", "for", "with", "that"}
+    mots = re.findall(r"[a-z_]{3,}", texte.lower())
+    return [m for m in mots if m not in stop][:20]
+
+
+def _charger_journal() -> list:
+    try:
+        if os.path.isfile(_JOURNAL):
+            with open(_JOURNAL, encoding="utf-8") as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+    except Exception:
+        pass
+    return []
+
+
+def _sauver_journal(entrees: list) -> None:
+    try:
+        os.makedirs(_DATA, exist_ok=True)
+        with open(_JOURNAL, "w", encoding="utf-8") as f:
+            json.dump(entrees[-_MAX_JOURNAL:], f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def outil_consulter_journal(situation: str = "", agent: str = "", **kw) -> str:
+    """Memoire inter-session de NEOGEN : consulte le journal des erreurs, resolutions et
+    decouvertes validees par TOUS les agents lors des sessions precedentes.
+    UTILISER EN DEBUT DE TACHE pour ne pas re-decouvrir ce qui est deja connu.
+    Retourne les 5 entrees les plus pertinentes avec resolution complete.
+    params: {situation (description tache ou erreur), agent? (filtrer par agent: ingenieur|veilleur...)}"""
+    entrees = _charger_journal()
+    if agent:
+        entrees = [e for e in entrees if e.get("agent", "") == agent]
+    if not entrees:
+        return "[consulter_journal] Journal vide — aucune experience enregistree pour l'instant."
+    if not situation:
+        recentes = sorted(entrees, key=lambda e: e.get("ts", 0), reverse=True)[:10]
+        lignes = ["JOURNAL AGENTS — 10 dernieres entrees :"]
+        for e in recentes:
+            lignes.append(f"\n[{e.get('iso','?')}][{e.get('agent','?')}] {e.get('categorie','?')} — {e.get('contexte','')[:60]}")
+            lignes.append(f"  Erreur : {e.get('erreur','')[:80]}")
+            lignes.append(f"  Resolution : {e.get('resolution','')[:120]}")
+        return nettoyer("\n".join(lignes))
+    # Recherche par mots-cles.
+    mots_req = set(_mots_cles_journal(situation))
+    scores = []
+    for e in entrees:
+        mots_e = set(e.get("mots_cles", []) + _mots_cles_journal(
+            e.get("contexte", "") + " " + e.get("erreur", "")))
+        inter = len(mots_req & mots_e)
+        union = len(mots_req | mots_e) or 1
+        score = inter / union
+        if score > 0.05:
+            scores.append((score, e))
+    scores.sort(key=lambda x: -x[0])
+    if not scores:
+        return f"[consulter_journal] Aucune experience similaire trouvee pour : '{situation[:80]}'"
+    lignes = [f"MEMOIRE : {len(scores)} experience(s) similaire(s) trouvee(s) :"]
+    for sc, e in scores[:5]:
+        succes_str = "OK" if e.get("succes") else "ECHEC"
+        lignes.append(f"\n[{e.get('iso','?')}][{succes_str}][score:{sc:.2f}] {e.get('categorie','?')}")
+        lignes.append(f"  Contexte : {e.get('contexte','')[:100]}")
+        lignes.append(f"  Erreur   : {e.get('erreur','')[:100]}")
+        lignes.append(f"  Resolution: {e.get('resolution','')}")
+    return nettoyer("\n".join(lignes))
+
+
+def outil_journaliser(contexte: str = "", erreur: str = "", resolution: str = "",
+                      succes: bool = True, categorie: str = "general",
+                      agent: str = "", **kw) -> str:
+    """Enregistre une erreur et sa resolution dans le journal permanent inter-session
+    (data/journal_agents.json), accessible a TOUS les agents lors des sessions futures.
+    UTILISER APRES chaque resolution reussie (ou echec notable) pour capitaliser.
+    params: {contexte (situation), erreur (message exact), resolution (ce qui a marche),
+    succes? (bool, defaut True), categorie? (capacite|navigation|patch|forge|invocation|general),
+    agent? (nom de l'agent qui journalise, ex: ingenieur|veilleur|cerveau)}"""
+    if not contexte or not resolution:
+        return "[journaliser] contexte et resolution requis"
+    import uuid as _uuid
+    entrees = _charger_journal()
+    mots = _mots_cles_journal(f"{contexte} {erreur} {resolution}")
+    iso = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    entree = {
+        "id": str(_uuid.uuid4())[:8],
+        "ts": time.time(),
+        "iso": iso,
+        "agent": agent or "inconnu",
+        "categorie": categorie or "general",
+        "contexte": contexte[:300],
+        "erreur": erreur[:300],
+        "resolution": resolution[:600],
+        "mots_cles": mots,
+        "succes": bool(succes),
+    }
+    entrees.append(entree)
+    _sauver_journal(entrees)
+    nb = len(entrees)
+    return nettoyer(f"[journaliser] OK — entree #{nb} enregistree ({iso}). "
+                    f"Journal agents : {nb} experience(s) totale(s).")
+
+
 # ── DELEGUER : creer un bebe-agent specialise ────────────────────────────────────
 
 def outil_creer_bebe_agent(cle: str = "", titre: str = "", role: str = "",

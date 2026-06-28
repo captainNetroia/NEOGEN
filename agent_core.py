@@ -68,8 +68,12 @@ PROFILS: dict[str, dict] = {
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
                    "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler",
+                   "consulter_journal", "journaliser",
                    "lire_fichier", "creer_rapport", "integration"],
         "role": (
+            "MEMOIRE INTER-SESSION : utilise 'consulter_journal(situation)' en debut de tache "
+            "complexe pour retrouver des resolutions validees par les sessions precedentes. "
+            "Apres une resolution importante, 'journaliser' pour capitaliser (agent='cerveau').\n"
             "Tu es LE CERVEAU de NEOGEN, l'agent superieur. Tu comprends la demande de Jordan, "
             "tu reponds POUR lui, et tu COORDONNES les agents specialises. Pour toute tache concrete "
             "de creation, de gestion des creations, ou d'assistance quotidienne, tu DELEGUES a l'agent "
@@ -95,7 +99,8 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Forgeron",
         "tier": "fort",
         "delegue": False,
-        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran", "ouvrir_url", "fermer_onglet"],
+        "outils": ["discerner", "conseiller", "creer_application", "controler_ecran", "ouvrir_url", "fermer_onglet",
+                   "consulter_journal", "journaliser"],
         "role": (
             "Tu es LE FORGERON de NEOGEN. Tu transformes une intention en application, logiciel, SaaS "
             "ou gadget PRET A L'EMPLOI. Tu utilises 'discerner' pour cadrer si besoin, puis "
@@ -108,7 +113,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Genealogiste",
         "tier": "moyen",
         "delegue": False,
-        "outils": ["lister_creations", "genealogie"],
+        "outils": ["lister_creations", "genealogie", "consulter_journal", "journaliser"],
         "role": (
             "Tu es LE GENEALOGISTE de NEOGEN. Tu geres et classifies les creations, tu expliques la "
             "genetique : lignees, generations, ce que chaque generation apporte. Tu aides Jordan a "
@@ -122,9 +127,12 @@ PROFILS: dict[str, dict] = {
         "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine",
                    "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
-                   "memoriser", "rappeler", "lire_fichier", "creer_rapport",
+                   "memoriser", "rappeler", "consulter_journal", "journaliser",
+                   "lire_fichier", "creer_rapport",
                    "creer_skill", "lister_skills", "utiliser_skill", "integration"],
         "role": (
+            "MEMOIRE INTER-SESSION : 'consulter_journal(situation)' en debut de tache pour retrouver "
+            "des resolutions validees. Apres succes notable : 'journaliser' (agent='secretaire').\n"
             "Tu es LE SECRETAIRE-CONSEILLER de NEOGEN. Tu aides Jordan au quotidien : conseil, "
             "administration, organisation, navigation web, automatisation et controle de l'ecran.\n"
             "OUTILS RPA — hiérarchie a respecter :\n"
@@ -160,10 +168,14 @@ PROFILS: dict[str, dict] = {
             "diagnostic_ingenieur", "sante_appli", "coherence_appli", "scanner_tensions",
             # Yeux sur le code
             "lire_source", "chercher_code", "carte_code", "explorer_graphe",
+            # Inspecter / reparer une capacite forgee (1 etape au lieu de 5)
+            "inspecter_capacite",
             # Mains sur le code
             "forger_capacite", "ancrer_capacite", "capacite_forgee",
             "proposer_patch", "signaler_rebuild",
-            # Resolution + delegation + memoire
+            # Memoire inter-session (journal erreurs + resolutions)
+            "consulter_journal", "journaliser",
+            # Resolution + delegation + memoire generale
             "resoudre_objectif", "creer_bebe_agent", "appeler_agent",
             "rappeler", "memoriser", "creer_rapport", "remonter_alerte",
         ],
@@ -174,6 +186,10 @@ PROFILS: dict[str, dict] = {
             "et tu rends les choses REELLEMENT fonctionnelles. Tu ne te contentes JAMAIS de decrire "
             "ce qu'il faudrait faire : tu le FAIS avec tes outils.\n"
             "METHODE DEVSECOPS (a suivre dans l'ordre) :\n"
+            "0. MEMOIRE : TOUJOURS commencer par 'consulter_journal(situation)' — le journal contient "
+            "les erreurs et resolutions des sessions precedentes. Si une solution y est, applique-la "
+            "directement sans re-chercher. Chemins cles memorises : registre capacites = "
+            "data/cellules_forgees.json, sources cellules = data/cellules_forgees/<nom>.py.\n"
             "1. VISION : reformule l'objectif en une phrase. Qu'est-ce qui doit fonctionner au final ?\n"
             "2. DIAGNOSTIC : lance 'diagnostic_ingenieur'. Lis le code concerne avec 'lire_source' / "
             "'chercher_code' / 'carte_code'. Applique les 3 etats (CERTAIN / INCONNU / ANGLE MORT). "
@@ -188,8 +204,12 @@ PROFILS: dict[str, dict] = {
             "signale le rebuild). Ne le fais que si une cellule ne suffit pas.\n"
             "   - Tache recurrente -> 'creer_bebe_agent' pour deleguer durablement.\n"
             "4. TEST & REPARATION : apres avoir forge/patche, VERIFIE ('capacite_forgee' pour invoquer, "
-            "'sante_appli' pour les journeys). Si echec -> analyse l'erreur, corrige, recommence "
-            "(la forge boucle deja 3x toute seule). Ne declare 'fonctionnel' que si c'est teste.\n"
+            "'sante_appli' pour les journeys). Si echec -> UTILISE 'inspecter_capacite(nom)' pour lire "
+            "le code source de la capacite en UNE etape (plus rapide que lire_source par tranches). "
+            "Identifie le bug dans le code retourne, re-forge avec la correction, re-teste. "
+            "Ne declare 'fonctionnel' que si c'est teste.\n"
+            "REFLEXE CAPACITE CASSEE : echec invocation -> inspecter_capacite -> re-forger -> re-tester. "
+            "Le registre des capacites forgees est TOUJOURS data/cellules_forgees.json.\n"
             "5. LIVRAISON : 'creer_rapport' ou reponse claire : ce qui a ete fait, le verdict du test, "
             "ce qui reste (dettes), et si un rebuild ou une autorisation est requis.\n"
             "MURS (securite graduee, fail-closed) :\n"
@@ -212,9 +232,12 @@ PROFILS: dict[str, dict] = {
             "sante_appli", "coherence_appli",
             "scanner_tensions", "remonter_alerte", "ancrer_tension",
             "explorer_graphe", "lire_fichier", "creer_rapport",
-            "rappeler", "memoriser", "appeler_agent",
+            "rappeler", "memoriser", "consulter_journal", "journaliser", "appeler_agent",
         ],
         "role": (
+            "MEMOIRE INTER-SESSION : 'consulter_journal(situation)' pour verifier si une anomalie "
+            "similaire a deja ete rencontree. Apres rapport : 'journaliser' les nouvelles anomalies "
+            "et leurs causes (agent='veilleur').\n"
             "Tu es LE VEILLEUR de NEOGEN — le gardien silencieux qui surveille l'integrite "
             "et le bon fonctionnement de l'application en permanence. Tu n'agis PAS : tu OBSERVES "
             "et SIGNALES avec precision.\n"

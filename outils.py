@@ -26,6 +26,7 @@ from outils_dev import (
     outil_lire_source, outil_chercher_code, outil_carte_code,
     outil_forger_capacite, outil_ancrer_capacite, outil_proposer_patch,
     outil_signaler_rebuild, outil_diagnostic_ingenieur, outil_creer_bebe_agent,
+    outil_inspecter_capacite, outil_consulter_journal, outil_journaliser,
 )
 
 
@@ -1124,5 +1125,8 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "proposer_patch":         (outil_proposer_patch,         "Modifie un module existant : patch teste (syntaxe + sauvegarde) ecrit dans data/patches_proposes/ + rebuild signale. NOYAU -> escalade autorisation Jordan (mur). params: {chemin, ancien (texte exact), nouveau, raison}"),
     "signaler_rebuild":       (outil_signaler_rebuild,       "Marque qu'un rebuild Docker est requis (un patch de module ne prend effet qu'apres rebuild). params: {raison?}"),
     "diagnostic_ingenieur":   (outil_diagnostic_ingenieur,   "Diagnostic 360 : sante, coherence, cellules non integrees, patchs en attente, rebuild requis. Point de depart de toute intervention. params: {}"),
+    "inspecter_capacite":     (outil_inspecter_capacite,     "Lit le code source + metadonnees d'une capacite forgee en UNE etape (registre + fichier .py). PREMIER reflexe quand une capacite echoue — plus rapide que lire_source par tranches. Sans nom -> liste tout. params: {nom?}"),
+    "consulter_journal":      (outil_consulter_journal,      "Memoire inter-session : cherche dans le journal des erreurs/resolutions deja vecues. UTILISER EN DEBUT DE TACHE pour ne pas re-decouvrir ce qui est connu. params: {situation (description tache ou erreur)}"),
+    "journaliser":            (outil_journaliser,            "Enregistre une erreur et sa resolution dans le journal permanent (data/ingenieur_journal.json). UTILISER APRES chaque resolution pour capitaliser. params: {contexte, erreur, resolution, succes?, categorie?}"),
     "creer_bebe_agent":       (outil_creer_bebe_agent,       "Cree un bebe-agent specialise (data-driven, fusionne dans PROFILS) pour deleguer une tache recurrente. params: {cle, titre, role, outils? (csv)}"),
 }
