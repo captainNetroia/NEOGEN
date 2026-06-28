@@ -157,6 +157,13 @@ def _landing() -> str:
       <span class="layer-arrow">›</span>
     </div>
 
+    <div class="layer" onclick="showSection('ingenieur')">
+      <span class="layer-marker" style="--lc:#10b981"></span>
+      <div class="layer-label"><h3>Ingenieur</h3><p>Agent developpeur : diagnostique, forge, repare et ancre</p></div>
+      <span class="badge live">live</span>
+      <span class="layer-arrow">›</span>
+    </div>
+
     <div class="layer" onclick="showSection('integrations')">
       <span class="layer-marker" style="--lc:var(--c-integration)"></span>
       <div class="layer-label"><h3>Integrations</h3><p>Modele IA, outils tiers, API personnalisees</p></div>

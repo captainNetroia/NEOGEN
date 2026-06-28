@@ -154,6 +154,7 @@ PROFILS: dict[str, dict] = {
         "tier": "fort",
         "delegue": False,
         "max_etapes": 18,   # un cycle DevSecOps (diagnostic+lecture+forge+test+rapport) > 8 etapes
+        "eco_interdit": True,  # le code + le protocole ReAct JSON exigent un modele fort (pas Eco)
         "outils": [
             # Diagnostic
             "diagnostic_ingenieur", "sante_appli", "coherence_appli", "scanner_tensions",
@@ -583,11 +584,17 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
 
     tier = profil.get("tier", "fort")
     _bandit_cat = None
-    if eco:
+    # Certains agents (Ingenieur : code + protocole ReAct JSON) exigent un modele capable.
+    # eco_interdit -> on garde le tier du profil meme en mode economie (sinon un petit modele
+    # echoue a produire l'AgentStep JSON et l'agent « bloque »).
+    if eco and not profil.get("eco_interdit"):
         reco = gateway.recommander_tier(message)
         tier = reco["tier"]
         _bandit_cat = reco.get("categorie")
         _emit({"type": "eco", "tier": tier, "raison": reco["raison"]})
+    elif eco and profil.get("eco_interdit"):
+        _emit({"type": "eco", "tier": tier,
+               "raison": f"agent {role} : modele {tier} requis (code/raisonnement structuré)"})
 
     cl = _client or gateway.client(ctx, tier=tier)
 
