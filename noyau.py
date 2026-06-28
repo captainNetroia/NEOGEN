@@ -210,6 +210,51 @@ def autoriser(changement: dict) -> tuple[bool, str]:
     return True, "ok"
 
 
+def classer_cible(chemin: str) -> str:
+    """Classe un fichier pour decider QUI peut le modifier et COMMENT (utilise par l'Ingenieur).
+      'credentials' : secrets -> mur ABSOLU, jamais modifiable par aucune voie.
+      'noyau'       : fichier grave (ZONES_PROTEGEES) -> patch INTERDIT sans autorisation Jordan (mur).
+      'data'        : data/ -> zone d'evolution data-driven (libre, deja gardee par autoriser()).
+      'applicative' : module .py/.js/.html/... de l'app hors noyau -> patchable SOUS CONTROLE
+                      (analyse + sauvegarde + test + rebuild signale). C'est la zone ou l'Ingenieur agit.
+      'inconnu'     : hors projet ou remontee de chemin -> refus fail-closed.
+    """
+    c = (chemin or "").strip().replace("\\", "/").lstrip("./")
+    if not c or ".." in c.split("/"):
+        return "inconnu"
+    base = c.split("/")[-1]
+    bas = c.lower()
+    if "credential" in bas or bas.endswith(".env") or bas.endswith(".env.example"):
+        return "credentials"
+    if c in ZONES_PROTEGEES or base in {z.split("/")[-1] for z in ZONES_PROTEGEES}:
+        return "noyau"
+    if c.startswith("data/"):
+        return "data"
+    if base.endswith((".py", ".js", ".html", ".css", ".json", ".md", ".yml", ".yaml", ".txt")):
+        return "applicative"
+    return "inconnu"
+
+
+def autoriser_patch_code(chemin: str, contenu: str) -> tuple[bool, str, str]:
+    """Gardien d'un patch sur le CODE SOURCE (distinct de autoriser() qui garde le data-driven).
+    Renvoie (ok, categorie, raison). Fail-closed.
+      - credentials / inconnu        -> (False, cat, refus absolu)
+      - noyau                        -> (False, 'noyau', 'MUR : autorisation Jordan requise')
+      - applicative / data + contenu sain -> (True, cat, 'ok')
+    Le contenu est verifie contre les termes interdits du noyau (defense en profondeur :
+    pas de secret en clair, pas de contournement d'isolation, pas de privilege)."""
+    cat = classer_cible(chemin)
+    if cat in ("credentials", "inconnu"):
+        return False, cat, f"cible '{chemin}' : {cat} -> modification interdite (mur absolu)"
+    if cat == "noyau":
+        return False, "noyau", f"cible '{chemin}' dans le noyau (mur) -> autorisation explicite de Jordan requise"
+    blob = (contenu or "").lower()
+    for terme in _TERMES_INTERDITS:
+        if terme in blob:
+            return False, cat, f"terme interdit dans le contenu : '{terme}' (securite/noyau)"
+    return True, cat, "ok"
+
+
 def presentation_sure(contenu: str) -> tuple[bool, str]:
     """Garde fail-closed pour un contenu de PRESENTATION (fragment HTML/CSS, patch ui).
     Refuse tout acces reseau externe, script distant, exfiltration ou terme du noyau.

@@ -3338,6 +3338,18 @@ function _bulleProgression(jobId,titre,btn){
       if(btn){btn.textContent='⚡ Code genere';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';}
       if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
       setTimeout(function(){location.reload();},2200);
+    }else if(st.etat==='termine'){
+      /* L'INGENIEUR a fini d'orchestrer (diagnostic -> code -> ancrage -> test). */
+      clearInterval(timer);
+      if(et)et.textContent='🛠️ Ingenieur : termine';
+      el.style.borderColor='rgba(16,185,129,.6)';
+      var _rap=esc((st.rapport||'').slice(0,420));
+      if(note)note.innerHTML=(st.nom?('Capacite <b>'+esc(st.nom)+'</b> forgee & integree.<br>'):'')
+        +'<div style="margin-top:6px;max-height:140px;overflow:auto;white-space:pre-wrap;opacity:.8">'+_rap+'</div>';
+      if(btn){btn.textContent='🛠️ Traite par l\'Ingenieur';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';btn.disabled=false;}
+      if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
+      if(typeof loadIngenieur==='function')setTimeout(loadIngenieur,500);
+      setTimeout(function(){if(el.parentNode)el.remove();},12000);
     }else if(st.etat==='refusee'){
       clearInterval(timer);
       if(et)et.textContent='✗ Refuse';
@@ -3464,6 +3476,7 @@ async function loadEvolutionSysteme(){
   loadConscience();
   loadSubconscient();
   loadEvolutionCellules();
+  loadIngenieur();
   loadFragments();
   if(_evoWired)return; _evoWired=true;
   wireFragments();
@@ -3784,6 +3797,64 @@ const _STATUT_META={
   obsolete:{l:'obsolete',c:'#6b7280',b:'rgba(107,114,128,.1)',br:'rgba(107,114,128,.25)',i:'&#9866;'}
 };
 function _statutMeta(s){return _STATUT_META[s]||_STATUT_META.proposee;}
+
+/* Tableau de bord de L'INGENIEUR : patchs de code proposes, autorisations noyau
+   en attente (le mur : Jordan decide), badge rebuild requis. */
+async function loadIngenieur(){
+  const box=document.getElementById('ingenieur-corps');
+  if(!box)return;
+  try{
+    const r=await fetch('/savoir/evolution/ingenieur');
+    if(!r.ok){box.innerHTML='<div style="opacity:.5;font-size:12px">Reserve au proprietaire.</div>';return;}
+    const d=await r.json();
+    let h='';
+    // Badge rebuild requis.
+    if(d.rebuild&&d.rebuild.requis){
+      const nb=(d.rebuild.raisons||[]).length;
+      h+='<div style="padding:10px 12px;margin-bottom:10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);border-radius:10px">'
+        +'<div style="color:#f59e0b;font-weight:700;font-size:12px">&#9888; Rebuild requis</div>'
+        +'<div style="font-size:11px;opacity:.75;margin:4px 0 8px">'+nb+' changement(s) de module attendent <code>docker compose up -d --build</code>.</div>'
+        +'<button id="ing-rebuild-fait" class="ghost" style="font-size:11px;padding:5px 12px">Marquer rebuild fait</button></div>';
+    }
+    // Autorisations noyau (le mur).
+    const auts=d.autorisations||[];
+    if(auts.length){
+      h+='<div style="font-size:12px;font-weight:700;color:#ef4444;margin:6px 0">&#128274; Autorisations noyau requises ('+auts.length+')</div>';
+      auts.forEach(function(a){
+        h+='<div style="padding:9px 11px;margin-bottom:7px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:9px">'
+          +'<div style="font-size:12px;font-weight:600">'+esc(a.chemin||'')+'</div>'
+          +'<div style="font-size:11px;opacity:.7;margin:3px 0 7px">'+esc(a.raison||'')+'</div>'
+          +'<div class="row" style="gap:6px"><button class="ing-aut-ok ghost" data-id="'+esc(a.id)+'" style="font-size:11px;padding:4px 12px;color:#10b981">Autoriser</button>'
+          +'<button class="ing-aut-no ghost" data-id="'+esc(a.id)+'" style="font-size:11px;padding:4px 12px;color:#ef4444">Refuser</button></div></div>';
+      });
+    }
+    // Patchs proposes.
+    const patchs=(d.patchs||[]).filter(function(p){return p.statut==='propose';});
+    if(patchs.length){
+      h+='<div style="font-size:12px;font-weight:700;margin:8px 0 4px">&#128296; Patchs proposes ('+patchs.length+')</div>';
+      patchs.forEach(function(p){
+        h+='<div style="padding:8px 11px;margin-bottom:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:9px">'
+          +'<div style="font-size:12px;font-weight:600">'+esc(p.chemin||'')+'</div>'
+          +'<div style="font-size:11px;opacity:.7">'+esc(p.raison||'')+'</div></div>';
+      });
+    }
+    if(!h)h='<div style="opacity:.5;font-size:12px">Aucune intervention en attente. L\'Ingenieur agit quand tu donnes vie a une idee technique.</div>';
+    box.innerHTML=h;
+    // Wiring.
+    const br=document.getElementById('ing-rebuild-fait');
+    if(br)br.onclick=async function(){br.disabled=true;br.textContent='...';
+      try{await fetch('/savoir/evolution/ingenieur/rebuild-fait',{method:'POST'});loadIngenieur();}catch(e){br.disabled=false;}};
+    box.querySelectorAll('.ing-aut-ok').forEach(function(b){b.onclick=function(){_decideAut(b.dataset.id,true);};});
+    box.querySelectorAll('.ing-aut-no').forEach(function(b){b.onclick=function(){_decideAut(b.dataset.id,false);};});
+  }catch(e){box.innerHTML='<div style="opacity:.5;font-size:12px">Erreur de chargement.</div>';}
+}
+async function _decideAut(aid,accordee){
+  try{
+    await fetch('/savoir/evolution/ingenieur/autorisation/'+encodeURIComponent(aid),
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accordee:accordee})});
+    loadIngenieur();
+  }catch(e){}
+}
 
 async function loadSubconscient(){
   const etatEl=document.getElementById('subconscient-etat');

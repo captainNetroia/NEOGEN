@@ -230,14 +230,15 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
                     "explication": apercu.get("explication", "")}
         return {"ok": False, "voie": "forge_blocs", "raison": apercu.get("raison", "echec")}
 
-    # VOIE 1 : technique -> la forge (vrai code).
+    # VOIE 1 : technique -> L'INGENIEUR orchestre (diagnostic -> code -> ancre -> teste -> rapport).
+    # L'Ingenieur raisonne comme le developpeur humain ; repli automatique sur la forge directe
+    # si le LLM est indisponible (l'idee prend vie quand meme).
     if _est_technique(evo, p):
-        import forge_evolution
+        import ingenieur
         besoin = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
         if evo and isinstance(evo.get("payload"), dict):
             besoin += " Details : " + str(evo["payload"])[:400]
-        job_id = forge_evolution.lancer_forge_async(
-            besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
+        job_id = ingenieur.lancer_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
         return {"ok": True, "voie": "forge", "job_id": job_id}
 
     # VOIE 2 : data-driven explicite (le LLM a propose un type non technique).
@@ -431,6 +432,54 @@ def evolution_cellule(nom: str, authorization: str | None = Header(default=None)
     if not c:
         raise HTTPException(status_code=404, detail="cellule introuvable")
     return c
+
+
+# ── L'Ingenieur : patchs de code proposes, autorisations noyau, rebuild ───────────
+
+@router.get("/evolution/ingenieur")
+def ingenieur_etat(authorization: str | None = Header(default=None)):
+    """Tableau de bord de l'Ingenieur : patchs proposes, autorisations noyau en attente,
+    rebuild requis. Alimente le bloc UI dedie."""
+    _gate_owner(authorization)
+    import outils_dev as _id
+    return {
+        "patchs": _id.lister_patchs(),
+        "autorisations": [a for a in _id.lister_autorisations() if a.get("statut") == "en_attente"],
+        "rebuild": _id.etat_rebuild(),
+    }
+
+
+@router.get("/evolution/ingenieur/patch/{pid}")
+def ingenieur_patch(pid: str, authorization: str | None = Header(default=None)):
+    """Un patch propose AVEC son diff complet (ancien/nouveau) pour revue avant rebuild."""
+    _gate_owner(authorization)
+    import outils_dev as _id
+    p = _id.patch(pid)
+    if not p:
+        raise HTTPException(status_code=404, detail="patch introuvable")
+    return p
+
+
+@router.post("/evolution/ingenieur/autorisation/{aid}")
+def ingenieur_autorisation(aid: str, accordee: bool = Body(embed=True),
+                           authorization: str | None = Header(default=None)):
+    """Jordan accorde/refuse un patch qui touche le NOYAU (le mur). Trace la decision ;
+    l'application reelle du patch noyau reste manuelle (Claude Code + rebuild)."""
+    _gate_owner(authorization)
+    import outils_dev as _id
+    r = _id.decider_autorisation(aid, accordee)
+    if not r.get("ok"):
+        raise HTTPException(status_code=404, detail=r.get("raison", "introuvable"))
+    return r
+
+
+@router.post("/evolution/ingenieur/rebuild-fait")
+def ingenieur_rebuild_fait(authorization: str | None = Header(default=None)):
+    """Marque le rebuild comme effectue (efface le badge UI). A appeler apres
+    'docker compose up -d --build'."""
+    _gate_owner(authorization)
+    import outils_dev as _id
+    return _id.marquer_rebuild_fait()
 
 
 # ── Conscience du systeme : ce que NEOGEN sait de lui-meme ────────────────────────

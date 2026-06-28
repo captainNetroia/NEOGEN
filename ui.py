@@ -1005,6 +1005,18 @@ def _section_evolution() -> str:
       <div id="subconscient-reves" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
+    <!-- L'Ingenieur : patchs de code proposes, autorisations noyau (le mur), rebuild requis -->
+    <div id="ingenieur-panel" style="margin:18px 0 8px;border:1px solid rgba(16,185,129,.22);border-radius:14px;padding:16px;background:rgba(0,18,12,.35)">
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>
+          L'Ingenieur
+        </div>
+        <span style="font-size:11px;opacity:.55;font-weight:400">diagnostique, code ce qui manque, teste, integre — il agit quand tu donnes vie a une idee technique</span>
+      </div>
+      <div id="ingenieur-corps" style="font-size:12px">Chargement...</div>
+    </div>
+
     <!-- Cellules forgees : le VRAI code genere par "donner vie" sur une idee technique -->
     <div style="font-size:13px;font-weight:600;margin:18px 0 8px">Cellules forgees <span style="font-size:11px;opacity:.5;font-weight:400">(code reel genere, teste en sandbox, valide contre les murs)</span></div>
     <div id="evo-cellules">

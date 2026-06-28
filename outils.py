@@ -21,6 +21,13 @@ from typing import Any, Callable
 import gateway
 from sanitizer import nettoyer
 
+# Outils de l'Ingenieur (chirurgie du code) — module dedie, importe ici pour le registre OUTILS.
+from outils_dev import (
+    outil_lire_source, outil_chercher_code, outil_carte_code,
+    outil_forger_capacite, outil_ancrer_capacite, outil_proposer_patch,
+    outil_signaler_rebuild, outil_diagnostic_ingenieur, outil_creer_bebe_agent,
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers internes utilisés par les outils
@@ -1105,4 +1112,14 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "rever":                  (outil_rever,                  "Declenche un cycle de REVE (subconscient) : fusionne des concepts eloignes (bisociation + blend LLM), score la nouveaute. Les reves suffisamment nouveaux (>= 0.62) remontent en bulle type « reve ». params: {n? (1-5 reves)}"),
     "sante_appli":            (outil_sante_appli,            "Rapport de sante NEOGEN : journeys OK/KO, conscience systeme (% sain), battements services, alertes recentes. Outil principal du Veilleur. params: {detail? (bool, defaut False)}"),
     "coherence_appli":        (outil_coherence_appli,        "Coherence complete : tous les journeys, tensions registres, cellules orphelines, changelog erreurs/inactifs. Rapport structure severite. params: {detail? (bool, defaut False)}"),
+    # ── Outils de l'INGENIEUR : chirurgie du code (lire/chercher/forger/patcher) ──
+    "lire_source":            (outil_lire_source,            "Lit un fichier du CODE SOURCE de l'app (.py/.js/.html/.json...) pour diagnostic. Lecture libre sauf credentials (mur). params: {chemin, debut?, lignes?}"),
+    "chercher_code":          (outil_chercher_code,          "Cherche un motif (regex) dans le code source (ou est defini X, qui appelle Y). params: {motif, glob? (defaut *.py)}"),
+    "carte_code":             (outil_carte_code,             "Cartographie les modules : fichiers source classes noyau (mur) vs applicatif (patchable). params: {sous_dossier?}"),
+    "forger_capacite":        (outil_forger_capacite,        "CODE ce qui manque : forge une capacite (vrai code genere, teste sandbox, valide murs, integre A CHAUD) + l'ancre dans le flux pour qu'elle agisse seule. Voie AUTOMATIQUE (pas de rebuild). params: {besoin, titre?, ancrage? (manuel|avant_validation_code|apres_erreur|avant_reponse_agent|periodique)}"),
+    "ancrer_capacite":        (outil_ancrer_capacite,        "Ancre une capacite forgee a un point du flux pour qu'elle s'auto-declenche. params: {nom, point}"),
+    "proposer_patch":         (outil_proposer_patch,         "Modifie un module existant : patch teste (syntaxe + sauvegarde) ecrit dans data/patches_proposes/ + rebuild signale. NOYAU -> escalade autorisation Jordan (mur). params: {chemin, ancien (texte exact), nouveau, raison}"),
+    "signaler_rebuild":       (outil_signaler_rebuild,       "Marque qu'un rebuild Docker est requis (un patch de module ne prend effet qu'apres rebuild). params: {raison?}"),
+    "diagnostic_ingenieur":   (outil_diagnostic_ingenieur,   "Diagnostic 360 : sante, coherence, cellules non integrees, patchs en attente, rebuild requis. Point de depart de toute intervention. params: {}"),
+    "creer_bebe_agent":       (outil_creer_bebe_agent,       "Cree un bebe-agent specialise (data-driven, fusionne dans PROFILS) pour deleguer une tache recurrente. params: {cle, titre, role, outils? (csv)}"),
 }

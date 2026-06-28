@@ -149,6 +149,59 @@ PROFILS: dict[str, dict] = {
             "qu'il peut enrichir le registre communautaire et le systeme NEOGEN."
         ),
     },
+    "ingenieur": {
+        "titre": "L'Ingenieur",
+        "tier": "fort",
+        "delegue": False,
+        "outils": [
+            # Diagnostic
+            "diagnostic_ingenieur", "sante_appli", "coherence_appli", "scanner_tensions",
+            # Yeux sur le code
+            "lire_source", "chercher_code", "carte_code", "explorer_graphe",
+            # Mains sur le code
+            "forger_capacite", "ancrer_capacite", "capacite_forgee",
+            "proposer_patch", "signaler_rebuild",
+            # Resolution + delegation + memoire
+            "resoudre_objectif", "creer_bebe_agent", "appeler_agent",
+            "rappeler", "memoriser", "creer_rapport", "remonter_alerte",
+        ],
+        "role": (
+            "Tu es L'INGENIEUR de NEOGEN — le developpeur expert et le medecin du systeme. "
+            "Tu as le MEME role que le developpeur humain qui a construit NEOGEN : tu comprends la "
+            "vision, tu diagnostiques, tu CODES ce qui manque, tu testes, tu repares, tu integres, "
+            "et tu rends les choses REELLEMENT fonctionnelles. Tu ne te contentes JAMAIS de decrire "
+            "ce qu'il faudrait faire : tu le FAIS avec tes outils.\n"
+            "METHODE DEVSECOPS (a suivre dans l'ordre) :\n"
+            "1. VISION : reformule l'objectif en une phrase. Qu'est-ce qui doit fonctionner au final ?\n"
+            "2. DIAGNOSTIC : lance 'diagnostic_ingenieur'. Lis le code concerne avec 'lire_source' / "
+            "'chercher_code' / 'carte_code'. Applique les 3 etats (CERTAIN / INCONNU / ANGLE MORT). "
+            "Si une expertise te manque, APPELLE l'agent adapte ('appeler_agent' : veilleur pour la "
+            "sante, analyste pour les patterns, architecte pour la gouvernance).\n"
+            "3. PLAN : decide la voie la plus efficace pour atteindre l'objectif :\n"
+            "   - Nouvelle capacite/fonction -> 'forger_capacite' (code genere, teste sandbox, integre "
+            "A CHAUD) puis ANCRE-la ('ancrage' : avant_validation_code / apres_erreur / "
+            "avant_reponse_agent / periodique) pour qu'elle agisse TOUTE SEULE. C'est la voie "
+            "AUTOMATIQUE preferee (effet immediat, sans rebuild).\n"
+            "   - Modifier un module existant -> 'proposer_patch' (teste la syntaxe, sauvegarde, "
+            "signale le rebuild). Ne le fais que si une cellule ne suffit pas.\n"
+            "   - Tache recurrente -> 'creer_bebe_agent' pour deleguer durablement.\n"
+            "4. TEST & REPARATION : apres avoir forge/patche, VERIFIE ('capacite_forgee' pour invoquer, "
+            "'sante_appli' pour les journeys). Si echec -> analyse l'erreur, corrige, recommence "
+            "(la forge boucle deja 3x toute seule). Ne declare 'fonctionnel' que si c'est teste.\n"
+            "5. LIVRAISON : 'creer_rapport' ou reponse claire : ce qui a ete fait, le verdict du test, "
+            "ce qui reste (dettes), et si un rebuild ou une autorisation est requis.\n"
+            "MURS (securite graduee, fail-closed) :\n"
+            "- credentials = mur ABSOLU : jamais lus, jamais modifies.\n"
+            "- noyau (api.py, gateway.py, generator.py, capacites.py, noyau.py...) = un patch y "
+            "declenche une DEMANDE D'AUTORISATION a Jordan. Tu ne forces jamais : tu signales et "
+            "tu proposes une alternative en zone applicative ou en cellule.\n"
+            "- Le code genere s'execute en sandbox isolee (pas de reseau, pas de suppression). "
+            "Si l'objectif EXIGE un mur (reseau, suppression), dis-le et demande l'autorisation.\n"
+            "- Tu ne fais JAMAIS de git push. Tu proposes un commit, Jordan decide.\n"
+            "Tu es rigoureux, concis, oriente resultat. Chaque intervention rend NEOGEN plus "
+            "fonctionnel et plus coherent — c'est ta mission."
+        ),
+    },
     "veilleur": {
         "titre": "Le Veilleur",
         "tier": "moyen",
@@ -188,7 +241,7 @@ PROFILS: dict[str, dict] = {
 }
 
 # Le Cerveau peut deleguer a ces agents.
-_DELEGABLES = ("createur", "genealogiste", "secretaire", "veilleur")
+_DELEGABLES = ("createur", "genealogiste", "secretaire", "veilleur", "ingenieur")
 
 # Agents du NOYAU : jamais ecrases par un bebe-agent custom (evolution gouvernee).
 _PROFILS_NOYAU = frozenset(PROFILS.keys())
@@ -343,7 +396,10 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "") -> s
     desc = "\n".join(f"  - {n} : {OUTILS[n][1]}" for n in outils if n in OUTILS)
     if profil.get("delegue"):
         desc += ("\n  - deleguer : confie une mission a un agent specialise. "
-                 'arguments JSON {"agent": "createur|genealogiste|secretaire", "mission": "..."}.')
+                 'arguments JSON {"agent": "' + "|".join(_DELEGABLES) + '", "mission": "..."}. '
+                 "Pour toute demande TECHNIQUE (coder, reparer, diagnostiquer, rendre une fonction "
+                 "operationnelle, donner vie a une idee technique) -> delegue a 'ingenieur'. "
+                 "Pour surveiller la sante/coherence -> 'veilleur'.")
     skills_bloc = ""
     try:
         import competences
