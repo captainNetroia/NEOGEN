@@ -124,7 +124,7 @@ const _breath=(function(){
 const $=s=>document.querySelector(s);
 const errMsg=x=>{if(x==null)return'';if(typeof x==='string')return x;if(x.message)return x.message;try{return JSON.stringify(x);}catch(e){return String(x);}};
 const esc=s=>(s||'').replace(/[<>]/g,'');
-const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Analyse',evolution:'Evolution',integrations:'Integrations',don:'Soutenir'};
+const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Analyse',evolution:'Evolution',ingenieur:"L'Ingenieur",integrations:'Integrations',don:'Soutenir'};
 
 function showSection(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -1956,6 +1956,7 @@ showSection=function(name){
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
   if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();if(window.loadBebeAgents)loadBebeAgents();}
+  if(name==='ingenieur'&&window.loadIngenieur){loadIngenieur();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -3476,7 +3477,6 @@ async function loadEvolutionSysteme(){
   loadConscience();
   loadSubconscient();
   loadEvolutionCellules();
-  loadIngenieur();
   loadFragments();
   if(_evoWired)return; _evoWired=true;
   wireFragments();
@@ -3807,6 +3807,9 @@ async function loadIngenieur(){
     const r=await fetch('/savoir/evolution/ingenieur');
     if(!r.ok){box.innerHTML='<div style="opacity:.5;font-size:12px">Reserve au proprietaire.</div>';return;}
     const d=await r.json();
+    // Badge rebuild dans la nav laterale.
+    const navb=document.getElementById('ing-rebuild-nav');
+    if(navb)navb.style.display=(d.rebuild&&d.rebuild.requis)?'':'none';
     let h='';
     // Badge rebuild requis.
     if(d.rebuild&&d.rebuild.requis){
@@ -3869,6 +3872,21 @@ async function loadIngenieur(){
     };
     tbtn.onclick=lancer;
     tinp.onkeydown=function(e){if(e.key==='Enter')lancer();};
+  }
+  // Bouton « Diagnostic instantane » (sans LLM, immediat).
+  const dbtn=document.getElementById('ing-diag-btn');
+  const dout=document.getElementById('ing-diag-out');
+  if(dbtn&&dout&&!dbtn._wired){
+    dbtn._wired=true;
+    dbtn.onclick=async function(){
+      dbtn.disabled=true;dbtn.textContent='…';dout.style.display='block';dout.textContent='Diagnostic en cours…';
+      try{
+        const r=await fetch('/savoir/evolution/ingenieur/diagnostic');
+        const d=await r.json();
+        dout.textContent=d.diagnostic||'(vide)';
+      }catch(e){dout.textContent='Erreur de diagnostic.';}
+      dbtn.disabled=false;dbtn.textContent='🔍 Diagnostic instantane';
+    };
   }
 }
 async function _decideAut(aid,accordee){

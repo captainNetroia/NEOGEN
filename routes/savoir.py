@@ -452,6 +452,15 @@ def ingenieur_etat(authorization: str | None = Header(default=None)):
     }
 
 
+@router.get("/evolution/ingenieur/diagnostic")
+def ingenieur_diagnostic(authorization: str | None = Header(default=None)):
+    """Diagnostic 360 instantane (sante + coherence + cellules + patchs + rebuild), sans LLM.
+    Affiche directement dans la section Ingenieur."""
+    _gate_owner(authorization)
+    import outils_dev as _id
+    return {"diagnostic": _id.outil_diagnostic_ingenieur()}
+
+
 @router.post("/evolution/ingenieur/tache")
 def ingenieur_tache(demande: str = Body(embed=True),
                     authorization: str | None = Header(default=None)):

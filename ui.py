@@ -86,6 +86,11 @@ def _sidebar() -> str:
     <span class="side-badge live">live</span>
     <span id="evo-badge-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);border-radius:99px;padding:1px 8px">0</span>
   </div>
+  <div class="side-item" style="--lc:#10b981" onclick="showSection('ingenieur')" id="side-ingenieur">
+    <span class="side-dot"></span>Ingenieur
+    <span class="side-badge live">live</span>
+    <span id="ing-rebuild-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.14);border-radius:99px;padding:1px 8px">rebuild</span>
+  </div>
   <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
     <span class="side-dot"></span>Integrations
     <span class="side-badge live">live</span>
@@ -1005,24 +1010,6 @@ def _section_evolution() -> str:
       <div id="subconscient-reves" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
-    <!-- L'Ingenieur : patchs de code proposes, autorisations noyau (le mur), rebuild requis -->
-    <div id="ingenieur-panel" style="margin:18px 0 8px;border:1px solid rgba(16,185,129,.22);border-radius:14px;padding:16px;background:rgba(0,18,12,.35)">
-      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">
-          <span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>
-          L'Ingenieur
-        </div>
-        <span style="font-size:11px;opacity:.55;font-weight:400">diagnostique, code ce qui manque, teste, integre — il agit quand tu donnes vie a une idee technique</span>
-      </div>
-      <!-- Confier une tache directe a l'Ingenieur (ex: reparer une capacite obsolete) -->
-      <div class="row" style="gap:8px;margin-bottom:12px">
-        <input id="ing-tache-input" placeholder="Confie une tache a l'Ingenieur (ex: repare ou supprime la capacite obsolete)…"
-               style="flex:1;font-size:12px;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(16,185,129,.3);border-radius:9px;color:#e2e8f0">
-        <button id="ing-tache-btn" style="font-size:12px;padding:9px 16px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:9px;font-weight:600;cursor:pointer">Confier</button>
-      </div>
-      <div id="ingenieur-corps" style="font-size:12px">Chargement...</div>
-    </div>
-
     <!-- Cellules forgees : le VRAI code genere par "donner vie" sur une idee technique -->
     <div style="font-size:13px;font-weight:600;margin:18px 0 8px">Cellules forgees <span style="font-size:11px;opacity:.5;font-weight:400">(code reel genere, teste en sandbox, valide contre les murs)</span></div>
     <div id="evo-cellules">
@@ -1062,6 +1049,39 @@ def _section_evolution() -> str:
 """
 
 
+def _section_ingenieur() -> str:
+    return r"""
+<div id="section-ingenieur" class="section">
+  <div class="sec-header">
+    <h2><span class="sec-dot" style="background:#10b981"></span>L'Ingenieur</h2>
+    <p>Le developpeur autonome : il diagnostique, code ce qui manque, teste en sandbox, integre a chaud. Parle-lui ou confie-lui une tache.</p>
+  </div>
+  <div class="agent-chat-mount" data-agent="ingenieur" data-titre="🛠️ L'Ingenieur" data-sub="Demande-moi de coder, reparer, diagnostiquer ou rendre une fonction operationnelle. J'agis avec mes outils : je lis le code, je forge, j'ancre, je teste — je ne me contente pas de decrire."></div>
+
+  <!-- Confier une tache directe + diagnostic instantane -->
+  <div class="panel glass" style="margin-bottom:18px">
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input id="ing-tache-input" placeholder="Confie une tache a l'Ingenieur (ex: archive la capacite obsolete, ajoute telle fonction)…"
+             style="flex:1;min-width:240px;font-size:13px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(16,185,129,.3);border-radius:10px;color:#e2e8f0">
+      <button id="ing-tache-btn" style="font-size:13px;padding:10px 18px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">Confier</button>
+      <button id="ing-diag-btn" class="ghost" style="font-size:13px;padding:10px 16px">&#128269; Diagnostic instantane</button>
+    </div>
+    <pre id="ing-diag-out" style="display:none;font-size:11px;line-height:1.5;white-space:pre-wrap;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;max-height:300px;overflow:auto;margin:0"></pre>
+  </div>
+
+  <!-- Tableau de bord : patchs proposes, autorisations noyau (le mur), rebuild requis -->
+  <div class="panel glass">
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px">
+      <span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>
+      Interventions
+    </div>
+    <div style="font-size:11px;opacity:.55;margin-bottom:12px">Patchs de code proposes, autorisations noyau a trancher (le mur), rebuild requis apres un patch de module.</div>
+    <div id="ingenieur-corps" style="font-size:12px">Chargement...</div>
+  </div>
+</div>
+"""
+
+
 PAGE = (
     _head()
     + _sidebar()
@@ -1072,6 +1092,7 @@ PAGE = (
     + _section_compte()
     + _section_analyse()
     + _section_evolution()
+    + _section_ingenieur()
     + _section_integrations()
     + _modals()
     + _section_don()
