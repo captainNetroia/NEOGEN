@@ -868,8 +868,11 @@ def _outil_integration_proxy(service: str = "", action: str = "", params: str = 
 
 def outil_capacite_forgee(nom: str = "", params: str = "", **kw) -> str:
     """Liste ou INVOQUE une capacite forgee (fonction Python generee, testee et integree
-    par la forge). Sans 'nom' -> liste les capacites integrees. Avec 'nom' -> appelle la
-    fonction. C'est le pont qui rend une cellule forgee REELLEMENT utilisable par les agents."""
+    par la forge). Sans 'nom' -> liste les capacites integrees (avec leur signature exacte).
+    Avec 'nom' -> appelle la fonction. IMPORTANT : les arguments de la fonction vont dans
+    'params' comme un objet JSON, ex: params={"texte": "mon texte"} ou params={"nom": "compter_mots"}.
+    TOUJOURS utiliser 'd'abord capacite_forgee() sans nom pour voir la signature, PUIS appeler
+    avec les bons params. Ex: capacite_forgee(nom="purger_capacite", params={"nom": "compter_mots"})."""
     import capacites_forgees as _cf
     if not nom:
         caps = _cf.lister()

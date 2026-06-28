@@ -153,7 +153,7 @@ PROFILS: dict[str, dict] = {
         "titre": "L'Ingenieur",
         "tier": "fort",
         "delegue": False,
-        "max_etapes": 18,   # un cycle DevSecOps (diagnostic+lecture+forge+test+rapport) > 8 etapes
+        "max_etapes": 25,   # un cycle DevSecOps (diagnostic+lecture+forge+test+rapport) > 8 etapes
         "eco_interdit": True,  # le code + le protocole ReAct JSON exigent un modele fort (pas Eco)
         "outils": [
             # Diagnostic

@@ -2073,9 +2073,9 @@ function buildChat(mount){
     +'<div class="ac-img-prev" id="acimgprev-'+role+'"></div>'
     +'<div id="acadv-'+role+'" class="model-advisor" style="display:none"></div>'
     +'<div style="display:flex;gap:8px;align-items:flex-end">'
-    +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller image)"></textarea>'
-    +'<input type="file" id="acfile-'+role+'" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.txt,.md,.csv" style="display:none">'
-    +'<button class="ghost" id="acattach-'+role+'" title="Joindre image ou fichier (PDF, PPTX, DOCX...)" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
+    +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller images)"></textarea>'
+    +'<input type="file" id="acfile-'+role+'" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.txt,.md,.csv" multiple style="display:none">'
+    +'<button class="ghost" id="acattach-'+role+'" title="Joindre images ou fichier (multi-sélection OK)" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
     +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button>'
     +'</div></div>';
   const log=mount.querySelector('#aclog-'+role);
@@ -2086,48 +2086,64 @@ function buildChat(mount){
   const fileIn=mount.querySelector('#acfile-'+role);
   const attachBtn=mount.querySelector('#acattach-'+role);
   const imgPrev=mount.querySelector('#acimgprev-'+role);
-  let _imgB64=null,_imgMime='image/png';
+  let _images=[];  // [{b64, mime}] multi-images
   let _fichierB64=null,_fichierNom='';
-  function _clearImg(){_imgB64=null;_imgMime='image/png';if(imgPrev){imgPrev.style.display='none';imgPrev.innerHTML='';}if(fileIn)fileIn.value='';}
-  function _clearDoc(){_fichierB64=null;_fichierNom='';if(imgPrev){imgPrev.style.display='none';imgPrev.innerHTML='';}if(fileIn)fileIn.value='';}
+  function _renderImgPrev(){
+    if(!imgPrev)return;
+    if(!_images.length&&!_fichierB64){imgPrev.style.display='none';imgPrev.innerHTML='';return;}
+    imgPrev.style.display='flex';
+    imgPrev.style.flexWrap='wrap';
+    imgPrev.style.gap='6px';
+    var html='';
+    _images.forEach(function(im,idx){
+      html+='<span style="position:relative;display:inline-block">'
+        +'<img src="data:'+im.mime+';base64,'+im.b64+'" alt="img" style="height:48px;width:48px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15)">'
+        +'<span data-idx="'+idx+'" style="position:absolute;top:-4px;right:-4px;background:var(--ko,#ef4444);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;line-height:16px;text-align:center;cursor:pointer;font-weight:700">×</span>'
+        +'</span>';
+    });
+    if(_fichierB64){
+      var ext=_fichierNom.split('.').pop().toLowerCase();
+      var ico=ext==='pdf'?'📄':ext==='pptx'||ext==='ppt'?'📊':ext==='docx'||ext==='doc'?'📝':'📎';
+      html+=ico+' <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+esc(_fichierNom)+'</span>'
+        +'<span id="clrdoc-'+role+'" style="cursor:pointer;padding:0 4px;font-weight:700;color:var(--ko)">×</span>';
+    }
+    imgPrev.innerHTML=html;
+    imgPrev.querySelectorAll('[data-idx]').forEach(function(x){
+      x.onclick=function(){var i=parseInt(this.getAttribute('data-idx'));_images.splice(i,1);_renderImgPrev();};
+    });
+    var xd=imgPrev.querySelector('#clrdoc-'+role);if(xd)xd.onclick=function(){_fichierB64=null;_fichierNom='';_renderImgPrev();};
+  }
+  function _clearImg(){_images=[];if(fileIn)fileIn.value='';_renderImgPrev();}
+  function _clearDoc(){_fichierB64=null;_fichierNom='';if(fileIn)fileIn.value='';_renderImgPrev();}
   function _setDoc(file){
     if(!file)return;
     _fichierNom=file.name;
     const fr=new FileReader();
-    fr.onload=function(e){
-      _fichierB64=e.target.result.split(',')[1];
-      if(imgPrev){
-        const ext=file.name.split('.').pop().toLowerCase();
-        const ico=ext==='pdf'?'📄':ext==='pptx'||ext==='ppt'?'📊':ext==='docx'||ext==='doc'?'📝':'📎';
-        imgPrev.style.display='flex';
-        imgPrev.innerHTML=ico+' <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px">'+esc(file.name)+'</span><span style="cursor:pointer;padding:0 4px;font-weight:700;color:var(--ko)">×</span>';
-        const x=imgPrev.querySelector('span:last-child');if(x)x.onclick=_clearDoc;
-      }
-    };
+    fr.onload=function(e){_fichierB64=e.target.result.split(',')[1];_renderImgPrev();};
     fr.readAsDataURL(file);
   }
-  function _setImg(file){
+  function _addImg(file){
     if(!file||!file.type.startsWith('image/'))return;
-    _imgMime=file.type||'image/png';
+    const mime=file.type||'image/png';
     const fr=new FileReader();
     fr.onload=function(e){
-      _imgB64=e.target.result.split(',')[1];
-      if(imgPrev){
-        imgPrev.style.display='flex';
-        imgPrev.innerHTML='<img src="'+e.target.result+'" alt="img"><span style="margin-left:auto;cursor:pointer;padding:0 4px;font-weight:700;color:var(--ko)">×</span>';
-        const x=imgPrev.querySelector('span');if(x)x.onclick=_clearImg;
-      }
+      _images.push({b64:e.target.result.split(',')[1],mime:mime});
+      _renderImgPrev();
     };
     fr.readAsDataURL(file);
   }
   if(attachBtn)attachBtn.onclick=function(){if(fileIn)fileIn.click();};
   if(fileIn)fileIn.onchange=function(e){
-    const f=e.target.files&&e.target.files[0];if(!f)return;
-    if(f.type.startsWith('image/')){_setImg(f);}else{_setDoc(f);}
+    var files=e.target.files;if(!files||!files.length)return;
+    for(var i=0;i<files.length;i++){
+      if(files[i].type.startsWith('image/')){_addImg(files[i]);}
+      else if(i===0){_setDoc(files[i]);}  // un seul fichier doc à la fois
+    }
+    fileIn.value='';
   };
   inp.addEventListener('paste',function(e){
     var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
-    for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){_setImg(items[i].getAsFile());break;}}
+    for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){_addImg(items[i].getAsFile());}}
   });
   if(ecocb){
     ecocb.checked=localStorage.getItem('neogen_eco')!=='0';   /* actif par defaut */
@@ -2147,7 +2163,7 @@ function buildChat(mount){
     let derniereReponse='';let forgeLine=null;
     try{
       const body={message:msg,historique:hist};
-      if(_imgB64){body.image_b64=_imgB64;body.image_mime=_imgMime;}_clearImg();
+      if(_images.length){body.images=_images.map(function(i){return {b64:i.b64,mime:i.mime};});}_clearImg();
       if(_fichierB64){body.fichier_b64=_fichierB64;body.fichier_nom=_fichierNom;}_clearDoc();
       const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)});
       if(!resp.ok||!resp.body){var dd='';try{dd=(await resp.json()).detail||'';}catch(e){}add('ac-trace action','&#9888; '+esc(dd||('erreur '+resp.status)));btn.disabled=false;return;}

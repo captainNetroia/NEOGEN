@@ -229,7 +229,7 @@ def verifier_integration(nom: str) -> dict:
 
 # ── Invocation reelle d'une capacite forgee ───────────────────────────────────────
 
-def invoquer(nom: str, **params) -> dict:
+def invoquer(nom: str, /, **params) -> dict:
     """Appelle REELLEMENT une capacite forgee. Sous rob.garde : ne leve jamais.
     Renvoie {ok, resultat?|erreur?}. Filtre les params a la signature de la fonction."""
     with rob.garde(f"invoquer capacite {nom}", source="capacites_forgees"):

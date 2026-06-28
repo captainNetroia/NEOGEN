@@ -66,6 +66,7 @@ class DemandeChat(BaseModel):
     historique: list[MessageChat] = Field(default_factory=list)
     image_b64: str | None = None
     image_mime: str = "image/png"
+    images: list[dict] = Field(default_factory=list)  # [{b64, mime}] multi-images
     fichier_b64: str | None = None
     fichier_nom: str = ""
 
@@ -284,16 +285,25 @@ def agent_chat_stream(role: str, demande: DemandeChat,
     def travailler():
         try:
             msg = demande.message
+            # Traitement images : liste multi-images (nouveau) + rétrocompat image unique
+            _all_imgs = list(demande.images or [])
             if demande.image_b64:
-                emit({"type": "pensee", "texte": "Analyse de l'image en cours..."})
-                try:
-                    import gateway as _gw
-                    desc = _gw.voir(_ctx, demande.image_b64,
-                        "Decris precisement cette image : textes visibles, elements visuels, structure, contenu.",
-                        mime=demande.image_mime)
-                    msg = f"[Image jointe]\n{desc}\n\n{msg}".strip() if msg.strip() else f"[Image jointe]\n{desc}"
-                except Exception as _e_img:
-                    msg = f"[Image jointe — analyse indisponible : {_e_img}]\n\n{msg}".strip()
+                _all_imgs.insert(0, {"b64": demande.image_b64, "mime": demande.image_mime})
+            if _all_imgs:
+                n = len(_all_imgs)
+                emit({"type": "pensee", "texte": f"Analyse de {n} image(s) en cours..."})
+                descs = []
+                for _i, _img in enumerate(_all_imgs):
+                    try:
+                        import gateway as _gw
+                        _d = _gw.voir(_ctx, _img.get("b64", ""),
+                            f"Image {_i+1}/{n} — Decris precisement : textes visibles, elements visuels, structure, contenu.",
+                            mime=_img.get("mime", "image/png"))
+                        descs.append(f"[Image {_i+1}]\n{_d}")
+                    except Exception as _e_img:
+                        descs.append(f"[Image {_i+1} — analyse indisponible : {_e_img}]")
+                bloc = "\n\n".join(descs)
+                msg = f"{bloc}\n\n{msg}".strip() if msg.strip() else bloc
             if demande.fichier_b64 and demande.fichier_nom:
                 emit({"type": "pensee", "texte": f"Lecture de {demande.fichier_nom}..."})
                 try:
