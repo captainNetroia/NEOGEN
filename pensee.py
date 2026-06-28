@@ -77,7 +77,10 @@ _PROVIDERS_PREF = ("anthropic", "openai", "mistral", "deepseek", "gemini")
 
 # ── Configuration (data/pensee_config.json) ─────────────────────────────────────
 
-_CONFIG_DEFAUT = {"mode": "eco", "actif": True, "intervalle_min": 120}
+_CONFIG_DEFAUT = {"mode": "eco", "actif": True, "intervalle_min": 120,
+                  # MAILLON B : un reve exceptionnel (nouveaute tres haute) peut declencher
+                  # l'Ingenieur tout seul. OFF par defaut (humain dernier mot) ; Jordan l'active.
+                  "reve_auto_ingenieur": False}
 
 
 def _config() -> dict:
@@ -92,6 +95,7 @@ def _config() -> dict:
     if cfg.get("mode") not in _MODES:
         cfg["mode"] = "eco"
     cfg["actif"] = bool(cfg.get("actif", True))
+    cfg["reve_auto_ingenieur"] = bool(cfg.get("reve_auto_ingenieur", False))
     try:
         cfg["intervalle_min"] = max(5, int(cfg.get("intervalle_min", 120)))
     except Exception:
@@ -102,7 +106,7 @@ def _config() -> dict:
 def _set_config(**champs) -> dict:
     """Met a jour la config (mode / actif / intervalle_min) et la persiste."""
     cfg = _config()
-    for k in ("mode", "actif", "intervalle_min"):
+    for k in ("mode", "actif", "intervalle_min", "reve_auto_ingenieur"):
         if k in champs and champs[k] is not None:
             cfg[k] = champs[k]
     cfg = _config_valide(cfg)
@@ -116,6 +120,7 @@ def _config_valide(cfg: dict) -> dict:
     if cfg.get("mode") not in _MODES:
         cfg["mode"] = "eco"
     cfg["actif"] = bool(cfg.get("actif", True))
+    cfg["reve_auto_ingenieur"] = bool(cfg.get("reve_auto_ingenieur", False))
     try:
         cfg["intervalle_min"] = max(5, int(cfg.get("intervalle_min", 120)))
     except Exception:

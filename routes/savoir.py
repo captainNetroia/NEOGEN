@@ -249,18 +249,21 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
                           raison=evo.get("raison", "") or p.get("synthese", ""))
         r["voie"] = "data"
 
-        # Règle comportementale : AUSSI lancer la forge pour générer le code d'implémentation.
+        # MAILLON A — Règle MÉCANIQUE : une règle de contrôle ne doit pas rester une simple
+        # directive de prompt (que le LLM peut ignorer). L'INGENIEUR forge le code qui l'applique
+        # ET l'ancre au bon point du flux (avant_validation_code...) pour qu'elle agisse vraiment.
         if r.get("ok") and evo.get("type") == "regle" and _regle_necessite_code(payload):
-            import forge_evolution as _fe
+            import ingenieur as _ing
             payload_visible = {k: v for k, v in payload.items() if not k.startswith("_")}
             besoin = (
-                f"Implémenter la règle NEOGEN '{p.get('titre','')}' : "
+                f"Rends MÉCANIQUEMENT applicable la règle NEOGEN « {p.get('titre','')} » : "
                 f"{_json.dumps(payload_visible, ensure_ascii=False)[:400]}. "
-                f"Générer une fonction Python autonome testable qui applique cette règle "
-                f"et retourne {{\"ok\": bool, \"detail\": str}}. "
-                f"Ne modifier aucun fichier hors de data/."
+                f"Forge une fonction Python autonome testable qui applique cette règle et retourne "
+                f"{{\"ok\": bool, \"detail\": str}}, PUIS ancre-la au point du flux adapté "
+                f"(avant_validation_code si elle contrôle du code généré, apres_erreur si elle "
+                f"réagit à une erreur, sinon periodique). Ne modifie aucun fichier hors de data/."
             )
-            job_id = _fe.lancer_forge_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
+            job_id = _ing.lancer_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
             r["voie"] = "data+forge"
             r["job_id"] = job_id
         return r
@@ -447,6 +450,20 @@ def ingenieur_etat(authorization: str | None = Header(default=None)):
         "autorisations": [a for a in _id.lister_autorisations() if a.get("statut") == "en_attente"],
         "rebuild": _id.etat_rebuild(),
     }
+
+
+@router.post("/evolution/ingenieur/tache")
+def ingenieur_tache(demande: str = Body(embed=True),
+                    authorization: str | None = Header(default=None)):
+    """Confie une tache directe a l'Ingenieur (ex: « repare ou supprime la capacite obsolete X »,
+    « ajoute telle fonction »). Il diagnostique, code, teste, integre. Renvoie un job_id : l'UI
+    poll /evolution/forge/{job_id} (meme bulle de progression)."""
+    _gate_owner(authorization)
+    if not (demande or "").strip():
+        raise HTTPException(status_code=400, detail="demande vide")
+    import ingenieur as _ing
+    job_id = _ing.lancer_async(demande.strip(), titre=demande.strip()[:60])
+    return {"ok": True, "job_id": job_id}
 
 
 @router.get("/evolution/ingenieur/patch/{pid}")

@@ -153,6 +153,7 @@ PROFILS: dict[str, dict] = {
         "titre": "L'Ingenieur",
         "tier": "fort",
         "delegue": False,
+        "max_etapes": 18,   # un cycle DevSecOps (diagnostic+lecture+forge+test+rapport) > 8 etapes
         "outils": [
             # Diagnostic
             "diagnostic_ingenieur", "sante_appli", "coherence_appli", "scanner_tensions",
@@ -600,7 +601,8 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
 
     _outils_reussis: list[str] = []
 
-    for _ in range(MAX_ETAPES):
+    _max_etapes = int(profil.get("max_etapes", MAX_ETAPES))
+    for _ in range(_max_etapes):
         if len(messages) > MAX_MESSAGES_BOUCLE:
             messages = messages[:1] + messages[-(MAX_MESSAGES_BOUCLE - 1):]
         try:

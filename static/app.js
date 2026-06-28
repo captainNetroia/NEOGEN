@@ -3847,6 +3847,29 @@ async function loadIngenieur(){
     box.querySelectorAll('.ing-aut-ok').forEach(function(b){b.onclick=function(){_decideAut(b.dataset.id,true);};});
     box.querySelectorAll('.ing-aut-no').forEach(function(b){b.onclick=function(){_decideAut(b.dataset.id,false);};});
   }catch(e){box.innerHTML='<div style="opacity:.5;font-size:12px">Erreur de chargement.</div>';}
+  // Champ « Confier une tache a l'Ingenieur » (cable une seule fois).
+  const tbtn=document.getElementById('ing-tache-btn');
+  const tinp=document.getElementById('ing-tache-input');
+  if(tbtn&&tinp&&!tbtn._wired){
+    tbtn._wired=true;
+    const lancer=async function(){
+      const d=(tinp.value||'').trim(); if(!d)return;
+      tbtn.disabled=true;tbtn.textContent='…';
+      try{
+        const r=await fetch('/savoir/evolution/ingenieur/tache',{method:'POST',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({demande:d})});
+        const res=await r.json();
+        if(r.ok&&res.job_id){
+          tinp.value='';
+          if(typeof _bulleProgression==='function')_bulleProgression(res.job_id,'ingenieur',tbtn);
+          else{tbtn.textContent='Confiee';setTimeout(function(){tbtn.textContent='Confier';tbtn.disabled=false;},2000);}
+        }else{tbtn.textContent='Erreur';tbtn.disabled=false;}
+      }catch(e){tbtn.textContent='Erreur';tbtn.disabled=false;}
+      setTimeout(function(){tbtn.textContent='Confier';tbtn.disabled=false;},1500);
+    };
+    tbtn.onclick=lancer;
+    tinp.onkeydown=function(e){if(e.key==='Enter')lancer();};
+  }
 }
 async function _decideAut(aid,accordee){
   try{

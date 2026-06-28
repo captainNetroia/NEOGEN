@@ -37,6 +37,8 @@ _DATA = os.path.join(BASE, "data")
 _ARCHIVE = os.path.join(_DATA, "reves_archive.json")
 
 SEUIL_REVE = 0.62          # nouveaute minimale pour qu'un reve emerge (sinon : oublie)
+SEUIL_REVE_INGENIEUR = 0.85  # MAILLON B : au-dela, un reve EXCEPTIONNEL peut declencher l'Ingenieur
+                             # (seulement si la config reve_auto_ingenieur est activee par Jordan)
 K_VOISINS = 3              # k plus proches voisins pour la metrique de nouveaute
 
 
@@ -190,6 +192,29 @@ def cycle_reve(n: int = 3, client=None) -> dict:
                 arch.append({"titre": r["titre"], "mots": list(_mots(f"{r['titre']} {r['idee']}")),
                              "nouveaute": r["nouveaute"], "ts": time.time()})
                 emergents.append(r)
+                # MAILLON B : un reve EXCEPTIONNEL peut prendre vie tout seul via l'Ingenieur,
+                # mais SEULEMENT si Jordan a active reve_auto_ingenieur (humain dernier mot).
+                if r["nouveaute"] >= SEUIL_REVE_INGENIEUR:
+                    _peut_ingenieur = False
+                    try:
+                        import pensee as _p
+                        _peut_ingenieur = bool(_p._config().get("reve_auto_ingenieur"))
+                    except Exception:
+                        _peut_ingenieur = False
+                    if _peut_ingenieur:
+                        try:
+                            import ingenieur as _ing
+                            besoin = (f"Rêve exceptionnel de NEOGEN (nouveauté {r['nouveaute']:.2f}) : "
+                                      f"{r['idee']}. Si cette idée est techniquement réalisable et utile, "
+                                      f"forge la capacité correspondante et ancre-la ; sinon explique "
+                                      f"pourquoi en une ligne.")
+                            _ing.lancer_async(besoin, titre=r["titre"])
+                            rob.journaliser(f"subconscient : reve exceptionnel '{r['titre']}' "
+                                            f"({r['nouveaute']:.2f}) confie a l'Ingenieur (auto)",
+                                            "succes", source="subconscient")
+                        except Exception as e:
+                            rob.journaliser(f"subconscient : echec declenchement Ingenieur ({e})",
+                                            "info", source="subconscient")
         _sauver_archive(arch)
         if emergents:
             rob.journaliser(f"subconscient : {len(emergents)}/{len(reves)} reve(s) emergent(s) "

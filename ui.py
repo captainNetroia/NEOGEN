@@ -1014,6 +1014,12 @@ def _section_evolution() -> str:
         </div>
         <span style="font-size:11px;opacity:.55;font-weight:400">diagnostique, code ce qui manque, teste, integre — il agit quand tu donnes vie a une idee technique</span>
       </div>
+      <!-- Confier une tache directe a l'Ingenieur (ex: reparer une capacite obsolete) -->
+      <div class="row" style="gap:8px;margin-bottom:12px">
+        <input id="ing-tache-input" placeholder="Confie une tache a l'Ingenieur (ex: repare ou supprime la capacite obsolete)…"
+               style="flex:1;font-size:12px;padding:9px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(16,185,129,.3);border-radius:9px;color:#e2e8f0">
+        <button id="ing-tache-btn" style="font-size:12px;padding:9px 16px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:9px;font-weight:600;cursor:pointer">Confier</button>
+      </div>
       <div id="ingenieur-corps" style="font-size:12px">Chargement...</div>
     </div>
 
