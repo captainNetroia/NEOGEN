@@ -520,9 +520,20 @@ $('#btn-recommencer').onclick=()=>{
 $('#btn-voir-catalogue').onclick=()=>showSection('production');
 
 async function loadProduits(){
-  const d=await(await fetch('/produits')).json();
+  const grid=$('#produit-grid');if(!grid)return;
+  let d;
+  try{
+    const r=await fetch('/produits');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    d=await r.json();
+  }catch(e){
+    // Transitoire (rebuild/redemarrage) : message clair + retry, pas de « Failed to fetch » brut.
+    grid.innerHTML='<div class="placeholder glass"><div class="ph-icon">⟳</div><h3>Chargement indisponible</h3>'
+      +'<p>Le serveur redemarre peut-etre. <a href="#" onclick="loadProduits();return false;" style="color:var(--acc)">Reessayer</a></p></div>';
+    return;
+  }
   const list=(d.produits||[]).slice().reverse();
-  const grid=$('#produit-grid');grid.innerHTML='';
+  grid.innerHTML='';
   if(!list.length){
     grid.innerHTML='<div class="placeholder glass"><div class="ph-icon">◻</div><h3>Aucun produit</h3><p>Va dans Creation pour fabriquer ton premier produit.</p></div>';
     return;
