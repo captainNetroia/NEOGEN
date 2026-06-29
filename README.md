@@ -1,161 +1,133 @@
 # NEOGEN
 
-Un organisme logiciel : tu decris une intention, NEOGEN forge une application fonctionnelle.
-Code genere, valide en membrane, execute en conteneur durci, persistant au registre.
+**Un agent IA autonome qui tourne sur ta machine.**
 
-Concu par Jordan VINCENT (NetroIA). Protection IP : eSoleau DSO2026022686 (INPI, 2026-06-19).
+NEOGEN pense, crée, forge du code, s'améliore — avec l'IA de ton choix, tes clés, tes données chez toi.
+
+> Conçu par Jordan VINCENT (NetroIA) — Protection IP : eSoleau INPI 2026
 
 ---
 
 ## Ce que NEOGEN fait
 
-1. Tu decris ce que tu veux construire (en francais ou anglais)
-2. NEOGEN scanne l'intention, propose un ADN (objectif, regles, capacites)
-3. Tu valides ou ajustes l'ADN
-4. La forge tourne en direct (SSE) : generation, membrane, conteneur durci, execution
-5. Le produit est enregistre, testable, telechargeable, evolvable
-
-Chaque produit est versionne en generations. Tu peux le faire evoluer, revenir en arriere,
-le telecharger en ZIP.
+- **Agents conversationnels** avec outils réels (mémoire, navigation web, RPA, création)
+- **Forge de code** : une idée → Claude/GPT génère du vrai Python → testé en sandbox Docker → intégré
+- **La Pensée** : intelligence collective autonome qui fait émerger idées, tendances, propositions
+- **Auto-évolution** : NEOGEN se modifie lui-même via des stores data-driven (jamais le code noyau)
+- **Multi-provider** : Claude, GPT, Gemini, DeepSeek, Mistral, ou **Ollama en local et gratuit**
 
 ---
 
-## Installation locale (5 minutes)
+## Démarrage en 3 commandes
 
-**Prerequis :** Docker Desktop installe et lance.
+**Prérequis : Docker Desktop installé et lancé.**
 
 ```bash
-# 1. Cloner
-git clone <repo-url> neogen && cd neogen
-
-# 2. Lancer
-#    - avec Claude par defaut : fournir ta cle Anthropic
-ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
-#    - OU sans aucune cle : lancer brut puis choisir ton IA dans l'interface
-#      (GPT, Gemini, DeepSeek, Mistral, ou Ollama en local et gratuit)
+git clone https://github.com/captainNetroia/NEOGEN.git && cd NEOGEN
+cp .env.example .env          # optionnel : ajouter ta clé IA
 docker compose up --build
-
-# 3. Ouvrir
-http://localhost:8000
 ```
 
-C'est tout. Aucune autre dependance. La cle Anthropic est **facultative** :
-tu peux choisir n'importe quelle IA depuis l'interface (voir section suivante).
+Puis ouvrir [http://localhost:8000](http://localhost:8000)
 
-### Ce qui est inclus gratuitement
+> **Sans aucune clé IA**, NEOGEN fonctionne avec Ollama (100% local et gratuit).
+> Intégrations → onglet Local → entrer l'URL Ollama → choisir le modèle.
 
-- Generation de code par l'IA de TON choix (voir ci-dessous)
-- Membrane de gouvernance (validation automatique)
-- Execution en conteneur Docker durci
-- Registre persistant des produits fabriques
-- Studio de creation interactif (stepper A-Z)
-- Analyse conformite indicative
-- Telechargement ZIP du code genere
+### Scripts de lancement rapide
 
----
-
-## Choisir ton IA (n'importe quel modele)
-
-NEOGEN ne t'enferme dans aucun fournisseur. Tu choisis l'IA qui forge tes produits,
-avec TA cle. La cle est consommee a chaque requete et n'est **jamais** stockee cote serveur.
-
-| IA | Comment l'activer |
-|----|-------------------|
-| **Claude** (Anthropic) | Defaut. Cle via `ANTHROPIC_API_KEY` ou dans l'interface. |
-| **GPT** (OpenAI) | Interface : onglet OpenAI + ta cle `sk-...` |
-| **Gemini** (Google) | Interface : onglet Gemini + ta cle `AIza...` |
-| **DeepSeek** | Interface : onglet DeepSeek + ta cle |
-| **Mistral** | Interface : onglet Mistral + ta cle |
-| **Ollama** (local, gratuit) | Interface : onglet Local + URL `http://localhost:11434` |
-
-**Dans l'interface :** Integrations -> section "Modele IA" -> onglet du fournisseur ->
-choisir le modele -> coller la cle -> Enregistrer -> Activer.
-
-Le modele actif est affiche en haut de la section. Toute production (scan, conseil, forge,
-delegation) utilise alors ce modele. Avec Ollama en local, NEOGEN tourne **100% gratuit
-et hors-ligne** (aucune cle, aucun appel externe).
-
-### Integrations optionnelles
-
-| Integration | Fichier credentials | Usage |
-|-------------|---------------------|-------|
-| OpenLegi (Legifrance) | `credentials/openlegi.env` | Analyse juridique dans le scan |
-| Stripe | `credentials/stripe.env` | Bouton de don dans l'interface |
-
-Ces integrations sont **facultatives**. NEOGEN fonctionne entierement sans elles.
+| OS | Commande |
+|---|---|
+| Windows | Double-clic sur `Lancer-NEOGEN.bat` |
+| Mac / Linux | `./start.sh` |
 
 ---
 
-## Deploiement sur serveur
+## Choisir ton IA (BYOK — Bring Your Own Key)
+
+Ta clé reste sur ta machine, n'est jamais stockée côté serveur.
+
+| Provider | Clé |
+|---|---|
+| Claude (Anthropic) | `sk-ant-...` |
+| GPT (OpenAI) | `sk-...` |
+| Gemini (Google) | `AIza...` |
+| DeepSeek | `sk-...` |
+| Mistral | `...` |
+| **Ollama (local, gratuit)** | aucune clé |
+
+Configuration : **Intégrations → Modèle IA → onglet du provider → coller la clé → Activer**
+
+---
+
+## Mise à jour
 
 ```bash
-# Sur ta machine distante (Linux + Docker)
-git clone <repo-url> neogen && cd neogen
+# Windows
+Mettre-a-jour-NEOGEN.bat
 
-# Variables d'environnement
-export ANTHROPIC_API_KEY=sk-ant-...
-export NEOGEN_BASE_URL=https://ton-domaine.com   # pour les redirections Stripe
-
-docker compose up -d --build
-```
-
-Puis configurer un reverse proxy (Nginx, Caddy) vers le port 8000.
-
-### Exemple Nginx minimal
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name ton-domaine.com;
-
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_buffering off;              # requis pour les flux SSE
-        proxy_read_timeout 300s;
-    }
-}
+# Mac / Linux
+./update.sh
 ```
 
 ---
 
-## Structure des credentials (optionnel)
+## Déploiement sur serveur (avec forge sécurisée)
 
-```
-credentials/          <- dossier frere de neogen/, monte en lecture seule
-├── openlegi.env      <- OPENLEGI_TOKEN=xxx
-└── stripe.env        <- STRIPE_SECRET_KEY=sk_live_...
+Pour héberger NEOGEN avec la forge Docker active tout en protégeant le reste du serveur,
+utiliser `docker-compose.prod.yml` — il inclut 3 couches de sécurité :
+
+1. **Socket proxy** (Tecnativa) — filtre les opérations Docker autorisées
+2. **Réseaux isolés** — NEOGEN ne peut pas atteindre les autres services
+3. **Limites ressources** — CPU/RAM plafonnés, un job forge ne peut pas saturer le serveur
+
+```bash
+cp .env.example .env
+# Remplir NEOGEN_BASE_URL, NEOGEN_OWNER_EMAIL dans .env
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Ces fichiers ne sont jamais copies dans l'image Docker.
+Puis configurer nginx (exemple inclus dans `docs/nginx.conf.example`).
+
+> `NEOGEN_OWNER_UNLIMITED` et `NEOGEN_ALLOW_DEFAULT_KEY` sont à **0** par défaut
+> dans `docker-compose.prod.yml`. Ne jamais les passer à 1 en production publique.
 
 ---
 
-## Architecture technique
+## Architecture
 
 ```
-api.py              <- FastAPI : tous les endpoints (generation, registre, don, integrations)
-ui.py               <- Interface web (HTML/CSS/JS, servie par FastAPI)
-pipeline.py         <- Pipeline de fabrication (forge + membrane + conteneur)
-generator.py        <- Generation de code via LLM (gateway multi-modele)
-gateway.py          <- Abstraction provider : Anthropic, OpenAI, Gemini, DeepSeek...
-membrane.py         <- Validation gouvernance (murs, regles, capacites)
-registre.py         <- Persistance des produits fabriques
-promoteur.py        <- Promotion produit -> application web deployable
-orchestrateur.py    <- Decomposition en organes + delegation agentique
-evolution.py        <- Evolution 2 vitesses (jumeau + etalon anti-Goodhart)
-docker-compose.yml  <- Orchestration du service
+api.py                  FastAPI — tous les endpoints
+ui.py                   Interface web (HTML/CSS/JS)
+agent_core.py           Moteur ReAct multi-tours (agents)
+gateway.py              Abstraction LLM — 6 providers
+forge_evolution.py      Forge idée → code → sandbox → intégration
+evolution_gouvernee.py  Auto-évolution data-driven (sans toucher le noyau)
+pensee.py               La Pensée — intelligence collective autonome
+noyau.py                Murs immuables (gouvernance, sécurité)
+user_namespace.py       Isolation multi-tenant (sac per-user)
+docker-compose.yml      Lancement local
+docker-compose.prod.yml Déploiement prod (socket-proxy + réseaux isolés)
 ```
 
 ---
 
-## Notes de securite
+## Sécurité
 
-- Le socket Docker est monte pour executer le code genere en conteneur durci.
-  **Lancer uniquement sur une machine dediee, jamais sur un VPS de production partage.**
-- Les credentials sont montes en lecture seule, jamais copiees dans l'image.
-- Chaque produit execute dans un conteneur isole avec capacites graduees (reseau, persistance).
+- Chaque code forgé tourne dans un conteneur Docker **isolé** (`--network none`, read-only, non-root)
+- Les clés API ne sont **jamais** stockées côté serveur (headers par requête)
+- `noyau.py` contient les 23 fichiers immuables — aucune évolution ne peut les réécrire
+- En déploiement public : rate-limit IP, headers OWASP, CSP anti-exfiltration
 
 ---
 
-*NEOGEN v13 -- Jordan VINCENT / NetroIA -- 2026*
+## Licence
+
+Ce projet est sous **Business Source License 1.1 (BSL 1.1)**.
+
+- Usage **personnel et non-commercial** : libre
+- Usage **commercial** (héberger comme service payant, distribuer dans un produit commercial) : contacter [captain@netroia.com](mailto:captain@netroia.com)
+- Conversion en licence open source après 4 ans
+
+---
+
+*NEOGEN — NetroIA 2026*

@@ -85,10 +85,10 @@ def sac_id(user: dict | None) -> str | None:
 if __name__ == "__main__":
     # Self-test offline (aucune dépendance réseau / autre module).
     os.environ["NEOGEN_OWNER_UNLIMITED"] = "0"
-    os.environ["NEOGEN_OWNER_EMAIL"] = "captain@netroia.com"
+    os.environ["NEOGEN_OWNER_EMAIL"] = "admin@example.com"
 
     # Maître par email → data/ (pas de sac)
-    maitre = {"id": "u_owner", "email": "captain@netroia.com"}
+    maitre = {"id": "u_owner", "email": "admin@example.com"}
     assert not a_un_sac(maitre), "le maître ne doit pas avoir de sac"
     assert data_dir(maitre) == _DATA, "le maître doit pointer sur data/"
 

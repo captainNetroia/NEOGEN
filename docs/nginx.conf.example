@@ -1,0 +1,67 @@
+# nginx.conf.example — NEOGEN sur VPS
+# Copier dans /etc/nginx/sites-available/neogen et adapter le domaine.
+# Requis : certbot (SSL) + Docker Compose prod lancé sur 127.0.0.1:8000
+
+server {
+    listen 80;
+    server_name neogen.ton-domaine.com;
+
+    # Redirect HTTP -> HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name neogen.ton-domaine.com;
+
+    # Certificats SSL (generés par : certbot --nginx -d neogen.ton-domaine.com)
+    ssl_certificate     /etc/letsencrypt/live/neogen.ton-domaine.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/neogen.ton-domaine.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Headers sécurité (OWASP)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'" always;
+
+    # Rate limiting (protège la forge contre l'abus)
+    limit_req_zone $binary_remote_addr zone=neogen:10m rate=10r/s;
+    limit_req zone=neogen burst=20 nodelay;
+
+    # Timeout élevé pour les jobs forge (Docker peut prendre 30-60s)
+    proxy_read_timeout 120s;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 30s;
+
+    location / {
+        proxy_pass         http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    # Taille max upload (pour les fichiers envoyés aux agents)
+    client_max_body_size 20M;
+}
+
+# --- Commandes de déploiement rapide ---
+#
+# 1. Copier ce fichier :
+#    sudo cp nginx.conf.example /etc/nginx/sites-available/neogen
+#    sudo ln -s /etc/nginx/sites-available/neogen /etc/nginx/sites-enabled/
+#
+# 2. Remplacer "neogen.ton-domaine.com" par ton vrai domaine :
+#    sudo sed -i 's/neogen.ton-domaine.com/neogen.example.com/g' /etc/nginx/sites-available/neogen
+#
+# 3. Tester la config + recharger nginx :
+#    sudo nginx -t && sudo systemctl reload nginx
+#
+# 4. Générer le certificat SSL :
+#    sudo certbot --nginx -d neogen.example.com

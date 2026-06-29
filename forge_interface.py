@@ -364,14 +364,14 @@ if __name__ == "__main__":
 
     # 6. ISOLATION PAR SAC : un user web applique son CSS sans toucher le maître ni les autres.
     os.environ["NEOGEN_OWNER_UNLIMITED"] = "0"
-    os.environ["NEOGEN_OWNER_EMAIL"] = "captain@netroia.com"
+    os.environ["NEOGEN_OWNER_EMAIL"] = "admin@example.com"
     alice = {"id": "alice", "email": "alice@x.com"}
     bob = {"id": "bob", "email": "bob@x.com"}
     ra = appliquer("body{--ntr:1}#pensee-list{max-height:200px}", user=alice, titre="alice-style")
     assert ra["ok"] and ra["portee"] == "sac", ra
     assert "max-height:200px" in overrides_actuels(alice), "alice doit voir SON css"
     assert overrides_actuels(bob) == "", "bob ne doit PAS voir le css d'alice (isolation)"
-    assert overrides_actuels({"email": "captain@netroia.com"}) == "", "le maitre intact"
+    assert overrides_actuels({"email": "admin@example.com"}) == "", "le maitre intact"
     print("  isolation par sac OK -> alice voit son CSS, bob/maitre intacts")
 
     print("=" * 64)

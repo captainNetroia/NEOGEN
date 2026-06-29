@@ -622,7 +622,7 @@ if __name__ == "__main__":
     # 5. ISOLATION PAR SAC : un user web forge dans SON sac -> forgee (PAS integree),
     #    invisible du systeme et des autres users (garde-fou agents primordiaux).
     os.environ["NEOGEN_OWNER_UNLIMITED"] = "0"
-    os.environ["NEOGEN_OWNER_EMAIL"] = "captain@netroia.com"
+    os.environ["NEOGEN_OWNER_EMAIL"] = "admin@example.com"
     _ns._DATA = _tmp
     _ns._USERS_ROOT = os.path.join(_tmp, "users")
     # Cellule au nom UNIQUE (evite la collision avec la cellule systeme du test 1).

@@ -1,0 +1,73 @@
+services:
+
+  # Couche 1 : Proxy du socket Docker
+  # Filtre les operations autorisees : NEOGEN peut creer/lancer/detruire des conteneurs
+  # mais NE PEUT PAS voir les autres services, toucher les reseaux ou volumes existants.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: neogen-socket-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      POST: 1
+      DELETE: 1
+      IMAGES: 1
+      VERSION: 1
+      NETWORKS: 0
+      VOLUMES: 0
+      INFO: 0
+      AUTH: 0
+      EXEC: 0
+    networks:
+      - socket_proxy_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  neogen-api:
+    build: .
+    container_name: neogen-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # local uniquement — nginx devant
+    volumes:
+      - ./data:/app/data
+      - ./ui_custom.py:/app/ui_custom.py
+    environment:
+      # Cles IA (toutes optionnelles — BYOK via l'interface)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # URL publique du service (pour les redirections)
+      - NEOGEN_BASE_URL=${NEOGEN_BASE_URL:-http://localhost:8000}
+      # Email de l'admin de cette instance
+      - NEOGEN_OWNER_EMAIL=${NEOGEN_OWNER_EMAIL:-}
+      # CORS : domaines autorises (vide = localhost uniquement)
+      - NEOGEN_CORS_ORIGINS=${NEOGEN_CORS_ORIGINS:-}
+      # SECURITE : ne jamais passer a 1 en production publique
+      - NEOGEN_OWNER_UNLIMITED=0
+      - NEOGEN_ALLOW_DEFAULT_KEY=0
+      # Docker pointe sur le proxy (pas le socket direct)
+      - DOCKER_HOST=tcp://socket-proxy:2375
+    networks:
+      - neogen_net
+      - socket_proxy_net
+    # Couche 3 : limites ressources (un job forge ne peut pas saturer le serveur)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+    depends_on:
+      - socket-proxy
+
+# Couche 2 : Reseaux isoles
+# neogen_net   = reseau NEOGEN <-> internet (pour les appels LLM)
+# socket_proxy_net = reseau interne NEOGEN <-> proxy Docker (pas d'acces internet)
+networks:
+  neogen_net:
+    driver: bridge
+  socket_proxy_net:
+    driver: bridge
+    internal: true

@@ -16,3 +16,8 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Docs internes (IP, strategie, sessions)
+docs/esoleau-*
+docs/HANDOFF-*
+docs/LANCEMENT-*
