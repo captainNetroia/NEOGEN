@@ -30,6 +30,7 @@ import time
 
 import robustesse as rob
 import noyau
+import user_namespace as _ns
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(BASE, "data")
@@ -74,15 +75,47 @@ def _sauver(fichier: str, data) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+# ── I/O user-aware (sac per-user ou base data/) ────────────────────────────────
+
+def _chemin_user(user, fichier: str) -> str:
+    """Chemin effectif : sac de l'utilisateur si web, sinon base data/."""
+    if _ns.a_un_sac(user):
+        return _ns.data_path(user, fichier)
+    return _chemin(fichier)
+
+
+def _charger_user(user, fichier: str, defaut):
+    p = _chemin_user(user, fichier)
+    if not os.path.exists(p):
+        return defaut
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return defaut
+
+
+def _sauver_user(user, fichier: str, data) -> None:
+    p = _chemin_user(user, fichier)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 # ── Accesseurs pour les consommateurs runtime (code immuable qui LIT les stores) ──
 
-def regles_actives() -> dict:
-    """Regles/lois/idees actives, injectables dans les prompts. {regles:{}, lois:[], idees:[]}."""
-    return _charger("regles_actives.json", {"regles": {}, "lois": [], "idees": []})
+def regles_actives(user=None) -> dict:
+    """Regles/lois/idees actives. Pour un user web, lit depuis son sac (isolation totale)."""
+    defaut = {"regles": {}, "lois": [], "idees": []}
+    if _ns.a_un_sac(user):
+        return _charger_user(user, "regles_actives.json", defaut)
+    return _charger("regles_actives.json", defaut)
 
 
-def profils_custom() -> dict:
-    """Bebe-agents crees par evolution. {cle: profil}. agent_core les fusionne dans PROFILS."""
+def profils_custom(user=None) -> dict:
+    """Bebe-agents crees par evolution. Pour un user web, lit depuis son sac."""
+    if _ns.a_un_sac(user):
+        return _charger_user(user, "agents_custom.json", {})
     return _charger("agents_custom.json", {})
 
 
@@ -177,6 +210,9 @@ def proposer(type_: str, payload: dict, *, titre: str = "", raison: str = "",
     Renvoie {ok, prop_id?, refuse?, raison, portee}. Ne leve jamais."""
     changement = {"type": (type_ or "").strip().lower(), "payload": payload or {},
                   "titre": titre or "", "raison": raison or "", "cible": cible or ""}
+    # Tâche 4 : taguer le scope utilisateur pour traçabilité
+    if _ns.a_un_sac(user):
+        changement["scope"] = f"user:{_ns.sac_id(user)}"
     ok, motif = noyau.autoriser(changement)
     if not ok:
         rob.journaliser(f"evolution refusee par le noyau : {motif} ({titre})", "alerte",
@@ -216,17 +252,20 @@ def appliquer(changement: dict, user: dict | None = None) -> dict:
         payload = changement.get("payload", {}) if isinstance(changement.get("payload"), dict) else {}
         titre = changement.get("titre", "") or type_
 
-        detail = _dispatch(type_, payload, titre)
+        detail = _dispatch(type_, payload, titre, user=user)
         if not detail.get("ok"):
             return detail
 
-        _ledger({"ts": time.time(), "type": type_, "titre": titre, "portee": p,
-                 "detail": detail.get("detail", ""), "par": "admin" if p == "complet" else "public"})
-        # Cle d'identite pour la deduplication du changelog (1 entree par artefact)
         _cle = (payload.get("cle") or payload.get("nom") or
                 payload.get("provider") or payload.get("cle_regle") or _slug(titre))
-        _notifier_generation(type_, titre, detail.get("detail", ""), cle=_cle)
-        _enregistrer_conscience(type_, _cle, titre, detail.get("detail", ""), payload)
+        scope = changement.get("scope", "")
+        _ledger_user(user, {"ts": time.time(), "type": type_, "titre": titre, "portee": p,
+                             "detail": detail.get("detail", ""), "scope": scope,
+                             "par": "admin" if p == "complet" else "public"})
+        # Changelog generation + conscience : seulement pour les changements systeme (owner)
+        if not _ns.a_un_sac(user):
+            _notifier_generation(type_, titre, detail.get("detail", ""), cle=_cle)
+            _enregistrer_conscience(type_, _cle, titre, detail.get("detail", ""), payload)
         rob.journaliser(f"evolution appliquee [{type_}] {titre} (portee={p})", "succes",
                         source="evolution_gouvernee")
         return {"ok": True, "type": type_, "portee": p, "detail": detail.get("detail", ""),
@@ -276,25 +315,26 @@ def _consommateurs(type_: str) -> list:
     }.get(type_, [])
 
 
-def _dispatch(type_: str, payload: dict, titre: str) -> dict:
+def _dispatch(type_: str, payload: dict, titre: str, user=None) -> dict:
     """Route vers l'applicateur data-driven du type. Chaque applicateur n'ecrit QUE dans data/."""
     if type_ in ("regle", "loi", "idee"):
-        return _appliquer_regle(type_, payload, titre)
+        return _appliquer_regle(type_, payload, titre, user=user)
     if type_ == "skill" or type_ == "fonction":
-        return _appliquer_skill(payload, titre)
+        return _appliquer_skill(payload, titre)          # skills = monde commun
     if type_ == "agent":
-        return _appliquer_agent(payload, titre)
+        return _appliquer_agent(payload, titre, user=user)
     if type_ == "modele":
-        return _appliquer_modele(payload, titre)
+        return _appliquer_modele(payload, titre, user=user)
     if type_ == "savoir":
-        return _appliquer_savoir(payload, titre)
+        return _appliquer_savoir(payload, titre)         # savoir = monde commun
     if type_ in ("esthetique", "section", "integration", "capacite"):
-        return _appliquer_store(type_, payload, titre)
+        return _appliquer_store(type_, payload, titre, user=user)
     return {"ok": False, "raison": f"type '{type_}' sans applicateur"}
 
 
-def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
-    store = regles_actives()
+def _appliquer_regle(type_: str, payload: dict, titre: str, user=None) -> dict:
+    defaut = {"regles": {}, "lois": [], "idees": []}
+    store = _charger_user(user, "regles_actives.json", defaut)
     if type_ == "regle":
         cle = payload.get("cle") or _slug(titre)
         versions = store.setdefault("versions_regles", {})
@@ -304,7 +344,6 @@ def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
         versions[cle] = v
         action = f"mis a jour v{v}" if existante is not None else f"cree v{v}"
         detail = f"regle '{cle}' {action}"
-        # Règle qui nécessite une implémentation code -> enregistrée pour coherence_auto.
         if payload.get("requiert_code"):
             store.setdefault("regles_code_requis", {})[cle] = {
                 "titre": titre, "cle": cle, "ts": time.time()
@@ -325,7 +364,7 @@ def _appliquer_regle(type_: str, payload: dict, titre: str) -> dict:
             detail = f"idee notee : {idee[:80]}"
         else:
             detail = f"idee deja notee : {idee[:80]}"
-    _sauver("regles_actives.json", store)
+    _sauver_user(user, "regles_actives.json", store)
     return {"ok": True, "detail": detail}
 
 
@@ -348,11 +387,11 @@ def _appliquer_skill(payload: dict, titre: str) -> dict:
         return {"ok": False, "raison": f"creation skill echouee : {e}"}
 
 
-def _appliquer_agent(payload: dict, titre: str) -> dict:
+def _appliquer_agent(payload: dict, titre: str, user=None) -> dict:
     """Bebe-agent : un profil custom. delegue=False TOUJOURS (il ne peut pas orchestrer
     le Cerveau) ; ses outils sont filtres a un sous-ensemble sur (anti-escalade).
     Si la cle existe deja -> mise a jour + bump version. Sinon -> creation v1."""
-    profils = profils_custom()
+    profils = profils_custom(user=user)
     cle = payload.get("cle") or _slug(payload.get("nom") or titre)
     outils_surs = {"conseiller", "lister_creations", "genealogie", "lister_skills",
                    "utiliser_skill", "memoriser", "rappeler", "lire_fichier", "creer_rapport",
@@ -383,17 +422,20 @@ def _appliquer_agent(payload: dict, titre: str) -> dict:
             "custom": True,
         }
         action = "cree v1"
-    _sauver("agents_custom.json", profils)
-    try:
-        import agent_core
-        agent_core.rafraichir_profils()
-    except Exception:
-        pass
+    _sauver_user(user, "agents_custom.json", profils)
+    # rafraichir_profils = seulement pour les agents systeme (owner) ; les agents per-user
+    # sont chargés dynamiquement dans dialoguer() depuis le sac de l'utilisateur.
+    if not _ns.a_un_sac(user):
+        try:
+            import agent_core
+            agent_core.rafraichir_profils()
+        except Exception:
+            pass
     return {"ok": True, "detail": f"bebe-agent '{cle}' {action} (tier {profils[cle]['tier']}, {len(profils[cle]['outils'])} outils surs)"}
 
 
-def _appliquer_modele(payload: dict, _titre: str) -> dict:
-    modeles = modeles_custom()
+def _appliquer_modele(payload: dict, _titre: str, user=None) -> dict:
+    modeles = _charger_user(user, "modeles_custom.json", {})
     provider = (payload.get("provider") or "").strip().lower()
     if not provider:
         return {"ok": False, "raison": "provider manquant"}
@@ -407,7 +449,7 @@ def _appliquer_modele(payload: dict, _titre: str) -> dict:
     }
     if payload.get("base_url"):
         modeles[provider]["base_url"] = payload["base_url"]
-    _sauver("modeles_custom.json", modeles)
+    _sauver_user(user, "modeles_custom.json", modeles)
     action = f"mis a jour v{v}" if existant else f"cree v{v}"
     return {"ok": True, "detail": f"modele '{provider}' {action} (tiers configures)"}
 
@@ -426,19 +468,19 @@ def _appliquer_savoir(payload: dict, titre: str) -> dict:
         return {"ok": False, "raison": f"memorisation echouee : {e}"}
 
 
-def _appliquer_store(type_: str, payload: dict, titre: str) -> dict:
+def _appliquer_store(type_: str, payload: dict, titre: str, user=None) -> dict:
     """esthetique / section / integration / capacite : enregistre le descripteur data-driven.
     Si la cle existe -> mise a jour + bump version."""
     fichier = _STORES.get(type_)
     if not fichier:
         return {"ok": False, "raison": f"type '{type_}' sans store"}
-    store = _charger(fichier, {})
+    store = _charger_user(user, fichier, {})
     cle = payload.get("cle") or _slug(payload.get("nom") or titre)
     existant = store.get(cle)
     v = _bump_version(existant.get("version") if isinstance(existant, dict) else None) if existant is not None else "1"
     store[cle] = {**payload, "version": v}
     action = f"mis a jour v{v}" if existant is not None else f"cree v{v}"
-    _sauver(fichier, store)
+    _sauver_user(user, fichier, store)
     return {"ok": True, "detail": f"{type_} '{cle}' {action} (data-driven)"}
 
 
@@ -583,6 +625,17 @@ def _ledger(entree: dict) -> None:
     os.makedirs(_DATA, exist_ok=True)
     with open(_LEDGER, "a", encoding="utf-8") as f:
         f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+
+
+def _ledger_user(user, entree: dict) -> None:
+    """Ledger dans le sac de l'utilisateur, ou ledger global pour le propriétaire."""
+    if _ns.a_un_sac(user):
+        p = _ns.data_path(user, "evolutions.jsonl")
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entree, ensure_ascii=False) + "\n")
+    else:
+        _ledger(entree)
 
 
 def _slug(txt: str) -> str:
