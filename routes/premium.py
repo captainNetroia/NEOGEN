@@ -144,11 +144,11 @@ async def premium_webhook(request: Request):
     _stripe.api_key = secret_key
     payload = await request.body()
     sig = request.headers.get("stripe-signature", "")
+    if not wh_secret:
+        raise HTTPException(status_code=503,
+                            detail="Webhook Stripe non configuré (STRIPE_WEBHOOK_SECRET absent).")
     try:
-        if wh_secret:
-            event = _stripe.Webhook.construct_event(payload, sig, wh_secret)
-        else:
-            event = _json.loads(payload)
+        event = _stripe.Webhook.construct_event(payload, sig, wh_secret)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Signature invalide : {e}")
     etype = event.get("type")

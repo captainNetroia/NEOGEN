@@ -503,30 +503,39 @@ def _statut_entree(e: dict) -> str:
     try:
         if type_ == "cellule":
             import capacites_forgees as _cf
-            caps = {c["nom"]: c for c in _cf.lister()}
-            # Cherche par nom normalisé
             import re
+            # Extraction du vrai nom depuis detail : "cellule 'auto_fix_line_continuation' forgee..."
+            detail = e.get("detail", "")
+            m_det = re.search(r"cellule '([^']+)'", detail)
+            nom_reel = m_det.group(1) if m_det else nom
+            caps = {c["nom"]: c for c in _cf.lister()}
+            # Cherche d'abord par nom réel (extrait de detail), puis par slug du titre
             slug = re.sub(r"[^a-z0-9_]+", "_", nom.lower()).strip("_")[:40]
-            cap = caps.get(slug) or caps.get(nom)
+            cap = caps.get(nom_reel) or caps.get(slug) or caps.get(nom)
             if cap:
-                return "actif" if cap.get("statut") == "integree" else "erreur"
-            # Cherche aussi dans registre conscience
+                return "actif"  # présence dans CAPACITES = chargée en processus = intégrée
+            # Cherche aussi dans registre conscience par nom réel puis par slug
             import conscience as _c
-            item = _c.obtenir(slug) or _c.obtenir(nom)
+            item = _c.obtenir(nom_reel) or _c.obtenir(slug) or _c.obtenir(nom)
             if item:
                 s = item.get("statut", "")
                 return "actif" if s == "integree" else ("erreur" if s in ("a_reparer", "echouee") else "inactif")
             return "inactif"
-        elif type_ in ("interface", "section"):
+        elif type_ in ("interface", "section", "esthetique"):
             return "actif"  # appliqué = actif par définition
         elif type_ == "regle":
             import re as _re
             ra = regles_actives()
             regles = ra.get("regles", {})
             versions = ra.get("versions_regles", {})
+            # Extraction du vrai nom depuis detail : "regle 'cristallisation_du_savoir_canon' cree v1"
+            detail = e.get("detail", "")
+            m_det = _re.search(r"regle '([^']+)'", detail)
+            nom_reel = m_det.group(1) if m_det else nom
             # Slugifier le nom pour matcher les clés de règles (ex: "Interdire input()" -> "interdire_input_")
             slug = _re.sub(r"[^a-z0-9]+", "_", nom.lower()).strip("_")[:60]
-            if (nom in regles or slug in regles or slug in versions or
+            if (nom_reel in regles or nom in regles or slug in regles or
+                    nom_reel in versions or slug in versions or
                     any(slug in k or k in slug for k in regles)):
                 return "actif"
             return "inactif"

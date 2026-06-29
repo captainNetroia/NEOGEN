@@ -586,12 +586,25 @@ async function loadProduits(){
     const btnDl=document.createElement('button');btnDl.className='ghost';
     btnDl.title='Telecharger le pack (main.py + README.md)';
     btnDl.textContent='Telecharger';
-    btnDl.onclick=(e)=>{
+    btnDl.onclick=async(e)=>{
       e.stopPropagation();
-      const a=document.createElement('a');
-      a.href='/produits/'+encodeURIComponent(p.id)+'/telecharger';
-      a.download='neogen-'+p.id.slice(0,8)+'.zip';
-      a.click();
+      if(!_authToken()){_showAuthModal('Connecte-toi pour telecharger ce produit.',()=>btnDl.click());return;}
+      btnDl.disabled=true;btnDl.textContent='...';
+      try{
+        const r=await fetch('/produits/'+encodeURIComponent(p.id)+'/telecharger',{headers:_authHdrs()});
+        if(!r.ok){
+          if(r.status===401)_showAuthModal('Connecte-toi pour telecharger ce produit.',()=>btnDl.click());
+          else alert('Erreur telechargement ('+r.status+')');
+          return;
+        }
+        const blob=await r.blob();
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download='neogen-'+p.id.slice(0,8)+'.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }catch(err){alert(errMsg(err));}
+      finally{btnDl.disabled=false;btnDl.textContent='Telecharger';}
     };
     actions.appendChild(btnDl);
     // Bouton deploiement Hostinger pour les produits promus
@@ -900,6 +913,21 @@ function _llmHdrs(extra){
   if(_t)h['Authorization']='Bearer '+_t;   /* identifie l'utilisateur pour les quotas */
   return h;
 }
+/* Intercepteur global 401 — toute reponse non-auth qui retourne 401 affiche la modal de connexion */
+(function(){
+  var _orig=window.fetch.bind(window);
+  window.fetch=async function(){
+    var res=await _orig.apply(this,arguments);
+    if(res.status===401){
+      var url=(typeof arguments[0]==='string'?arguments[0]:(arguments[0]&&arguments[0].url)||'');
+      if(!url.includes('/auth/')){
+        _showAuthModal('Tu dois te connecter à ton compte pour continuer.');
+      }
+    }
+    return res;
+  };
+})();
+
 async function _fetchMe(){
   const t=_authToken();if(!t)return null;
   try{
@@ -965,6 +993,7 @@ function renderCompteAuth(root){
         return;
       }
       localStorage.setItem('neogen_auth_token',d.token);
+      if(typeof _injectUserCss==='function')_injectUserCss();
       loadCompte();
     }catch(e){
       errEl.textContent='Erreur reseau.';errEl.style.display='';
@@ -975,6 +1004,87 @@ function renderCompteAuth(root){
   ['auth-email','auth-pw','auth-pw2'].forEach(id=>{
     const el=$('#'+id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});
   });
+}
+
+/* Modal flottante de connexion/inscription — appelee quand une action requiert un compte */
+function _showAuthModal(msg,onSuccess){
+  const ex=document.getElementById('ntr-auth-overlay');if(ex)ex.remove();
+  const overlay=document.createElement('div');
+  overlay.id='ntr-auth-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
+  const box=document.createElement('div');
+  box.style.cssText='position:relative;min-width:320px;max-width:420px;width:90vw';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  if(msg){
+    const msgEl=document.createElement('p');
+    msgEl.textContent=msg;
+    msgEl.style.cssText='font-size:14px;color:var(--acc,#6366f1);font-weight:600;margin:0 0 12px;text-align:center';
+    box.appendChild(msgEl);
+  }
+  const btnClose=document.createElement('button');
+  btnClose.innerHTML='&#x2715;';
+  btnClose.style.cssText='position:absolute;top:6px;right:10px;z-index:2;background:none;border:none;color:var(--mut,#6b7280);font-size:18px;cursor:pointer;padding:4px 8px';
+  btnClose.onclick=()=>overlay.remove();
+  box.appendChild(btnClose);
+  const formRoot=document.createElement('div');
+  box.appendChild(formRoot);
+  let mode='login';
+  formRoot.innerHTML='<div class="panel glass">'
+    +'<div class="auth-tabs"><div class="auth-tab active" id="ntr-tab-login">Se connecter</div>'
+    +'<div class="auth-tab" id="ntr-tab-register">Creer un compte</div></div>'
+    +'<div class="auth-form">'
+    +'<div id="ntr-name-wrap" class="auth-field" style="display:none"><label>Nom</label>'
+    +'<input type="text" id="ntr-auth-name" placeholder="Ton prenom..."></div>'
+    +'<div class="auth-field"><label>Email</label>'
+    +'<input type="email" id="ntr-auth-email" placeholder="ton@email.com" autocomplete="email"></div>'
+    +'<div class="auth-field"><label>Mot de passe</label>'
+    +'<input type="password" id="ntr-auth-pw" placeholder="..." autocomplete="current-password"></div>'
+    +'<div id="ntr-pw2-wrap" class="auth-field" style="display:none"><label>Confirmer</label>'
+    +'<input type="password" id="ntr-auth-pw2" placeholder="..." autocomplete="new-password"></div>'
+    +'<div id="ntr-auth-err" style="display:none" class="auth-error"></div>'
+    +'<button id="ntr-auth-submit" style="width:100%;margin-top:4px">Se connecter</button>'
+    +'</div></div>';
+  const qr=s=>formRoot.querySelector(s);
+  const errEl=qr('#ntr-auth-err');
+  const submit=qr('#ntr-auth-submit');
+  function switchMode(m){
+    mode=m;
+    qr('#ntr-tab-login').classList.toggle('active',m==='login');
+    qr('#ntr-tab-register').classList.toggle('active',m==='register');
+    qr('#ntr-name-wrap').style.display=m==='register'?'flex':'none';
+    qr('#ntr-pw2-wrap').style.display=m==='register'?'flex':'none';
+    submit.textContent=m==='register'?'Creer mon compte':'Se connecter';
+    errEl.style.display='none';
+  }
+  qr('#ntr-tab-login').onclick=()=>switchMode('login');
+  qr('#ntr-tab-register').onclick=()=>switchMode('register');
+  async function doAuth(){
+    const email=(qr('#ntr-auth-email').value||'').trim();
+    const pw=qr('#ntr-auth-pw').value||'';
+    const name=(qr('#ntr-auth-name').value||'').trim();
+    const pw2=qr('#ntr-auth-pw2').value||'';
+    errEl.style.display='none';
+    if(!email||!pw){errEl.textContent='Email et mot de passe requis.';errEl.style.display='';return;}
+    if(mode==='register'&&pw.length<6){errEl.textContent='Mot de passe trop court (6 min).';errEl.style.display='';return;}
+    if(mode==='register'&&pw!==pw2){errEl.textContent='Mots de passe differents.';errEl.style.display='';return;}
+    submit.disabled=true;submit.textContent='...';
+    try{
+      const url=mode==='login'?'/auth/login':'/auth/register';
+      const body=mode==='login'?{email,password:pw}:{email,password:pw,name};
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d=await r.json();
+      if(!r.ok){errEl.textContent=d.detail||'Erreur';errEl.style.display='';submit.disabled=false;submit.textContent=mode==='register'?'Creer mon compte':'Se connecter';return;}
+      localStorage.setItem('neogen_auth_token',d.token);
+      if(typeof _injectUserCss==='function')_injectUserCss();
+      overlay.remove();
+      if(typeof onSuccess==='function')onSuccess();else loadCompte();
+    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.display='';submit.disabled=false;submit.textContent=mode==='register'?'Creer mon compte':'Se connecter';}
+  }
+  submit.onclick=doAuth;
+  ['#ntr-auth-email','#ntr-auth-pw','#ntr-auth-pw2'].forEach(s=>{const el=qr(s);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')doAuth();});});
+  setTimeout(()=>{const el=qr('#ntr-auth-email');if(el)el.focus();},60);
 }
 
 async function renderCompteConnecte(root,user){
@@ -1088,6 +1198,7 @@ async function renderCompteConnecte(root,user){
     const t=_authToken();
     if(t)await fetch('/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+t}}).catch(()=>{});
     localStorage.removeItem('neogen_auth_token');
+    if(typeof _injectUserCss==='function')_injectUserCss();
     loadCompte();
   };
 
@@ -2893,7 +3004,11 @@ function _renderProp(p){
       wrap.style.opacity='.4';
       wrap.querySelector('[data-refuse]').style.display='none';
       this.textContent=d.ok?'Approuve !':'Erreur';
-      if(d.ok) _bulleVieDonnee(p.titre||'');
+      if(d.ok&&d.job_id){
+        _bulleProgression(d.job_id,p.titre||'',this);
+      }else if(d.ok){
+        _bulleVieDonnee(p.titre||'');
+      }
     }catch(e){this.textContent='Erreur';}
     setTimeout(function(){loadHubPropositions();loadHubEtat();loadEvolutionSysteme();loadPensees();},1400);
   };
@@ -3336,17 +3451,44 @@ async function donnerVie(id,btn){
   }catch(e){btn.textContent='Erreur';btn.disabled=false;}
 }
 
-/* Bulle de PROGRESSION vivante : la forge n'est pas instantanee (Opus + Docker).
-   Poll /savoir/evolution/forge/{jobId} et montre l'etape reelle jusqu'au verdict. */
+/* Bulle de PROGRESSION vivante — style Matrix NEOGEN.
+   Poll /savoir/evolution/forge/{jobId} toutes les 1.5s jusqu'au verdict. */
 function _bulleProgression(jobId,titre,btn){
   const el=document.createElement('div');
   el.id='forge-bubble-'+jobId;
-  el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:340px;z-index:10000;padding:16px 18px;background:rgba(16,22,30,.98);border:1px solid rgba(168,85,247,.55);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.65);backdrop-filter:blur(10px);color:#e2e8f0';
-  el.innerHTML='<div style="font-size:11px;color:#a855f7;font-weight:700;margin-bottom:6px">&#9889; Votre idee prend vie</div>'
-    +'<div id="fp-etape-'+jobId+'" style="font-size:13px;font-weight:600;margin-bottom:8px">Initialisation…</div>'
-    +'<div style="height:6px;background:rgba(255,255,255,.08);border-radius:6px;overflow:hidden">'
-    +'<div id="fp-bar-'+jobId+'" style="height:100%;width:5%;background:linear-gradient(90deg,#a855f7,#10b981);transition:width .5s"></div></div>'
-    +'<div id="fp-note-'+jobId+'" style="font-size:11px;opacity:.55;line-height:1.4;margin-top:8px">La forge genere du vrai code, le teste en sandbox isolee, puis controle les murs. Cela prend un moment.</div>';
+  el.style.cssText=[
+    'position:fixed;right:22px;bottom:22px;max-width:360px;min-width:280px;z-index:10000',
+    'padding:16px 18px 14px',
+    'background:rgba(0,7,2,.97)',
+    'border:1px solid rgba(0,255,65,.28)',
+    'border-radius:8px',
+    'box-shadow:0 0 28px rgba(0,255,65,.10),0 18px 44px rgba(0,0,0,.88)',
+    'backdrop-filter:blur(14px)',
+    'color:#e2e8f0',
+    'font-family:ui-monospace,"SF Mono",Consolas,monospace'
+  ].join(';');
+
+  el.innerHTML=
+    /* header */
+    '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">'
+      +'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#00e869;box-shadow:0 0 6px #00e869;animation:_mpulse 1.2s ease-in-out infinite"></span>'
+      +'<span style="font-size:10px;letter-spacing:.14em;color:rgba(0,255,65,.65);text-transform:uppercase;font-weight:600">Ingenieur actif</span>'
+    +'</div>'
+    /* etape courante */
+    +'<div id="fp-etape-'+jobId+'" style="font-size:12px;color:#00e869;min-height:16px;margin-bottom:10px;word-break:break-all">Initialisation…</div>'
+    /* barre */
+    +'<div style="height:3px;background:rgba(0,255,65,.10);border-radius:3px;overflow:hidden;margin-bottom:10px">'
+      +'<div id="fp-bar-'+jobId+'" style="height:100%;width:5%;background:linear-gradient(90deg,#00c454,#00e869);transition:width .6s ease;box-shadow:0 0 6px rgba(0,255,65,.5)"></div>'
+    +'</div>'
+    /* note */
+    +'<div id="fp-note-'+jobId+'" style="font-size:10px;color:rgba(0,255,65,.38);line-height:1.6">forge &rarr; test sandbox &rarr; controle murs</div>';
+
+  /* animation pulse (injectee une seule fois) */
+  if(!document.getElementById('_mpulse-style')){
+    const s=document.createElement('style');s.id='_mpulse-style';
+    s.textContent='@keyframes _mpulse{0%,100%{opacity:1}50%{opacity:.3}}';
+    document.head.appendChild(s);
+  }
   document.body.appendChild(el);
 
   const timer=setInterval(async function(){
@@ -3358,34 +3500,42 @@ function _bulleProgression(jobId,titre,btn){
     const note=document.getElementById('fp-note-'+jobId);
     if(et&&st.etape_label)et.textContent=st.etape_label;
     if(bar&&typeof st.pct==='number')bar.style.width=Math.max(5,st.pct)+'%';
-    if(st.etat==='generee'){
+
+    if(st.etat==='generee'||st.etat==='termine'){
       clearInterval(timer);
-      if(et)et.textContent='⚡ Code genere & teste';
-      el.style.borderColor='rgba(16,185,129,.6)';
-      if(note)note.innerHTML='Cellule <b>'+esc(st.nom||'')+'</b> (score '+(st.score||'--')+'). Voir « Cellules forgees ». Recharge dans 2s.';
-      if(btn){btn.textContent='⚡ Code genere';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';}
+      var _ok=!!(st.nom);
+      if(bar){bar.style.width='100%';}
+      /* passe le point en statique */
+      el.querySelector('span[style*="animation"]').style.animation='none';
+      el.querySelector('span[style*="animation"]').style.background='#00e869';
+      el.querySelector('span[style*="animation"]').style.boxShadow='0 0 10px #00e869';
+      el.style.borderColor='rgba(0,255,65,.6)';
+      el.style.boxShadow='0 0 32px rgba(0,255,65,.18),0 18px 44px rgba(0,0,0,.88)';
+      if(et)et.textContent=_ok?'> idee integree et fonctionnelle':'> traitement termine';
+      et.style.color='#00e869';et.style.fontWeight='700';
+      var _rap=esc((st.rapport||'').slice(0,340));
+      if(note)note.innerHTML=(_ok
+        ?'<span style="color:rgba(0,255,65,.65)">cellule </span><b style="color:#00e869">'+esc(st.nom)+'</b><span style="color:rgba(0,255,65,.65)"> forgee & integree</span><br>':''
+      )+'<div style="margin-top:5px;max-height:110px;overflow:auto;white-space:pre-wrap;color:rgba(0,255,65,.4);font-size:10px">'+_rap+'</div>';
+      if(btn){btn.textContent=_ok?'> integre':'> traite';btn.style.color='#00e869';btn.style.borderColor='rgba(0,255,65,.3)';btn.style.background='rgba(0,255,65,.06)';btn.disabled=false;}
       if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
-      setTimeout(function(){location.reload();},2200);
-    }else if(st.etat==='termine'){
-      /* L'INGENIEUR a fini d'orchestrer (diagnostic -> code -> ancrage -> test). */
-      clearInterval(timer);
-      if(et)et.textContent='🛠️ Ingenieur : termine';
-      el.style.borderColor='rgba(16,185,129,.6)';
-      var _rap=esc((st.rapport||'').slice(0,420));
-      if(note)note.innerHTML=(st.nom?('Capacite <b>'+esc(st.nom)+'</b> forgee & integree.<br>'):'')
-        +'<div style="margin-top:6px;max-height:140px;overflow:auto;white-space:pre-wrap;opacity:.8">'+_rap+'</div>';
-      if(btn){btn.textContent='🛠️ Traite par l\'Ingenieur';btn.style.color='#10b981';btn.style.borderColor='rgba(16,185,129,.3)';btn.style.background='rgba(16,185,129,.08)';btn.disabled=false;}
-      if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
-      if(typeof loadIngenieur==='function')setTimeout(loadIngenieur,500);
-      setTimeout(function(){if(el.parentNode)el.remove();},12000);
+      if(!_ok&&typeof loadIngenieur==='function')setTimeout(loadIngenieur,500);
+      setTimeout(function(){if(el.parentNode)el.remove();},_ok?3000:14000);
+      if(_ok)setTimeout(function(){location.reload();},3100);
+
     }else if(st.etat==='refusee'){
       clearInterval(timer);
-      if(et)et.textContent='✗ Refuse';
-      el.style.borderColor='rgba(239,68,68,.6)';
-      if(bar)bar.style.background='#ef4444';
-      if(note)note.textContent='Refuse : '+(st.raison||'raison inconnue')+'. Aucun code installe.';
-      if(btn){btn.textContent='✗ Refuse';btn.style.color='#ef4444';btn.disabled=false;}
-      setTimeout(function(){if(el.parentNode)el.remove();},8000);
+      if(bar){bar.style.width='100%';bar.style.background='#ef4444';bar.style.boxShadow='none';}
+      el.querySelector('span[style*="animation"]').style.animation='none';
+      el.querySelector('span[style*="animation"]').style.background='#ef4444';
+      el.querySelector('span[style*="animation"]').style.boxShadow='0 0 6px #ef4444';
+      el.style.borderColor='rgba(239,68,68,.55)';
+      el.style.boxShadow='0 0 24px rgba(239,68,68,.10),0 18px 44px rgba(0,0,0,.88)';
+      if(et){et.textContent='> echec — idee non integree';et.style.color='#ef4444';et.style.fontWeight='700';}
+      if(note)note.innerHTML='<span style="color:rgba(239,68,68,.65)">raison : '
+        +esc(st.raison||'erreur inconnue')+' — aucun code installe.</span>';
+      if(btn){btn.textContent='echec';btn.style.color='#ef4444';btn.disabled=false;}
+      setTimeout(function(){if(el.parentNode)el.remove();},10000);
     }
   },1500);
 }
@@ -3431,20 +3581,21 @@ function _bulleApercuInterface(d,btn){
   };
 }
 
-/* Charge l'override CSS d'interface au demarrage : l'evolution d'interface devient visible. */
+/* Charge l'override CSS d'interface au demarrage : l'evolution d'interface devient visible.
+   Per-utilisateur : envoie le token -> chacun recoit le CSS de SON sac (isole des autres). */
+async function _injectUserCss(){
+  try{
+    const r=await fetch('/savoir/evolution/ui.css',{cache:'no-store',headers:_authHdrs()});
+    if(!r.ok)return;
+    const css=await r.text();
+    let st=document.getElementById('neogen-ui-overrides');
+    if(!st){st=document.createElement('style');st.id='neogen-ui-overrides';document.head.appendChild(st);}
+    st.textContent=css||'';
+  }catch(e){}
+}
 (function(){
-  async function injecter(){
-    try{
-      const r=await fetch('/savoir/evolution/ui.css',{cache:'no-store'});
-      if(!r.ok)return;
-      const css=await r.text();
-      let st=document.getElementById('neogen-ui-overrides');
-      if(!st){st=document.createElement('style');st.id='neogen-ui-overrides';document.head.appendChild(st);}
-      st.textContent=css||'';
-    }catch(e){}
-  }
-  if(document.readyState!=='loading')injecter();
-  else document.addEventListener('DOMContentLoaded',injecter);
+  if(document.readyState!=='loading')_injectUserCss();
+  else document.addEventListener('DOMContentLoaded',_injectUserCss);
 })();
 
 /* Bulles de notification : poll des pensees a haut score non lues. */
@@ -3772,28 +3923,47 @@ async function loadEvolutionCellules(){
   const c=document.getElementById('evo-cellules');
   if(!c)return;
   try{
-    const r=await fetch('/savoir/evolution/cellules');
+    const r=await fetch('/savoir/evolution/cellules',{headers:_authHdrs()});
     if(!r.ok)return;
     const d=await r.json();
     const cells=(d.cellules)||[];
     if(!cells.length){c.innerHTML='<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">Aucune cellule forgee. « Donner vie » a une idee technique en genere une.</div>';return;}
     c.innerHTML='';
+    // Banner si des cellules sont a_reverifier
+    const nbKo=cells.filter(cl=>cl.a_reverifier).length;
+    if(nbKo){
+      const banner=document.createElement('div');
+      banner.style.cssText='padding:8px 12px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.4);border-radius:8px;margin-bottom:10px;font-size:12px;display:flex;align-items:center;gap:8px';
+      banner.innerHTML='<span style="color:#fb923c;font-size:15px">&#9888;</span>'
+        +'<span style="flex:1;color:#fb923c"><b>'+nbKo+' cellule(s) a verifier</b> apres mise a jour du noyau — le code peut etre obsolete ou incompatible.</span>'
+        +'<button class="ghost" style="font-size:11px;padding:4px 8px" onclick="scanCompatibilite()">Relancer scan</button>';
+      c.appendChild(banner);
+    }
     for(const cell of cells){
+      const ko=!!cell.a_reverifier;
       const el=document.createElement('div');
-      el.style.cssText='padding:10px 12px;background:rgba(16,185,129,.05);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(16,185,129,.18)';
+      el.style.cssText='padding:10px 12px;background:'+(ko?'rgba(251,146,60,.05)':'rgba(16,185,129,.05)')+';border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid '+(ko?'rgba(251,146,60,.35)':'rgba(16,185,129,.18)');
       const dt=cell.ts?new Date(cell.ts*1000).toLocaleDateString():'';
       const det=document.createElement('details');
+      const icone=ko?'&#9888;':'&#9889;';
+      const couleur=ko?'#fb923c':'#10b981';
+      const badgeKo=ko?'<span style="margin-left:6px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.4);border-radius:4px;padding:1px 6px;font-size:10px">a verifier</span>':'';
       det.innerHTML='<summary style="cursor:pointer;list-style:none">'
-        +'<span style="font-weight:700;color:#10b981">&#9889; '+esc(cell.nom||'')+'</span> '
+        +'<span style="font-weight:700;color:'+couleur+'">'+icone+' '+esc(cell.nom||'')+'</span>'
+        +badgeKo+' '
         +'<span style="opacity:.7">'+esc(cell.description||'')+'</span>'
         +'<span style="float:right;opacity:.5">score '+(cell.score||'--')+' &middot; '+esc(dt)+'</span>'
         +'</summary>';
       const corps=document.createElement('div');
       corps.style.cssText='margin-top:8px';
       const penseeLink=cell.pensee_id
-        ?'<div style="font-size:11px;color:var(--mut);margin-bottom:6px">Née de la pensée : <a href="#evolution" style="color:var(--acc);text-decoration:none" onclick="window._penseeScroll=\''+esc(cell.pensee_id)+'\'">'+esc(cell.pensee_titre||cell.pensee_id)+'</a></div>'
+        ?'<div style="font-size:11px;color:var(--mut);margin-bottom:6px">Nee de la pensee : <a href="#evolution" style="color:var(--acc);text-decoration:none" onclick="window._penseeScroll=\''+esc(cell.pensee_id)+'\'">'+esc(cell.pensee_titre||cell.pensee_id)+'</a></div>'
         :'';
-      corps.innerHTML=penseeLink+'<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
+      const raisonKo=ko&&cell.raison_reverification
+        ?'<div style="font-size:11px;color:#fb923c;margin-bottom:6px;padding:4px 8px;background:rgba(251,146,60,.08);border-radius:4px">Erreur : '+esc(cell.raison_reverification)+'</div>'
+        :'';
+      corps.innerHTML=penseeLink+raisonKo
+        +'<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
         +(cell.test&&cell.test.resume?' &middot; test : '+esc(cell.test.resume):'')+'</div>'
         +'<pre style="background:rgba(0,0,0,.35);border-radius:8px;padding:10px;overflow:auto;font-size:11px;max-height:300px;white-space:pre-wrap" id="cellcode-'+esc(cell.nom)+'">Chargement du code…</pre>';
       det.appendChild(corps);
@@ -3802,7 +3972,7 @@ async function loadEvolutionCellules(){
         const pre=document.getElementById('cellcode-'+cell.nom);
         if(pre&&pre.dataset.charge)return;
         try{
-          const rc=await fetch('/savoir/evolution/cellules/'+encodeURIComponent(cell.nom));
+          const rc=await fetch('/savoir/evolution/cellules/'+encodeURIComponent(cell.nom),{headers:_authHdrs()});
           const dc=await rc.json();
           if(pre){pre.textContent=dc.code||'(code indisponible)';pre.dataset.charge='1';}
         }catch(e){if(pre)pre.textContent='Erreur de chargement';}
@@ -3810,6 +3980,15 @@ async function loadEvolutionCellules(){
       el.appendChild(det);
       c.appendChild(el);
     }
+  }catch(e){}
+}
+
+async function scanCompatibilite(){
+  try{
+    const r=await fetch('/savoir/evolution/compatibilite?forcer=true',{headers:_authHdrs()});
+    const d=await r.json();
+    loadEvolutionCellules();
+    if(d.ko===0)alert('Toutes les cellules sont compatibles avec la version actuelle du noyau.');
   }catch(e){}
 }
 
@@ -3978,7 +4157,7 @@ async function loadConscience(){
     const r=await fetch('/savoir/conscience');
     if(!r.ok)return;
     const d=await r.json();
-    const etat=d.etat||{};const caps=d.capacites||[];
+    const etat=d.etat||{};const caps=(d.capacites||[]).filter(function(c){return c.statut!=='obsolete';});
     // Jauge : sante globale + repartition par statut.
     if(jauge){
       const ps=etat.par_statut||{};

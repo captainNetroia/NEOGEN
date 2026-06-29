@@ -1,10 +1,21 @@
 from __future__ import annotations
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
+import quotas as _quotas
 import rpa
 from .deps import _auth
 
 router = APIRouter()
+
+
+def _gate_owner(authorization: str | None = None):
+    """Vérifie que l'appelant est le propriétaire (NEOGEN_OWNER_UNLIMITED=1 ou palier enterprise)."""
+    if _quotas._owner_unlimited():
+        return
+    user = _auth(authorization)
+    if _quotas.palier(user) == "enterprise":
+        return
+    raise HTTPException(status_code=403, detail="Section réservée au propriétaire.")
 
 
 class RpaContinuousBody(BaseModel):
@@ -79,13 +90,15 @@ def rpa_action_result(body: RpaResultBody):
 
 
 @router.post("/rpa/clear")
-def rpa_clear():
+def rpa_clear(authorization: str | None = Header(default=None)):
+    _gate_owner(authorization)
     count = rpa.RpaQueue.clear()
     return {"cleared": count}
 
 
 @router.post("/rpa/execute")
-def rpa_execute(body: RpaExecuteBody):
+def rpa_execute(body: RpaExecuteBody, authorization: str | None = Header(default=None)):
+    _gate_owner(authorization)
     ids = rpa.RpaQueue.push_multiple(body.actions)
     return {"ids": ids}
 
@@ -142,7 +155,8 @@ def rpa_settings_get():
 
 
 @router.post("/rpa/settings")
-def rpa_settings_post(body: dict):
+def rpa_settings_post(body: dict, authorization: str | None = Header(default=None)):
+    _gate_owner(authorization)
     return rpa.save_settings(body)
 
 

@@ -33,12 +33,31 @@ import time
 import uuid
 
 import robustesse as rob
+import user_namespace as _ns
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(BASE, "data")
 _CELLULES_DIR = os.path.join(_DATA, "cellules_forgees")
 _REGISTRE = os.path.join(_DATA, "cellules_forgees.json")
 _JOBS = os.path.join(_DATA, "forge_jobs.json")
+
+
+# ── Routage per-utilisateur : owner -> data/ (système) ; user web -> son sac ──────
+#   Les cellules de l'OWNER deviennent les capacités réelles de NEOGEN (intégrées,
+#   invocables par les agents primordiaux). Celles d'un USER WEB vivent dans son sac,
+#   affichées et exécutables dans SON espace, JAMAIS intégrées au registre système
+#   (sinon un user prendrait le dessus sur les agents primordiaux — interdit).
+
+def _registre_path(user: dict | None = None) -> str:
+    if _ns.a_un_sac(user):
+        return _ns.data_path(user, "cellules_forgees.json")
+    return _REGISTRE
+
+
+def _cellules_dir(user: dict | None = None) -> str:
+    if _ns.a_un_sac(user):
+        return _ns.data_path(user, "cellules_forgees")
+    return _CELLULES_DIR
 _GENOME = os.path.join(BASE, "genome.json")
 
 # Marqueur imprime par le smoke-test si le module se charge proprement en conteneur.
@@ -158,10 +177,11 @@ def _smoke_test(code: str) -> dict:
 
 # ── Persistance des cellules forgees ─────────────────────────────────────────────
 
-def _charger_registre() -> dict:
+def _charger_registre(user: dict | None = None) -> dict:
     try:
-        if os.path.exists(_REGISTRE):
-            with open(_REGISTRE, encoding="utf-8") as f:
+        chemin = _registre_path(user)
+        if os.path.exists(chemin):
+            with open(chemin, encoding="utf-8") as f:
                 d = json.load(f)
                 return d if isinstance(d, dict) else {}
     except Exception:
@@ -170,18 +190,21 @@ def _charger_registre() -> dict:
 
 
 def _persister_cellule(cell, score, verdict_raison, test,
-                        pensee_id: str = "", pensee_titre: str = "") -> str:
-    """Ecrit le code reel + une entree de registre. Idempotent (re-forge ecrase proprement)."""
+                        pensee_id: str = "", pensee_titre: str = "",
+                        user: dict | None = None) -> str:
+    """Ecrit le code reel + une entree de registre dans le sac de l'utilisateur (ou le
+    système pour l'owner). Idempotent (re-forge ecrase proprement)."""
     nom = re.sub(r"[^a-z0-9_]+", "_", (cell.name or "cellule").lower()).strip("_") or "cellule"
-    os.makedirs(_CELLULES_DIR, exist_ok=True)
-    chemin = os.path.join(_CELLULES_DIR, f"{nom}.py")
+    cellules_dir = _cellules_dir(user)
+    os.makedirs(cellules_dir, exist_ok=True)
+    chemin = os.path.join(cellules_dir, f"{nom}.py")
     entete = (f"# Cellule forgee par NEOGEN — {cell.description}\n"
               f"# Verdict Membrane : {verdict_raison}\n"
               f"# Genere le {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(entete + (cell.code or ""))
 
-    reg = _charger_registre()
+    reg = _charger_registre(user)
     reg[nom] = {
         "nom": nom,
         "description": cell.description,
@@ -194,27 +217,28 @@ def _persister_cellule(cell, score, verdict_raison, test,
         "ts": time.time(),
         "pensee_id": pensee_id or None,
         "pensee_titre": pensee_titre or None,
+        "scope": _ns.sac_id(user) and f"user:{_ns.sac_id(user)}" or "maitre",
     }
-    with open(_REGISTRE, "w", encoding="utf-8") as f:
+    with open(_registre_path(user), "w", encoding="utf-8") as f:
         json.dump(reg, f, ensure_ascii=False, indent=2)
     return nom
 
 
-def lister_cellules() -> list[dict]:
-    """Cellules forgees (sans le code), plus recentes d'abord, pour l'UI."""
-    reg = _charger_registre()
+def lister_cellules(user: dict | None = None) -> list[dict]:
+    """Cellules forgees (sans le code) de l'utilisateur, plus recentes d'abord, pour l'UI."""
+    reg = _charger_registre(user)
     cells = sorted(reg.values(), key=lambda c: c.get("ts", 0), reverse=True)
     return cells
 
 
-def cellule(nom: str) -> dict | None:
-    """Une cellule forgee AVEC son code reel (pour l'affichage deplie)."""
-    reg = _charger_registre()
+def cellule(nom: str, user: dict | None = None) -> dict | None:
+    """Une cellule forgee AVEC son code reel (pour l'affichage deplie), dans le sac du user."""
+    reg = _charger_registre(user)
     meta = reg.get(nom)
     if not meta:
         return None
     out = dict(meta)
-    chemin = os.path.join(_CELLULES_DIR, f"{nom}.py")
+    chemin = os.path.join(_cellules_dir(user), f"{nom}.py")
     try:
         with open(chemin, encoding="utf-8") as f:
             out["code"] = f.read()
@@ -259,8 +283,11 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
         # 1. Gardien du noyau (fail-closed) : on ne forge que vers data/, jamais le noyau.
         import noyau
         nom_probable = re.sub(r"[^a-z0-9_]+", "_", (titre or "cellule").lower()).strip("_")[:40]
+        _sac = _ns.sac_id(user)
+        _cible_rel = (f"data/users/{_sac}/cellules_forgees/{nom_probable or 'cellule'}.py"
+                      if _sac else f"data/cellules_forgees/{nom_probable or 'cellule'}.py")
         changement = {"type": "fonction",
-                      "cible": f"data/cellules_forgees/{nom_probable or 'cellule'}.py",
+                      "cible": _cible_rel,
                       "payload": {"besoin": (besoin or "")[:200]},
                       "titre": titre, "raison": "forge depuis une pensee"}
         ok, motif = noyau.autoriser(changement)
@@ -374,11 +401,29 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
             return {"ok": False, "etat": "refusee", "raison": derniere_erreur,
                     "tentatives": MAX_TENTATIVES, "test": test}
 
-        # 5. Acceptee + testee -> persiste le code reel (avec lien vers la pensee d'origine).
+        # 5. Acceptee + testee -> persiste le code reel dans le sac du user (ou systeme owner).
         nom = _persister_cellule(cell, score, raison, test,
-                                 pensee_id=pensee_id, pensee_titre=titre)
+                                 pensee_id=pensee_id, pensee_titre=titre, user=user)
 
-        # 6. INTEGRATION REELLE : branche la cellule + verifie qu'elle est appelable.
+        # 6. INTEGRATION : SEULES les cellules du MAITRE (owner) sont integrees au registre
+        #    systeme (capacites reelles de NEOGEN, invocables par les agents primordiaux).
+        #    Une cellule d'un USER WEB reste dans SON sac : forgee + affichee, JAMAIS integree
+        #    au systeme (garde-fou : un user ne prend jamais le dessus sur les agents primordiaux).
+        if _ns.a_un_sac(user):
+            statut_final = "forgee"
+            integ = {"ok": False, "resume": "cellule du sac utilisateur : reste dans son espace, non integree au systeme"}
+            _set_job(job_id, etat=statut_final, etape="termine", pct=100,
+                     nom=nom, score=score, verdict=decision, integ=False,
+                     tentative=tentative, tentatives_max=MAX_TENTATIVES)
+            rob.journaliser(
+                f"forge : cellule '{nom}' forgee dans le sac user {_ns.sac_id(user)} (score {score}, "
+                f"{tentative} tentative(s), non integree au systeme)", "succes", source="forge_evolution")
+            return {"ok": True, "etat": statut_final, "nom": nom, "score": score,
+                    "verdict": decision, "raison": raison, "test": test,
+                    "integration": integ, "tentatives": tentative}
+
+        # --- OWNER uniquement : integration reelle au systeme ---
+        # 6b. INTEGRATION REELLE : branche la cellule + verifie qu'elle est appelable.
         _set_job(job_id, etat="en_cours", etape="integration", pct=97,
                  nom=nom, tentative=tentative, tentatives_max=MAX_TENTATIVES)
         integ = _integrer(nom)
@@ -418,18 +463,22 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
     return {"ok": False, "etat": "refusee", "raison": "erreur capturée (voir journal)"}
 
 
-def lancer_forge_async(besoin: str, titre: str = "", pensee_id: str = "") -> str:
+def lancer_forge_async(besoin: str, titre: str = "", pensee_id: str = "",
+                       user: dict | None = None) -> str:
     """Demarre la forge en tache de fond et renvoie un job_id immediatement (pas de blocage HTTP).
-    L'UI poll statut_job(job_id) pour afficher la progression."""
+    L'UI poll statut_job(job_id) pour afficher la progression. La cellule est forgee dans le
+    sac de l'utilisateur (user web) ou le systeme (owner)."""
     job_id = uuid.uuid4().hex[:12]
     _set_job(job_id, etat="en_cours", etape="demarre", pct=5,
              pensee_id=pensee_id, titre=titre or besoin[:80])
 
     def _run():
         try:
-            r = forger(besoin, titre=titre, pensee_id=pensee_id, job_id=job_id)
+            r = forger(besoin, titre=titre, pensee_id=pensee_id, job_id=job_id, user=user)
             # Marque la pensee source selon le verdict (statut honnete).
-            if pensee_id:
+            # Note : la pensee est partagee (cerveau primordial) ; seul l'owner marque le statut
+            # global. Pour un user web, sa forge n'altere pas l'etat de la pensee commune.
+            if pensee_id and not _ns.a_un_sac(user):
                 try:
                     import pensee
                     pensee.marquer_forge(pensee_id, "generee" if r.get("ok") else "refusee")
@@ -568,6 +617,36 @@ if __name__ == "__main__":
     assert cap_echec and cap_echec["statut"] == "echouee", cap_echec
     print(f"  echec persistant : refuse apres {MAX_TENTATIVES} tentatives + conscience='echouee' OK")
 
+    # 5. ISOLATION PAR SAC : un user web forge dans SON sac -> forgee (PAS integree),
+    #    invisible du systeme et des autres users (garde-fou agents primordiaux).
+    os.environ["NEOGEN_OWNER_UNLIMITED"] = "0"
+    os.environ["NEOGEN_OWNER_EMAIL"] = "captain@netroia.com"
+    _ns._DATA = _tmp
+    _ns._USERS_ROOT = os.path.join(_tmp, "users")
+    # Cellule au nom UNIQUE (evite la collision avec la cellule systeme du test 1).
+    def _gen_alice(need, genome, origin="forge"):
+        c = Cell(name="skill_alice_only", description="Skill propre a Alice", origin=origin,
+                 declared_effects={"deletes_data": False, "asks_confirmation": False,
+                                   "network_access": False, "authorized_network": False},
+                 cursor_scores={"simplicite": 90, "vitesse": 80, "lisibilite": 85})
+        c.code = "def executer(donnees=None):\n    return {'ok': True, 'qui': 'alice'}\n"
+        return c
+    faux_gen.generate_cell = _gen_alice
+    alice = {"id": "alice", "email": "alice@x.com"}
+    n_sys_avant = len(lister_cellules())  # cellules systeme (owner), inchangees
+    job5 = lancer_forge_async("Repare les continuations", titre="Skill Alice", user=alice)
+    st5 = _attendre(job5)
+    assert st5["etat"] == "forgee", st5            # sac user -> forgee, JAMAIS integree
+    assert not st5.get("integ"), st5
+    cells_alice = lister_cellules(alice)
+    assert cells_alice and any(c["nom"] == st5["nom"] for c in cells_alice), cells_alice
+    assert len(lister_cellules()) == n_sys_avant, "la cellule user ne doit PAS polluer le systeme"
+    r_inv_alice = _cf.invoquer(st5["nom"])
+    assert not r_inv_alice.get("ok"), "une cellule de sac user ne doit PAS etre invocable par le systeme"
+    bob = {"id": "bob", "email": "bob@x.com"}
+    assert lister_cellules(bob) == [], "bob ne voit pas les cellules d'alice (isolation)"
+    print(f"  isolation sac user : '{st5['nom']}' dans le sac alice, invisible systeme/bob OK")
+
     print("=" * 64)
-    print("  TOUT VERT : forge avec boucle de reparation + integration reelle + conscience.")
+    print("  TOUT VERT : forge + boucle reparation + integration owner + ISOLATION sac user.")
     print("=" * 64)

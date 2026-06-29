@@ -26,10 +26,26 @@ import os
 import re
 
 import robustesse as rob
+import user_namespace as _ns
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(BASE, "data")
-_OVERRIDES = os.path.join(_DATA, "ui_overrides.css")
+_OVERRIDES = os.path.join(_DATA, "ui_overrides.css")  # base (maître) — défaut pour l'owner
+
+
+def _overrides_path(user: dict | None = None) -> str:
+    """Chemin du CSS d'override pour cet utilisateur.
+    Owner/maître → data/ui_overrides.css ; utilisateur web → data/users/{id}/ui_overrides.css."""
+    if _ns.a_un_sac(user):
+        return _ns.data_path(user, "ui_overrides.css")
+    return _OVERRIDES
+
+
+def _cible_relative(user: dict | None = None) -> str:
+    """Cible relative (pour noyau.autoriser) : reste sous data/ dans tous les cas."""
+    chemin = _overrides_path(user)
+    rel = os.path.relpath(chemin, BASE).replace("\\", "/")
+    return rel
 
 MODEL = "claude-opus-4-8"
 _MAX_CSS = 12000  # un override raisonnable ; au-dela on refuse (anti-emballement)
@@ -162,13 +178,62 @@ def _parser_json(txt: str):
     return None
 
 
+# ── Blocs nommés : plusieurs CSS coexistent sans s'écraser ───────────────────────
+
+_BLOC_START = "/* NEOGEN-BLOC:{} START */"
+_BLOC_END   = "/* NEOGEN-BLOC:{} END */"
+_BLOC_RE    = re.compile(
+    r"/\* NEOGEN-BLOC:([^\s*]+) START \*/\n?(.*?)\n?/\* NEOGEN-BLOC:\1 END \*/",
+    re.DOTALL
+)
+
+
+def _slug_titre(titre: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", titre.lower())[:40].strip("_") or "bloc"
+
+
+def _lire_blocs(css: str) -> dict:
+    """Parse les blocs nommés ; le reste (CSS legacy sans marqueurs) est stocké sous '_legacy'."""
+    blocs: dict[str, str] = {}
+    for m in _BLOC_RE.finditer(css):
+        blocs[m.group(1)] = m.group(2).strip()
+    restant = _BLOC_RE.sub("", css).strip()
+    if restant:
+        blocs["_legacy"] = restant
+    return blocs
+
+
+def _fusionner_blocs(blocs: dict) -> str:
+    """Reconstruit un CSS continu à partir des blocs nommés."""
+    parts = []
+    for nom, contenu in blocs.items():
+        if nom == "_legacy":
+            parts.append(contenu)
+        else:
+            parts.append(f"{_BLOC_START.format(nom)}\n{contenu}\n{_BLOC_END.format(nom)}")
+    return "\n\n".join(p for p in parts if p)
+
+
+def _sauvegarder_override(chemin: str) -> None:
+    """Backup du CSS courant avant écrasement (<chemin>_backup.css)."""
+    try:
+        if os.path.exists(chemin):
+            backup = chemin.replace(".css", "_backup.css")
+            import shutil
+            shutil.copy2(chemin, backup)
+    except Exception:
+        pass
+
+
 # ── Application / lecture / reinitialisation ─────────────────────────────────────
 
-def overrides_actuels() -> str:
-    """Le CSS d'override courant (vide si aucun)."""
+def overrides_actuels(user: dict | None = None) -> str:
+    """Le CSS d'override courant pour cet utilisateur (vide si aucun).
+    Owner → CSS maître ; utilisateur web → CSS de SON sac (isolé des autres)."""
+    chemin = _overrides_path(user)
     try:
-        if os.path.exists(_OVERRIDES):
-            with open(_OVERRIDES, encoding="utf-8") as f:
+        if os.path.exists(chemin):
+            with open(chemin, encoding="utf-8") as f:
                 return f.read()
     except Exception:
         pass
@@ -176,57 +241,57 @@ def overrides_actuels() -> str:
 
 
 def appliquer(css: str, *, user: dict | None = None, titre: str = "") -> dict:
-    """Applique le CSS (admin) ou le remonte en proposition (public). Re-assainit (defense en profondeur).
-    Renvoie {ok, portee, ...}. Ne leve jamais."""
+    """Applique le CSS à l'interface de l'utilisateur. Re-assainit (defense en profondeur).
+    Owner → interface maître (data/) ; utilisateur web → SON sac (data/users/{id}/), isolé.
+    Le CSS s'applique dans le navigateur uniquement (jamais le serveur). Renvoie {ok, portee, ...}.
+    Ne leve jamais."""
     with rob.garde("appliquer interface", source="forge_interface"):
         ok, motif = _css_sain(css)
         if not ok:
             return {"ok": False, "raison": motif}
 
-        # Garde du noyau : la cible est data/ (deja autorisee) ; on reste fail-closed sur le reste.
+        # Garde du noyau : la cible reste sous data/ (sac de l'utilisateur ou base) ; fail-closed.
         import noyau
+        cible = _cible_relative(user)
         autorise, motif_n = noyau.autoriser({
-            "type": "esthetique", "cible": "data/ui_overrides.css",
+            "type": "esthetique", "cible": cible,
             "payload": {"css_len": len(css)}, "titre": titre or "evolution interface",
             "raison": "forge interface"})
         if not autorise:
             return {"ok": False, "raison": motif_n}
 
-        portee = noyau.portee("esthetique", user)
-        # PUBLIC -> remonte en proposition (telemetrie), ne s'applique pas a la version publique.
-        if portee == "remonte" or not noyau.est_admin(user):
+        chemin = _overrides_path(user)
+        a_sac = _ns.a_un_sac(user)
+        # Application (additivement via blocs nommés) — sur le sac de l'utilisateur OU sur le maître.
+        os.makedirs(os.path.dirname(chemin), exist_ok=True)
+        _sauvegarder_override(chemin)
+        blocs = _lire_blocs(overrides_actuels(user))
+        cle = _slug_titre(titre) if titre else f"bloc_{abs(hash(css)) % 100000}"
+        blocs[cle] = css
+        css_final = _fusionner_blocs(blocs)
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write(css_final)
+        if not a_sac:
+            # Seules les évolutions du MAÎTRE alimentent le changelog d'évolution de NEOGEN.
             try:
-                import proposeur_hub
-                prop = proposeur_hub.proposer_depuis_evolution({
-                    "type": "esthetique", "payload": {"css": css}, "cible": "data/ui_overrides.css",
-                    "titre": titre or "Evolution interface (public)",
-                    "raison": "propose par un utilisateur via la forge d'interface"})
-                return {"ok": True, "portee": "remonte", "proposition": prop,
-                        "raison": "remonte en proposition (a valider par l'admin)"}
-            except Exception as e:
-                return {"ok": False, "raison": f"remontee echouee : {e}"}
-
-        # ADMIN -> applique directement a SON interface.
-        os.makedirs(_DATA, exist_ok=True)
-        with open(_OVERRIDES, "w", encoding="utf-8") as f:
-            f.write(css)
-        try:
-            import evolution_gouvernee
-            evolution_gouvernee._notifier_generation(
-                "interface", titre or "evolution interface", f"override CSS applique ({len(css)} car.)")
-        except Exception:
-            pass
-        rob.journaliser(f"forge interface : override applique ({len(css)} car.)", "succes",
-                        source="forge_interface")
-        return {"ok": True, "portee": "complet", "applique": True}
+                import evolution_gouvernee
+                evolution_gouvernee._notifier_generation(
+                    "interface", titre or "evolution interface", f"override CSS applique ({len(css)} car.)")
+            except Exception:
+                pass
+        rob.journaliser(
+            f"forge interface : override applique ({len(css)} car., {'sac user' if a_sac else 'maitre'})",
+            "succes", source="forge_interface")
+        return {"ok": True, "portee": "sac" if a_sac else "complet", "applique": True}
     return {"ok": False, "raison": "erreur capturee (voir journal)"}
 
 
-def reinitialiser() -> dict:
-    """Vide l'override d'interface : retour a l'apparence d'origine. Reversibilite garantie."""
+def reinitialiser(user: dict | None = None) -> dict:
+    """Vide l'override d'interface de l'utilisateur : retour a l'apparence d'origine. Reversible."""
     try:
-        if os.path.exists(_OVERRIDES):
-            os.remove(_OVERRIDES)
+        chemin = _overrides_path(user)
+        if os.path.exists(chemin):
+            os.remove(chemin)
         rob.journaliser("forge interface : override reinitialise", "info", source="forge_interface")
         return {"ok": True}
     except Exception as e:
@@ -246,6 +311,19 @@ if __name__ == "__main__":
     _DATA = _tmp
     _OVERRIDES = os.path.join(_tmp, "ui_overrides.css")
     os.environ["NEOGEN_OWNER_UNLIMITED"] = "1"  # se faire passer pour admin dans le test
+    # Le test tourne hors de l'arbo data/ : on route les chemins vers le temp et on
+    # fournit une cible maître valide (data/...) pour que noyau.autoriser passe offline.
+    _sacs_tmp = {}
+    def _overrides_path(user=None):
+        if user and user.get("id") and not _ns.est_owner(user):
+            p = os.path.join(_tmp, "users", user["id"], "ui_overrides.css")
+            _sacs_tmp[user["id"]] = p
+            return p
+        return _OVERRIDES
+    def _cible_relative(user=None):
+        if user and user.get("id") and not _ns.est_owner(user):
+            return f"data/users/{user['id']}/ui_overrides.css"
+        return "data/ui_overrides.css"
 
     class _Bloc:
         def __init__(self, t): self.text = t
@@ -284,6 +362,18 @@ if __name__ == "__main__":
     assert not ok, motif
     print("  @import refuse ->", motif)
 
+    # 6. ISOLATION PAR SAC : un user web applique son CSS sans toucher le maître ni les autres.
+    os.environ["NEOGEN_OWNER_UNLIMITED"] = "0"
+    os.environ["NEOGEN_OWNER_EMAIL"] = "captain@netroia.com"
+    alice = {"id": "alice", "email": "alice@x.com"}
+    bob = {"id": "bob", "email": "bob@x.com"}
+    ra = appliquer("body{--ntr:1}#pensee-list{max-height:200px}", user=alice, titre="alice-style")
+    assert ra["ok"] and ra["portee"] == "sac", ra
+    assert "max-height:200px" in overrides_actuels(alice), "alice doit voir SON css"
+    assert overrides_actuels(bob) == "", "bob ne doit PAS voir le css d'alice (isolation)"
+    assert overrides_actuels({"email": "captain@netroia.com"}) == "", "le maitre intact"
+    print("  isolation par sac OK -> alice voit son CSS, bob/maitre intacts")
+
     print("=" * 64)
-    print("  TOUT VERT : la forge d'interface est sure et reversible.")
+    print("  TOUT VERT : la forge d'interface est sure, isolee et reversible.")
     print("=" * 64)

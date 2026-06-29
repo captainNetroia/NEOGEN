@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 import registre
 from capacites import Capacites
 from pipeline import fabriquer_reel
-from .deps import _exiger_byok, _verifier_quota, _llm_client
+from .deps import _auth, _exiger_byok, _verifier_quota, _llm_client
 
 router = APIRouter()
 
@@ -124,7 +124,9 @@ def fabriquer_endpoint(demande: DemandeFabrication,
                        x_llm_provider: str | None = Header(default=None),
                        x_llm_model: str | None = Header(default=None),
                        x_llm_key: str | None = Header(default=None),
-                       x_llm_base: str | None = Header(default=None)):
+                       x_llm_base: str | None = Header(default=None),
+                       authorization: str | None = Header(default=None)):
+    _verifier_quota(authorization, "creations")
     from sanitizer import nettoyer
     cap = Capacites(persistance=demande.persistance, reseau=demande.reseau,
                     domaines_autorises=demande.domaines_autorises)
@@ -162,7 +164,9 @@ def lister_produits():
 
 
 @router.get("/produits/{produit_id}/telecharger")
-def telecharger_produit(produit_id: str):
+def telecharger_produit(produit_id: str, authorization: str | None = Header(default=None)):
+    if not _auth(authorization):
+        raise HTTPException(status_code=401, detail="Connexion requise pour télécharger.")
     import io, zipfile
     code = registre.charger(produit_id)
     if code is None:
@@ -325,7 +329,10 @@ def promouvoir_endpoint(produit_id: str):
 
 
 @router.post("/produits/{produit_id}/executer")
-def executer_produit(produit_id: str, demande: DemandeExecution):
+def executer_produit(produit_id: str, demande: DemandeExecution,
+                     authorization: str | None = Header(default=None)):
+    if not _auth(authorization):
+        raise HTTPException(status_code=401, detail="Connexion requise pour exécuter une app.")
     if not registre.est_promu(produit_id):
         raise HTTPException(status_code=403, detail="produit non promu (validation humaine requise)")
     code = registre.charger(produit_id)

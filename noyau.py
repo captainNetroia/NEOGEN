@@ -117,8 +117,8 @@ INVARIANTS_PROPRIO = {
 # modification de presentation (fragment ou patch ui.py) les fait disparaitre, on
 # refuse (fail-closed). Ce sont les ancres d'integrite de l'interface.
 ANCRES_INTEGRITE = (
-    'src="/static/app.js"',   # le moteur JS de l'UI (sans lui, rien ne fonctionne)
-    'id="sidebar"',           # la navigation principale (sans elle, plus d'acces aux sections)
+    '/static/app.js',   # le moteur JS de l'UI (sans lui, rien ne fonctionne)
+    'id="sidebar"',     # la navigation principale (sans elle, plus d'acces aux sections)
 )
 
 # Termes interdits dans tout contenu de PRESENTATION (HTML/CSS/JS de fragment).

@@ -29,6 +29,18 @@ def _gate_owner(authorization: str | None = Header(default=None)):
     raise HTTPException(status_code=403, detail="Section réservée au propriétaire.")
 
 
+def _gate_auth(authorization: str | None = Header(default=None)):
+    """Route ouverte à tout utilisateur connecté (agit sur SON sac). 401 si non connecté.
+    L'owner passe toujours (instance locale ou email maître)."""
+    if _quotas._owner_unlimited():
+        return None
+    from routes.deps import _auth
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Connecte-toi à ton compte pour personnaliser ton interface.")
+    return user
+
+
 @router.get("/etat")
 def hub_etat(authorization: str | None = Header(default=None)):
     _gate_owner(authorization)
@@ -82,9 +94,29 @@ def hub_propositions(
 @router.post("/propositions/{prop_id}/approuver")
 def hub_approuver(prop_id: str, authorization: str | None = Header(default=None)):
     _gate_owner(authorization)
+    # Lire la proposition avant approbation pour alimenter l'Ingenieur
+    prop = next((p for p in _savoir.charger_propositions() if p.get("id") == prop_id), None)
     res = _proposeur.approuver(prop_id)
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("erreur", "erreur"))
+    # L'Ingenieur passe SYSTEMATIQUEMENT sur toute approbation : il decide si du code est requis.
+    if prop:
+        import ingenieur as _ing
+        chg = prop.get("changement", {}) if isinstance(prop.get("changement"), dict) else {}
+        titre = chg.get("titre") or prop.get("titre") or ""
+        type_ = chg.get("type") or prop.get("type") or ""
+        payload = chg.get("payload", {}) if isinstance(chg.get("payload"), dict) else {}
+        payload_visible = {k: v for k, v in payload.items() if not k.startswith("_")}
+        besoin = (
+            f"Une évolution NEOGEN vient d'être approuvée par Jordan : « {titre} » "
+            f"(type: {type_}). Détail : {_json.dumps(payload_visible, ensure_ascii=False)[:400]}. "
+            f"Décide si cette évolution nécessite une implémentation code pour être vraiment active, "
+            f"ou si le stockage JSON suffit. Si du code est requis : forge la cellule et ancre-la "
+            f"au bon point du flux. Si le JSON suffit : confirme-le dans ton rapport."
+        )
+        job_id = _ing.lancer_async(besoin, titre=titre,
+                                   pensee_id=res.get("pensee_id") or "")
+        res["job_id"] = job_id
     return res
 
 
@@ -152,11 +184,21 @@ _TYPES_FORGE = {"fonction", "capacite"}
 _INDICES_TECHNIQUES = ("etapes", "code", "action", "scanner", "valider", "reparer",
                        "parser", "detecter", "compiler", "indexer", "automatis")
 
-# Indices qu'une idee concerne l'INTERFACE/experience -> forge d'interface (CSS reel).
+# Indices qu'une idee concerne l'INTERFACE/experience visuelle.
 _INDICES_INTERFACE = ("interface", "affichage", "ecran", "liste", "replier", "repliable",
                       "deroulant", "regrouper", "compact", "densite", "layout", "onglet",
                       "vue", "agrandir", "plus grand", "chat", "scroll", "bloc", "carte",
                       "lisible", "organis", "espace", "colonne", "mise en page")
+
+# Indices d'un SYSTEME BACKEND (registry, pipeline, compose) -> skip forges UI -> VOIE 1/2/3.
+_INDICES_SYSTEME_BACKEND = ("registre", "registry", "fossile", "compose_ui", "compose ui",
+                             "pipeline", "biblioth", "catalogue", "fragment system",
+                             "index de fragment", "index des fragment")
+
+# Indices d'un NOUVEAU COMPOSANT HTML explicite -> forge_fragments (nouveau widget/section).
+_INDICES_NOUVEAU_COMPOSANT = ("nouveau panel", "nouvelle section", "nouvelle carte",
+                               "carte vivante", "ajouter un onglet", "nouvel onglet",
+                               "miroir de", "tableau de bord", "visualis")
 
 
 _ZONE_KEYWORDS = {
@@ -186,6 +228,24 @@ def _est_interface(evo: dict | None, p: dict) -> bool:
     return any(ind in blob for ind in _INDICES_INTERFACE)
 
 
+def _est_systeme_backend(evo: dict | None, p: dict) -> bool:
+    """Detecte les idees qui visent un SYSTEME BACKEND (registre, pipeline, compose...)
+    Ces idees ne passent PAS par les forges UI -> VOIE 1/2/3 vers l'Ingenieur."""
+    if isinstance(evo, dict) and (evo.get("type") or "").lower() in ("systeme", "backend", "registre"):
+        return True
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    return any(ind in blob for ind in _INDICES_SYSTEME_BACKEND)
+
+
+def _est_nouveau_composant(evo: dict | None, p: dict) -> bool:
+    """Detecte les idees qui veulent ajouter un NOUVEAU widget/section HTML
+    (distinct du CSS pur applique a l'existant)."""
+    if isinstance(evo, dict) and (evo.get("type") or "").lower() in ("section", "composant"):
+        return True
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    return any(ind in blob for ind in _INDICES_NOUVEAU_COMPOSANT)
+
+
 def _est_technique(evo: dict | None, p: dict) -> bool:
     """Une pensee est 'technique' (donc forgeable en code) si son evolution vise une fonction,
     ou si son payload/contenu contient des indices d'action executable."""
@@ -201,11 +261,10 @@ def _est_technique(evo: dict | None, p: dict) -> bool:
 
 @router.post("/pensees/{pensee_id}/donner-vie")
 def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(default=None)):
-    """Donne vie a une pensee, en routant selon sa NATURE :
-      - technique/fonctionnelle -> LA FORGE (generator -> Membrane -> sandbox), vrai code teste.
-        Asynchrone : renvoie {voie:'forge', job_id} ; l'UI poll /evolution/forge/{job_id}.
-      - data-driven (agent, modele, savoir, regle, loi) -> proposition evolution gouvernee.
-      - idee pure -> proposition 'idee' notee (honnete : pas de fausse 'vie')."""
+    """Donne vie a une pensee :
+      - VOIE 0 (interface) : forge HTML immediate (apercu, pas de consentement requis).
+      - Toutes les autres voies -> PROPOSE dans le Hub. L'Ingenieur est lance APRES
+        l'approbation de Jordan (hub_approuver). Jamais avant. Une seule execution."""
     _gate_owner(authorization)
     import pensee as _pensee
     import evolution_gouvernee as _evo
@@ -217,64 +276,60 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
 
     evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
 
-    # VOIE 0 : interface -> Forge de blocs (vrais elements HTML, pas juste CSS).
-    if _est_interface(evo, p):
-        import forge_fragments as _ff
+    # VOIE 0 : idee d'INTERFACE. Les systemes backend (fossile, registry, compose_ui...)
+    # sont EXCLUS ici et tombent en VOIE 1/2/3 vers l'Ingenieur.
+    if _est_interface(evo, p) and not _est_systeme_backend(evo, p):
         idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
-        zone = _zone_depuis_pensee(p)
-        apercu = _ff.generer_apercu(idee, zone)
-        if apercu.get("ok"):
-            return {"ok": True, "voie": "forge_blocs", "pensee_id": pensee_id,
-                    "titre": apercu.get("titre") or p.get("titre", ""),
-                    "html": apercu["html"], "zone": zone,
-                    "explication": apercu.get("explication", "")}
-        return {"ok": False, "voie": "forge_blocs", "raison": apercu.get("raison", "echec")}
 
-    # VOIE 1 : technique -> L'INGENIEUR orchestre (diagnostic -> code -> ancre -> teste -> rapport).
-    # L'Ingenieur raisonne comme le developpeur humain ; repli automatique sur la forge directe
-    # si le LLM est indisponible (l'idee prend vie quand meme).
+        # VOIE 0b : nouveau COMPOSANT HTML explicite -> forge_fragments -> apercu bloc HTML.
+        if _est_nouveau_composant(evo, p):
+            import forge_fragments as _ff
+            zone = _zone_depuis_pensee(p)
+            apercu = _ff.generer_apercu(idee, zone)
+            if apercu.get("ok"):
+                return {"ok": True, "voie": "forge_blocs", "pensee_id": pensee_id,
+                        "titre": apercu.get("titre") or p.get("titre", ""),
+                        "html": apercu["html"], "zone": zone,
+                        "explication": apercu.get("explication", "")}
+            return {"ok": False, "voie": "forge_blocs", "raison": apercu.get("raison", "echec")}
+
+        # VOIE 0a (defaut interface) : modification VISUELLE CSS -> forge_interface -> CSS reel.
+        # S'applique a l'interface existante via data/ui_overrides.css (hot-reload, aucun rebuild).
+        import forge_interface as _fi
+        apercu = _fi.generer_apercu(idee)
+        if apercu.get("ok"):
+            return {"ok": True, "voie": "interface", "pensee_id": pensee_id,
+                    "titre": p.get("titre", ""), "css": apercu["css"],
+                    "explication": apercu.get("explication", "")}
+        return {"ok": False, "voie": "interface", "raison": apercu.get("raison", "echec")}
+
+    # VOIE 1 : technique -> proposition avec besoin encode (Ingenieur lance a l'approbation).
     if _est_technique(evo, p):
-        import ingenieur
         besoin = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
         if evo and isinstance(evo.get("payload"), dict):
             besoin += " Details : " + str(evo["payload"])[:400]
-        job_id = ingenieur.lancer_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
-        return {"ok": True, "voie": "forge", "job_id": job_id}
+        r = _evo.proposer("idee",
+                          {"besoin": besoin, "_voie": "ingenieur", "_pensee_id": pensee_id},
+                          titre=p.get("titre", ""), raison=p.get("synthese", ""))
+        r["voie"] = "propose"
+        return r
 
-    # VOIE 2 : data-driven explicite (le LLM a propose un type non technique).
+    # VOIE 2 : data-driven -> proposition uniquement (Ingenieur lance a l'approbation).
     if evo and evo.get("type") and isinstance(evo.get("payload"), dict):
         payload = dict(evo["payload"])
         payload["_pensee_id"] = pensee_id
         r = _evo.proposer(evo["type"], payload, titre=p.get("titre", ""),
                           raison=evo.get("raison", "") or p.get("synthese", ""))
-        r["voie"] = "data"
-
-        # MAILLON A — Règle MÉCANIQUE : une règle de contrôle ne doit pas rester une simple
-        # directive de prompt (que le LLM peut ignorer). L'INGENIEUR forge le code qui l'applique
-        # ET l'ancre au bon point du flux (avant_validation_code...) pour qu'elle agisse vraiment.
-        if r.get("ok") and evo.get("type") == "regle" and _regle_necessite_code(payload):
-            import ingenieur as _ing
-            payload_visible = {k: v for k, v in payload.items() if not k.startswith("_")}
-            besoin = (
-                f"Rends MÉCANIQUEMENT applicable la règle NEOGEN « {p.get('titre','')} » : "
-                f"{_json.dumps(payload_visible, ensure_ascii=False)[:400]}. "
-                f"Forge une fonction Python autonome testable qui applique cette règle et retourne "
-                f"{{\"ok\": bool, \"detail\": str}}, PUIS ancre-la au point du flux adapté "
-                f"(avant_validation_code si elle contrôle du code généré, apres_erreur si elle "
-                f"réagit à une erreur, sinon periodique). Ne modifie aucun fichier hors de data/."
-            )
-            job_id = _ing.lancer_async(besoin, titre=p.get("titre", ""), pensee_id=pensee_id)
-            r["voie"] = "data+forge"
-            r["job_id"] = job_id
+        r["voie"] = "propose"
         return r
 
-    # VOIE 3 : idee pure -> notee honnetement (proposition idee).
+    # VOIE 3 : idee pure -> proposition uniquement (Ingenieur lance a l'approbation).
     r = _evo.proposer(
         "idee",
         {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip(),
          "_pensee_id": pensee_id},
         titre=p.get("titre", ""), raison=p.get("synthese", ""))
-    r["voie"] = "note"
+    r["voie"] = "propose"
     try:
         _pensee.marquer_forge(pensee_id, "notee")
     except Exception:
@@ -412,26 +467,29 @@ def evolution_appliquer(
 
 @router.get("/evolution/forge/{job_id}")
 def evolution_forge_statut(job_id: str, authorization: str | None = Header(default=None)):
-    """Etat d'avancement d'une forge en cours (polling UI pour la bulle de progression)."""
-    _gate_owner(authorization)
+    """Etat d'avancement d'une forge en cours (polling UI pour la bulle de progression).
+    Ouvert à tout user connecté : il poll SA propre forge (job_id aléatoire non devinable)."""
+    _gate_auth(authorization)
     import forge_evolution as _forge
     return _forge.statut_job(job_id)
 
 
 @router.get("/evolution/cellules")
 def evolution_cellules(authorization: str | None = Header(default=None)):
-    """Liste des cellules de code reel forgees (sans le code), plus recentes d'abord."""
-    _gate_owner(authorization)
+    """Liste des cellules de code reel forgees par l'utilisateur (son sac), récentes d'abord.
+    Owner → cellules système ; user web → cellules de SON sac (isolé des autres)."""
+    _gate_auth(authorization)
     import forge_evolution as _forge
-    return {"cellules": _forge.lister_cellules()}
+    return {"cellules": _forge.lister_cellules(_user_courant(authorization))}
 
 
 @router.get("/evolution/cellules/{nom}")
 def evolution_cellule(nom: str, authorization: str | None = Header(default=None)):
-    """Une cellule forgee AVEC son code Python reel + verdict Membrane + resume du test."""
-    _gate_owner(authorization)
+    """Une cellule forgee AVEC son code Python reel + verdict Membrane + resume du test.
+    Lue dans le sac de l'utilisateur (un user ne voit jamais les cellules d'un autre)."""
+    _gate_auth(authorization)
     import forge_evolution as _forge
-    c = _forge.cellule(nom)
+    c = _forge.cellule(nom, _user_courant(authorization))
     if not c:
         raise HTTPException(status_code=404, detail="cellule introuvable")
     return c
@@ -631,11 +689,13 @@ def reves_rever(corps: dict = Body(default={}), authorization: str | None = Head
 # ── Forge d'interface : l'override CSS reel applique a l'ecran (admin) ────────────
 
 @router.get("/evolution/ui.css")
-def evolution_ui_css():
-    """Sert l'override CSS d'interface (charge par l'ecran au demarrage). Vide si aucun.
-    Pas de gate : c'est du CSS d'apparence, jamais une donnee sensible."""
+def evolution_ui_css(authorization: str | None = Header(default=None)):
+    """Sert l'override CSS d'interface de l'utilisateur connecté (son sac) ou du maître.
+    Pas de gate : c'est du CSS d'apparence ; mais lit le user pour servir SON CSS isolé.
+    Le CSS s'applique dans le navigateur uniquement — jamais une donnée sensible."""
     import forge_interface as _fi
-    return Response(content=_fi.overrides_actuels(), media_type="text/css")
+    return Response(content=_fi.overrides_actuels(_user_courant(authorization)),
+                    media_type="text/css")
 
 
 @router.post("/evolution/ui/appliquer")
@@ -643,8 +703,9 @@ def evolution_ui_appliquer(
     corps: dict = Body(default={}),
     authorization: str | None = Header(default=None),
 ):
-    """Applique le CSS confirme (admin) ou le remonte en proposition (public)."""
-    _gate_owner(authorization)
+    """Applique le CSS à l'interface de l'utilisateur : maître (owner) ou son sac (user web).
+    Ouvert à tout utilisateur connecté — le CSS est assaini et n'affecte que SON navigateur."""
+    _gate_auth(authorization)
     import forge_interface as _fi
     res = _fi.appliquer((corps or {}).get("css", ""), user=_user_courant(authorization),
                         titre=(corps or {}).get("titre", ""))
@@ -655,10 +716,11 @@ def evolution_ui_appliquer(
 
 @router.post("/evolution/ui/reset")
 def evolution_ui_reset(authorization: str | None = Header(default=None)):
-    """Reinitialise l'interface : retour a l'apparence d'origine (reversibilite)."""
-    _gate_owner(authorization)
+    """Reinitialise l'interface de l'utilisateur : retour a l'apparence d'origine (reversibilite).
+    Chaque user ne réinitialise que SON sac ; l'owner réinitialise le maître."""
+    _gate_auth(authorization)
     import forge_interface as _fi
-    return _fi.reinitialiser()
+    return _fi.reinitialiser(_user_courant(authorization))
 
 
 # ── Forge de fragments : de VRAIS blocs HTML/CSS injectes a l'ecran (proprio) ─────
@@ -776,3 +838,28 @@ def ui_python_restaurer(corps: dict = Body(default={}),
     if not res.get("ok"):
         raise HTTPException(status_code=400, detail=res.get("raison", "echec"))
     return res
+
+
+# ── Garde-fou de compatibilité : version noyau vs cellules forgées ───────────────
+
+@router.get("/evolution/compatibilite")
+def evolution_compatibilite(
+    forcer: bool = False,
+    authorization: str | None = Header(default=None),
+):
+    """Scan de compatibilité : vérifie que les cellules forgées compilent toujours
+    après une mise à jour du noyau. Retourne le rapport + les cellules à_reverifier."""
+    _gate_owner(authorization)
+    import version_guard as _vg
+    return _vg.scanner(forcer=forcer)
+
+
+@router.get("/evolution/compatibilite/rapport")
+def evolution_compatibilite_rapport(authorization: str | None = Header(default=None)):
+    """Dernier rapport de scan sans relancer le scan (lecture seule)."""
+    _gate_owner(authorization)
+    import version_guard as _vg
+    rapport = _vg.dernier_rapport()
+    if rapport is None:
+        return {"ts": None, "version": None, "total": 0, "ok": 0, "ko": 0, "cellules": {}}
+    return rapport

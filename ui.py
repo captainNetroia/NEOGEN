@@ -774,10 +774,10 @@ def _section_don() -> str:
 
 
 def _foot() -> str:
-    return r"""<script src="/static/app.js"></script>
-</body>
-</html>
-"""
+    import pathlib as _pl
+    _js = _pl.Path(__file__).parent / "static" / "app.js"
+    _v = int(_js.stat().st_mtime) if _js.exists() else 0
+    return f'<script src="/static/app.js?v={_v}"></script>\n</body>\n</html>\n'
 
 
 def _section_evolution() -> str:
