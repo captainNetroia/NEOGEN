@@ -1250,8 +1250,89 @@ async function renderCompteConnecte(root,user){
 async function loadCompte(){
   const root=$('#compte-root');if(!root)return;
   const user=await _fetchMe();
-  if(user)await renderCompteConnecte(root,user);
-  else renderCompteAuth(root);
+  const panel=document.getElementById('mes-skills-panel');
+  if(user){
+    await renderCompteConnecte(root,user);
+    if(panel)panel.style.display='';
+    loadMesSkills();
+  }else{
+    renderCompteAuth(root);
+    if(panel)panel.style.display='none';
+  }
+}
+
+/* Mes skills — espace personnel de creation (tout user connecte) */
+async function loadMesSkills(){
+  const panel=document.getElementById('mes-skills-panel');
+  const liste=document.getElementById('mes-skills-liste');
+  if(!panel||!liste)return;
+  if(!_authToken()){panel.style.display='none';return;}
+  panel.style.display='';
+  try{
+    const r=await fetch('/savoir/evolution/cellules',{headers:_authHdrs()});
+    if(!r.ok){liste.innerHTML='<div style="opacity:.4;font-size:12px;padding:10px">Chargement impossible.</div>';return;}
+    const d=await r.json();
+    const cells=(d.cellules)||[];
+    if(!cells.length){liste.innerHTML='<div style="text-align:center;padding:14px;opacity:.4;font-size:12px">Aucun skill forge. Decris un besoin ci-dessus pour commencer.</div>';return;}
+    liste.innerHTML='';
+    for(const cell of cells){
+      const el=document.createElement('div');
+      el.style.cssText='padding:10px 12px;background:rgba(16,185,129,.05);border-radius:8px;margin-bottom:6px;font-size:12px;border:1px solid rgba(16,185,129,.18)';
+      const dt=cell.ts?new Date(cell.ts*1000).toLocaleDateString():'';
+      const det=document.createElement('details');
+      det.innerHTML='<summary style="cursor:pointer;list-style:none">'
+        +'<span style="font-weight:700;color:#10b981">&#9889; '+esc(cell.nom||'')+'</span> '
+        +'<span style="opacity:.7">'+esc(cell.description||'')+'</span>'
+        +'<span style="float:right;opacity:.5">score '+(cell.score||'--')+' &middot; '+esc(dt)+'</span>'
+        +'</summary>';
+      const corps=document.createElement('div');
+      corps.style.cssText='margin-top:8px';
+      corps.innerHTML='<div style="opacity:.6;margin-bottom:6px">Verdict : '+esc(cell.verdict||'')
+        +(cell.test&&cell.test.resume?' &middot; test : '+esc(cell.test.resume):'')+'</div>'
+        +'<pre style="background:rgba(0,0,0,.35);border-radius:8px;padding:10px;overflow:auto;font-size:11px;max-height:220px;white-space:pre-wrap" id="mscode-'+esc(cell.nom)+'">Chargement…</pre>';
+      det.appendChild(corps);
+      det.addEventListener('toggle',async function(){
+        if(!det.open)return;
+        const pre=document.getElementById('mscode-'+cell.nom);
+        if(pre&&pre.dataset.charge)return;
+        try{
+          const rc=await fetch('/savoir/evolution/cellules/'+encodeURIComponent(cell.nom),{headers:_authHdrs()});
+          const dc=await rc.json();
+          if(pre){pre.textContent=dc.code||'(code indisponible)';pre.dataset.charge='1';}
+        }catch(e){if(pre)pre.textContent='Erreur de chargement';}
+      });
+      el.appendChild(det);
+      liste.appendChild(el);
+    }
+  }catch(e){}
+}
+
+async function forgerMonSkill(btn){
+  const besoin=(document.getElementById('ms-besoin')||{}).value||'';
+  const titre=(document.getElementById('ms-titre')||{}).value||'';
+  const err=document.getElementById('ms-forge-erreur');
+  if(!besoin.trim()){if(err){err.textContent='Decris ton besoin.';err.style.display='';}return;}
+  if(err)err.style.display='none';
+  btn.disabled=true;btn.textContent='En cours...';
+  try{
+    const r=await fetch('/savoir/evolution/mon-skill',{
+      method:'POST',
+      headers:_llmHdrs(),
+      body:JSON.stringify({besoin:besoin.trim(),titre:titre.trim()})
+    });
+    const d=await r.json();
+    if(!r.ok){
+      if(err){err.textContent=d.detail||'Erreur ('+r.status+')';err.style.display='';}
+      btn.disabled=false;btn.textContent='Forger';
+      return;
+    }
+    /* bulle de progression — loadMesSkills est appele automatiquement dans _bulleProgression a la fin */
+    _bulleProgression(d.job_id,titre||besoin.slice(0,40),null);
+    btn.disabled=false;btn.textContent='Forger';
+  }catch(e){
+    if(err){err.textContent='Erreur reseau.';err.style.display='';}
+    btn.disabled=false;btn.textContent='Forger';
+  }
 }
 
 /* Analyse */
@@ -3501,27 +3582,28 @@ function _bulleProgression(jobId,titre,btn){
     if(et&&st.etape_label)et.textContent=st.etape_label;
     if(bar&&typeof st.pct==='number')bar.style.width=Math.max(5,st.pct)+'%';
 
-    if(st.etat==='generee'||st.etat==='termine'){
+    if(st.etat==='generee'||st.etat==='termine'||st.etat==='integree'||st.etat==='forgee'){
       clearInterval(timer);
       var _ok=!!(st.nom);
+      var _sac=(st.etat==='forgee');  /* cellule dans le sac user, pas integree au systeme */
       if(bar){bar.style.width='100%';}
-      /* passe le point en statique */
       el.querySelector('span[style*="animation"]').style.animation='none';
       el.querySelector('span[style*="animation"]').style.background='#00e869';
       el.querySelector('span[style*="animation"]').style.boxShadow='0 0 10px #00e869';
       el.style.borderColor='rgba(0,255,65,.6)';
       el.style.boxShadow='0 0 32px rgba(0,255,65,.18),0 18px 44px rgba(0,0,0,.88)';
-      if(et)et.textContent=_ok?'> idee integree et fonctionnelle':'> traitement termine';
+      if(et)et.textContent=_ok?(_sac?'> skill forge dans ton espace':'> cellule integree & fonctionnelle'):'> traitement termine';
       et.style.color='#00e869';et.style.fontWeight='700';
       var _rap=esc((st.rapport||'').slice(0,340));
       if(note)note.innerHTML=(_ok
-        ?'<span style="color:rgba(0,255,65,.65)">cellule </span><b style="color:#00e869">'+esc(st.nom)+'</b><span style="color:rgba(0,255,65,.65)"> forgee & integree</span><br>':''
+        ?'<span style="color:rgba(0,255,65,.65)">'+(_sac?'skill forge':'cellule')+' </span><b style="color:#00e869">'+esc(st.nom)+'</b><span style="color:rgba(0,255,65,.65)">'+(_sac?' (ton espace)':' integree au systeme')+'</span><br>':''
       )+'<div style="margin-top:5px;max-height:110px;overflow:auto;white-space:pre-wrap;color:rgba(0,255,65,.4);font-size:10px">'+_rap+'</div>';
-      if(btn){btn.textContent=_ok?'> integre':'> traite';btn.style.color='#00e869';btn.style.borderColor='rgba(0,255,65,.3)';btn.style.background='rgba(0,255,65,.06)';btn.disabled=false;}
+      if(btn){btn.textContent=_ok?(_sac?'> forge':'> integre'):'> traite';btn.style.color='#00e869';btn.style.borderColor='rgba(0,255,65,.3)';btn.style.background='rgba(0,255,65,.06)';btn.disabled=false;}
       if(typeof loadEvolutionSysteme==='function')setTimeout(loadEvolutionSysteme,400);
+      if(typeof loadMesSkills==='function')setTimeout(loadMesSkills,500);
       if(!_ok&&typeof loadIngenieur==='function')setTimeout(loadIngenieur,500);
       setTimeout(function(){if(el.parentNode)el.remove();},_ok?3000:14000);
-      if(_ok)setTimeout(function(){location.reload();},3100);
+      if(_ok&&!_sac)setTimeout(function(){location.reload();},3100);
 
     }else if(st.etat==='refusee'){
       clearInterval(timer);

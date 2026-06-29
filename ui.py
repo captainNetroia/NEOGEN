@@ -550,6 +550,29 @@ def _section_compte() -> str:
     </div>
   </div>
   <div class="agent-chat-mount" data-agent="secretaire" data-titre="📋 Le Secretaire" data-sub="Ton conseiller, administrateur et assistant au quotidien."></div>
+
+  <!-- Mes skills : espace personnel de creation (visible a tout user connecte) -->
+  <div class="panel glass" style="margin-bottom:18px;display:none" id="mes-skills-panel">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981"></span>
+      <div style="font-size:13px;font-weight:700">Mes skills</div>
+      <span style="font-size:11px;opacity:.5;font-weight:400">code forge, teste en sandbox, isole dans ton espace</span>
+    </div>
+    <div style="margin-bottom:14px;padding:12px;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:10px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#10b981">Forge un nouveau skill</div>
+      <textarea id="ms-besoin" placeholder="Decris ce que tu veux que ton skill fasse (ex: convertir des dates en francais, calculer une TVA, formater du texte...)" style="width:100%;resize:vertical;min-height:64px;font-size:12px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(16,185,129,.2);color:#e8ffe8;border-radius:8px;box-sizing:border-box" rows="3"></textarea>
+      <input type="text" id="ms-titre" placeholder="Titre court (optionnel)" style="width:100%;margin-top:6px;font-size:12px;padding:7px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(16,185,129,.2);color:#e8ffe8;border-radius:8px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <button id="ms-forge-btn" onclick="forgerMonSkill(this)" style="font-size:12px;padding:7px 18px;background:rgba(16,185,129,.18);border:1px solid rgba(16,185,129,.5);color:#10b981;font-weight:600">Forger</button>
+        <span style="font-size:10px;opacity:.45">Cle IA requise — configure-la dans Integrations</span>
+      </div>
+      <div id="ms-forge-erreur" style="font-size:11px;color:#ef4444;margin-top:6px;display:none"></div>
+    </div>
+    <div id="mes-skills-liste">
+      <div style="text-align:center;padding:14px;opacity:.4;font-size:12px">Aucun skill forge. Decris un besoin ci-dessus pour commencer.</div>
+    </div>
+  </div>
+
   <div id="compte-root"></div>
 </div>
 """

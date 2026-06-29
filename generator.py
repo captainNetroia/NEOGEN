@@ -205,9 +205,11 @@ def _design_forge() -> str:
 # ---------------------------------------------------------------------------
 # Generation
 # ---------------------------------------------------------------------------
-def generate_cell(need: str, genome: Genome, origin: str = "generated") -> Cell:
-    """Demande a Claude une cellule pour 'need', renvoie une NEOGEN.Cell prete pour la Membrane."""
-    client = anthropic.Anthropic(api_key=_load_api_key())
+def generate_cell(need: str, genome: Genome, origin: str = "generated",
+                  api_key: str | None = None) -> Cell:
+    """Demande a Claude une cellule pour 'need', renvoie une NEOGEN.Cell prete pour la Membrane.
+    api_key : cle BYOK de l'utilisateur ; si absent, utilise la cle systeme."""
+    client = anthropic.Anthropic(api_key=api_key or _load_api_key())
 
     response = client.messages.parse(
         model=MODEL,

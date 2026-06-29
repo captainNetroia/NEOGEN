@@ -840,6 +840,50 @@ def ui_python_restaurer(corps: dict = Body(default={}),
     return res
 
 
+# ── Point d'entree forge utilisateur web ─────────────────────────────────────────
+
+@router.post("/evolution/mon-skill")
+def mon_skill_forger(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+    x_llm_key: str | None = Header(default=None),
+    x_llm_provider: str | None = Header(default=None),
+    x_llm_model: str | None = Header(default=None),
+    x_llm_base: str | None = Header(default=None),
+):
+    """Lance la forge d'un skill dans le sac de l'utilisateur (tout user connecte).
+    BYOK obligatoire — la forge consomme des tokens LLM (clé dans les Integrations).
+    Quota creation_app_forge : gratuit=0, essential=15/mois, pro=50/mois.
+    L'owner passe toujours (enterprise, cle systeme)."""
+    from routes.deps import _exiger_byok, _verifier_quota
+    from gateway import contexte_depuis_headers
+
+    # 1. Auth : 401 si non connecte, owner passe
+    _gate_auth(authorization)
+
+    # 2. Quota (owner enterprise = illimite)
+    _verifier_quota(authorization, "creation_app_forge")
+
+    # 3. BYOK : la forge consomme des tokens
+    ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+    _exiger_byok(ctx)
+
+    c = corps or {}
+    besoin = (c.get("besoin") or "").strip()
+    titre = (c.get("titre") or besoin[:60]).strip()
+    if not besoin:
+        raise HTTPException(status_code=400, detail="besoin vide")
+
+    import forge_evolution as _forge
+    byok_key = ctx.api_key if ctx else None
+    job_id = _forge.lancer_forge_async(
+        besoin, titre=titre,
+        user=_user_courant(authorization),
+        byok_key=byok_key,
+    )
+    return {"ok": True, "job_id": job_id, "voie": "forge_sac"}
+
+
 # ── Garde-fou de compatibilité : version noyau vs cellules forgées ───────────────
 
 @router.get("/evolution/compatibilite")

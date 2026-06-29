@@ -276,7 +276,7 @@ def _besoin_repare(besoin: str, tentative: int, erreur: str, conseil: str = "") 
 
 
 def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "",
-           user: dict | None = None) -> dict:
+           user: dict | None = None, byok_key: str | None = None) -> dict:
     """Genere une cellule de code reel a partir d'un besoin, la teste, la valide contre les murs.
     Publie sa progression dans le job. NE LEVE JAMAIS. Renvoie un dict de verdict."""
     with rob.garde("forge evolution", source="forge_evolution"):
@@ -324,7 +324,8 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
             _set_job(job_id, etat="en_cours", etape="generation", pct=min(pct_base, 90),
                      tentative=tentative, tentatives_max=MAX_TENTATIVES)
             try:
-                cell = generator.generate_cell(besoin_courant, genome, origin="forge")
+                cell = generator.generate_cell(besoin_courant, genome, origin="forge",
+                                               api_key=byok_key)
             except Exception as e:
                 derniere_erreur = f"génération échouée : {e}"
                 besoin_courant = _besoin_repare(besoin, tentative, derniere_erreur)
@@ -464,7 +465,7 @@ def forger(besoin: str, *, titre: str = "", pensee_id: str = "", job_id: str = "
 
 
 def lancer_forge_async(besoin: str, titre: str = "", pensee_id: str = "",
-                       user: dict | None = None) -> str:
+                       user: dict | None = None, byok_key: str | None = None) -> str:
     """Demarre la forge en tache de fond et renvoie un job_id immediatement (pas de blocage HTTP).
     L'UI poll statut_job(job_id) pour afficher la progression. La cellule est forgee dans le
     sac de l'utilisateur (user web) ou le systeme (owner)."""
@@ -474,7 +475,8 @@ def lancer_forge_async(besoin: str, titre: str = "", pensee_id: str = "",
 
     def _run():
         try:
-            r = forger(besoin, titre=titre, pensee_id=pensee_id, job_id=job_id, user=user)
+            r = forger(besoin, titre=titre, pensee_id=pensee_id, job_id=job_id, user=user,
+                       byok_key=byok_key)
             # Marque la pensee source selon le verdict (statut honnete).
             # Note : la pensee est partagee (cerveau primordial) ; seul l'owner marque le statut
             # global. Pour un user web, sa forge n'altere pas l'etat de la pensee commune.
