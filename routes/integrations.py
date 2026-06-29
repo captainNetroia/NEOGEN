@@ -342,7 +342,7 @@ async def openlegi_conformite(data: dict):
                 json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                       "params": {"name": "rechercher_code",
                                  "arguments": {"query": query, "nombreResultats": 5}}},
-                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
             )
             result = r.json()
     except Exception as e:

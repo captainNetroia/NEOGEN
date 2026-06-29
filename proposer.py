@@ -18,7 +18,7 @@ import sys
 
 from pydantic import BaseModel, Field
 
-from generator import _load_api_key, MODEL, parse_resilient
+from generator import _load_api_key, MODEL_SCAN, parse_resilient
 from jugement import JugementOpportunite, CAPACITES
 from compositeur import REGLES_MURS
 
@@ -93,7 +93,7 @@ def proposer(intention: str, client, contexte: str = "") -> PropositionADN:
         contenu += f"\n\nContexte connu sur l'utilisateur/ses projets (pour personnaliser, sans l'imposer) :\n{contexte}"
     contenu += _savoir_pour_creation(intention, k=5)
     resp = parse_resilient(
-        client, model=MODEL, max_tokens=4000, thinking={"type": "adaptive"},
+        client, model=MODEL_SCAN, max_tokens=4000,
         system=systeme,
         messages=[{"role": "user", "content": contenu}],
         output_format=PropositionADN,

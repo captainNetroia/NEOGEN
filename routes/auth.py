@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json as _json
+import os as _os
 import uuid as _uid
 from datetime import datetime as _dt
 
@@ -10,6 +12,32 @@ from .deps import (
     _hashpw, _verifypw, _user_by_email, _make_session,
     _USERS, _SESSIONS, _FEEDBACKS,
 )
+
+_BASE = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_USERS_DIR = _os.path.join(_BASE, "data", "users")
+
+
+def _profil_path(user_id: str) -> str:
+    d = _os.path.join(_USERS_DIR, user_id)
+    _os.makedirs(d, exist_ok=True)
+    return _os.path.join(d, "profil.json")
+
+
+def _lire_profil(user_id: str) -> dict:
+    p = _profil_path(user_id)
+    if not _os.path.exists(p):
+        return {}
+    try:
+        with open(p, encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception:
+        return {}
+
+
+def _ecrire_profil(user_id: str, data: dict) -> None:
+    p = _profil_path(user_id)
+    with open(p, "w", encoding="utf-8") as f:
+        _json.dump(data, f, ensure_ascii=False, indent=2)
 
 router = APIRouter()
 
@@ -55,6 +83,7 @@ def auth_me(authorization: str = Header(None)):
         raise HTTPException(401, "Non authentifie")
     import quotas as _q
     import credits as _cred
+    profil = _lire_profil(user["id"])
     return {
         "id": user["id"], "email": user["email"],
         "name": user["name"], "created_at": user.get("created_at"),
@@ -62,7 +91,38 @@ def auth_me(authorization: str = Header(None)):
         "premium": bool(user.get("premium")),
         "palier": _q.palier(user),
         "solde_gen": _cred.solde(user["id"]),
+        "profil_complet": bool(profil.get("complet")),
     }
+
+
+@router.get("/compte/profil")
+def compte_profil_get(authorization: str = Header(None)):
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifie")
+    p = _lire_profil(user["id"])
+    return {"profil": p, "complet": bool(p.get("complet"))}
+
+
+@router.post("/compte/profil")
+def compte_profil_post(data: dict, authorization: str = Header(None)):
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifie")
+    prenom = (data.get("prenom") or "").strip()
+    if not prenom:
+        raise HTTPException(400, "Prenom requis")
+    profil = {
+        "prenom": prenom,
+        "projets": (data.get("projets") or "").strip(),
+        "aime": (data.get("aime") or "").strip(),
+        "naime_pas": (data.get("naime_pas") or "").strip(),
+        "style_travail": (data.get("style_travail") or "").strip(),
+        "complet": True,
+        "updated_at": _dt.utcnow().isoformat(),
+    }
+    _ecrire_profil(user["id"], profil)
+    return {"ok": True}
 
 
 @router.post("/auth/logout")

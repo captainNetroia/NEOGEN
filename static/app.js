@@ -46,34 +46,18 @@
   frame();
 })();
 
-/* ===== SIDEBAR : float apesanteur par item ===== */
+/* ===== SIDEBAR : shimmer souris + stagger float CSS ===== */
 (function(){
   const items=Array.from(document.querySelectorAll('.side-item'));
   if(!items.length)return;
-  const n=items.length;
-  const phase=items.map((_,i)=>i*(Math.PI*2/n));
-  const hov=new Array(n).fill(false);
-  const cY=new Array(n).fill(0),cX=new Array(n).fill(0);
   items.forEach((el,i)=>{
-    el.addEventListener('pointerenter',()=>{hov[i]=true;});
-    el.addEventListener('pointerleave',()=>{hov[i]=false;});
-  });
-  let t=0;
-  function frame(){
-    t+=0.009;
-    items.forEach((el,i)=>{
-      const act=hov[i]||el.classList.contains('active');
-      /* actif/survol : monte sur baseline +(-3px) mais continue a respirer */
-      const tY=act?-3+Math.sin(t+phase[i])*.8:Math.sin(t+phase[i])*3.5;
-      /* legere derive X pour l'effet apesanteur 2D */
-      const tX=act?4:Math.cos(t*.65+phase[i])*1.2;
-      cY[i]+=(tY-cY[i])*.1;
-      cX[i]+=(tX-cX[i])*.1;
-      el.style.transform='translateY('+cY[i].toFixed(2)+'px) translateX('+cX[i].toFixed(2)+'px)';
+    /* specular shimmer : suit la souris par item */
+    el.addEventListener('pointermove',e=>{
+      const r=el.getBoundingClientRect();
+      el.style.setProperty('--sx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');
+      el.style.setProperty('--sy',((e.clientY-r.top)/r.height*100).toFixed(1)+'%');
     });
-    requestAnimationFrame(frame);
-  }
-  frame();
+  });
 })();
 
 /* ===== SECTION BREATH : vie dans les panels et cartes ===== */
@@ -92,7 +76,9 @@ const _breath=(function(){
 
   function scan(){
     /* panel formulaire : tres lent, amplitude minimale pour ne pas gener la saisie */
-    document.querySelectorAll('.glass.panel').forEach(el=>add(el,1.2,.2));
+    document.querySelectorAll('.glass.panel,.panel.glass').forEach(el=>add(el,4.5,.4));
+    /* sidebar items : phase Fibonacci -> chaque item a sa propre trajectoire aleatoire */
+    document.querySelectorAll('.side-item').forEach(el=>add(el,3,1));
     /* placeholders (pages bientot) */
     document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,4,.6));
     /* icones ph-icon : lévitation plus prononcee */
@@ -102,7 +88,7 @@ const _breath=(function(){
   }
 
   function frame(){
-    t+=.008;
+    t+=.013;
     /* purge les elements detaches du DOM (ex: grid.innerHTML='') */
     if(items.length)items=items.filter(o=>document.contains(o.el));
     items.forEach(o=>{
@@ -141,6 +127,8 @@ function showSection(name){
   if(name==='analyse')loadAnalyse();
   if(name==='cerveau'){loadMemoire();loadSkills();}
   if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
+  /* scan post-section : enregistre les panels rendus dynamiquement (fragments, chats) */
+  setTimeout(()=>_breath.scan(),150);
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -994,7 +982,7 @@ function renderCompteAuth(root){
       }
       localStorage.setItem('neogen_auth_token',d.token);
       if(typeof _injectUserCss==='function')_injectUserCss();
-      loadCompte();
+      if(typeof _checkOnboarding==='function')_checkOnboarding();else loadCompte();
     }catch(e){
       errEl.textContent='Erreur reseau.';errEl.style.display='';
       submit.disabled=false;submit.textContent=mode==='register'?'Creer mon compte':'Se connecter';
@@ -2412,6 +2400,7 @@ function buildChat(mount){
   });
 }
 document.querySelectorAll('.agent-chat-mount').forEach(buildChat);
+_breath.scan(); /* agent chats viennent de recevoir .panel.glass -> les enregistrer maintenant */
 
 // ===== PREFERENCES (dark mode + consentement + agent local) =====
 // Dark mode = DEFAUT. Clair uniquement si choisi explicitement.
@@ -4360,3 +4349,300 @@ async function reparerCapacite(id,btn){
     }
   }catch(e){if(btn){btn.textContent='Erreur';btn.disabled=false;}}
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ONBOARDING — 3 étapes (Compte → Modèle IA → Profil)
+   Déclenché au premier accès ou tant que profil_complet = false.
+   Seul le login revient en cas d'expiration de session / inactivité.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const _INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; /* 7 jours */
+
+/* Tracker d'activité — met à jour neogen_last_active toutes les 30s max */
+(function(){
+  var _tmr;
+  function _touch(){try{localStorage.setItem('neogen_last_active',Date.now().toString());}catch(e){}}
+  function _deb(){clearTimeout(_tmr);_tmr=setTimeout(_touch,30000);}
+  ['mousemove','click','keydown','scroll','touchstart'].forEach(function(ev){
+    document.addEventListener(ev,_deb,{passive:true});
+  });
+  _touch();
+})();
+
+function _isInactive(){
+  try{
+    var la=parseInt(localStorage.getItem('neogen_last_active')||'0',10);
+    if(!la)return false;
+    return(Date.now()-la)>_INACTIVITY_MS;
+  }catch(e){return false;}
+}
+
+/* Point d'entrée principal — appelé au chargement de la page */
+async function _checkOnboarding(){
+  /* Inactivité : token présent mais session trop ancienne → forcer re-login */
+  if(_authToken()&&_isInactive()){
+    localStorage.removeItem('neogen_auth_token');
+  }
+  if(!_authToken()){
+    _showOnboardingOverlay(1);
+    return;
+  }
+  const user=await _fetchMe();
+  if(!user){
+    localStorage.removeItem('neogen_auth_token');
+    _showOnboardingOverlay(1);
+    return;
+  }
+  if(!user.profil_complet){
+    _showOnboardingOverlay(2,user);
+    return;
+  }
+  /* Profil complet et session valide — rien à faire */
+}
+
+function _showOnboardingOverlay(startStep,user){
+  var ex=document.getElementById('ntr-onboarding');if(ex)ex.remove();
+  var overlay=document.createElement('div');
+  overlay.id='ntr-onboarding';
+  overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(10,12,18,.94);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)';
+  document.body.appendChild(overlay);
+  var step=startStep;
+
+  function render(){
+    overlay.innerHTML='';
+    var box=document.createElement('div');
+    box.style.cssText='position:relative;width:min(500px,95vw);max-height:90vh;overflow-y:auto;border-radius:20px;background:var(--bg2,#13151a);border:1px solid rgba(255,255,255,.1);padding:36px 32px 28px;box-shadow:0 32px 96px rgba(0,0,0,.8)';
+    overlay.appendChild(box);
+
+    /* Stepper */
+    var stepLabels=['Ton compte','Modele IA','Ton profil'];
+    var sh='<div style="display:flex;align-items:center;justify-content:center;margin-bottom:24px">';
+    for(var i=1;i<=3;i++){
+      var done=i<step,active=i===step;
+      sh+='<div style="display:flex;align-items:center">'
+        +'<div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;'
+        +(done?'background:#10b981;color:#fff;':'')
+        +(active?'background:var(--acc,#6366f1);color:#fff;box-shadow:0 0 0 4px rgba(99,102,241,.22);':'')
+        +(!done&&!active?'background:rgba(255,255,255,.07);color:var(--mut,#6b7280);':'')
+        +'">'+(done?'&#10003;':i)+'</div>';
+      if(i<3)sh+='<div style="width:52px;height:2px;background:'+(done?'rgba(16,185,129,.5)':'rgba(255,255,255,.08)')+'"></div>';
+      sh+='</div>';
+    }
+    sh+='</div>';
+    sh+='<div style="text-align:center;margin-bottom:24px">'
+      +'<div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Etape '+step+' sur 3</div>'
+      +'<div style="font-size:22px;font-weight:800;color:var(--txt)">'+stepLabels[step-1]+'</div>'
+      +'</div>';
+    box.innerHTML=sh;
+
+    if(step===1)_obStep1(box,overlay,function(u){
+      if(u&&u.profil_complet){overlay.remove();loadCompte();}
+      else{step=2;render();}
+    });
+    else if(step===2)_obStep2(box,function(){step=3;render();});
+    else if(step===3)_obStep3(box,overlay);
+  }
+  render();
+}
+
+/* Étape 1 — Connexion / Inscription */
+function _obStep1(box,overlay,onDone){
+  var mode='login';
+  var fd=document.createElement('div');
+  fd.innerHTML='<div class="auth-tabs">'
+    +'<div class="auth-tab active" id="ob-tab-l">Se connecter</div>'
+    +'<div class="auth-tab" id="ob-tab-r">Creer un compte</div></div>'
+    +'<div class="auth-form">'
+    +'<div class="auth-field" id="ob-name-w" style="display:none"><label>Prenom</label>'
+    +'<input type="text" id="ob-name" placeholder="Ton prenom..."></div>'
+    +'<div class="auth-field"><label>Email</label>'
+    +'<input type="email" id="ob-email" placeholder="ton@email.com" autocomplete="email"></div>'
+    +'<div class="auth-field"><label>Mot de passe</label>'
+    +'<input type="password" id="ob-pw" placeholder="..." autocomplete="current-password"></div>'
+    +'<div class="auth-field" id="ob-pw2-w" style="display:none"><label>Confirmer</label>'
+    +'<input type="password" id="ob-pw2" placeholder="..." autocomplete="new-password"></div>'
+    +'<div id="ob-err1" class="auth-error" style="display:none"></div>'
+    +'<button id="ob-sub1" style="width:100%;margin-top:6px">Se connecter</button>'
+    +'</div>';
+  box.appendChild(fd);
+  var qr=function(s){return fd.querySelector(s);};
+  var errEl=qr('#ob-err1'),sub=qr('#ob-sub1');
+  function sw(m){
+    mode=m;
+    qr('#ob-tab-l').classList.toggle('active',m==='login');
+    qr('#ob-tab-r').classList.toggle('active',m==='register');
+    qr('#ob-name-w').style.display=m==='register'?'flex':'none';
+    qr('#ob-pw2-w').style.display=m==='register'?'flex':'none';
+    sub.textContent=m==='register'?'Creer mon compte':'Se connecter';
+    errEl.style.display='none';
+  }
+  qr('#ob-tab-l').onclick=function(){sw('login');};
+  qr('#ob-tab-r').onclick=function(){sw('register');};
+  async function doAuth(){
+    var email=(qr('#ob-email').value||'').trim();
+    var pw=qr('#ob-pw').value||'';
+    var name=(qr('#ob-name').value||'').trim();
+    var pw2=qr('#ob-pw2').value||'';
+    errEl.style.display='none';
+    if(!email||!pw){errEl.textContent='Email et mot de passe requis.';errEl.style.display='';return;}
+    if(mode==='register'&&pw.length<6){errEl.textContent='Mot de passe trop court (6 min).';errEl.style.display='';return;}
+    if(mode==='register'&&pw!==pw2){errEl.textContent='Mots de passe differents.';errEl.style.display='';return;}
+    sub.disabled=true;sub.textContent='...';
+    try{
+      var url=mode==='login'?'/auth/login':'/auth/register';
+      var body=mode==='login'?{email:email,password:pw}:{email:email,password:pw,name:name};
+      var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      var d=await r.json();
+      if(!r.ok){errEl.textContent=d.detail||'Erreur';errEl.style.display='';sub.disabled=false;sub.textContent=mode==='register'?'Creer mon compte':'Se connecter';return;}
+      localStorage.setItem('neogen_auth_token',d.token);
+      if(typeof _injectUserCss==='function')_injectUserCss();
+      var me=await _fetchMe();
+      onDone(me);
+    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.display='';sub.disabled=false;sub.textContent=mode==='register'?'Creer mon compte':'Se connecter';}
+  }
+  sub.onclick=doAuth;
+  ['#ob-email','#ob-pw','#ob-pw2'].forEach(function(s){
+    var el=qr(s);if(el)el.addEventListener('keydown',function(e){if(e.key==='Enter')doAuth();});
+  });
+  setTimeout(function(){var el=qr('#ob-email');if(el)el.focus();},80);
+}
+
+/* Étape 2 — Modèle IA */
+function _obStep2(box,onDone){
+  var PROV={
+    anthropic:{label:'Anthropic (Claude)',ph:'sk-ant-api03-...',models:['claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5']},
+    openai:{label:'OpenAI (GPT)',ph:'sk-proj-...',models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini']},
+    gemini:{label:'Gemini',ph:'AIzaSy... ou AQ....',models:['gemini-2.5-pro','gemini-2.0-flash','gemini-1.5-pro']},
+    deepseek:{label:'DeepSeek',ph:'sk-...',models:['deepseek-chat','deepseek-reasoner']},
+    mistral:{label:'Mistral',ph:'...',models:['mistral-large-latest','mistral-small-latest']},
+    moonshot:{label:'Kimi (Moonshot)',ph:'sk-...',models:['kimi-k2.7-code','kimi-k2.5']},
+    local:{label:'Local (Ollama)',ph:'http://host.docker.internal:11434/v1',models:['llama3.2','qwen2.5','mistral']}
+  };
+  var selProv=localStorage.getItem('neogen_active_provider')||'anthropic';
+  var hasModel=!!(localStorage.getItem('neogen_active_provider')&&localStorage.getItem('neogen_active_model'));
+
+  var div=document.createElement('div');
+  div.innerHTML='<p style="font-size:13px;color:var(--mut);margin:0 0 18px;line-height:1.6">'
+    +(hasModel?'Un modele est deja configure. Tu peux le modifier ou passer directement.':'Connecte ta cle API pour que NEOGEN genere avec le modele de ton choix.')
+    +'</p>'
+    +'<div class="auth-field"><label>Fournisseur</label>'
+    +'<select id="ob-prov" style="width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:var(--txt);font-size:14px">'
+    +Object.keys(PROV).map(function(k){return'<option value="'+k+'"'+(k===selProv?' selected':'')+'>'+PROV[k].label+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="auth-field"><label id="ob-klbl">Cle API</label>'
+    +'<input type="password" id="ob-key" style="font-family:monospace" autocomplete="off">'
+    +'</div>'
+    +'<div id="ob-kerr" class="auth-error" style="display:none"></div>'
+    +'<div style="display:flex;gap:10px;margin-top:18px">'
+    +'<button id="ob-test2" class="ghost" style="flex:1">Tester</button>'
+    +'<button id="ob-save2" style="flex:2">'+(hasModel?'Confirmer & Suivant':'Sauvegarder & Suivant')+'</button>'
+    +'</div>'
+    +'<div style="text-align:center;margin-top:14px">'
+    +'<span id="ob-skip2" style="font-size:12px;color:var(--mut);cursor:pointer;opacity:.6;text-decoration:underline">Configurer plus tard</span>'
+    +'</div>';
+  box.appendChild(div);
+
+  function qr(s){return div.querySelector(s);}
+  var errEl=qr('#ob-kerr');
+  var keyIn=qr('#ob-key');
+
+  function refreshProv(){
+    var p=PROV[selProv]||PROV.anthropic;
+    keyIn.placeholder=p.ph;
+    keyIn.value=localStorage.getItem('neogen_key_'+selProv)||'';
+    if(selProv==='local'){qr('#ob-klbl').textContent='URL de base (Ollama)';}
+    else{qr('#ob-klbl').textContent='Cle API';}
+    errEl.style.display='none';
+  }
+  refreshProv();
+
+  qr('#ob-prov').onchange=function(){selProv=this.value;refreshProv();};
+
+  qr('#ob-test2').onclick=async function(){
+    var key=(keyIn.value||'').trim();
+    if(!key&&selProv!=='local'){errEl.textContent='Cle vide.';errEl.style.display='';return;}
+    errEl.style.display='none';
+    this.disabled=true;this.textContent='...';
+    try{
+      var r=await fetch('/integrations/verifier',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({type:'key',name:selProv,value:key})});
+      var d=await r.json();
+      if(d.ok){
+        errEl.textContent='Connexion OK';errEl.style.color='#10b981';errEl.style.display='';
+        setTimeout(function(){errEl.style.display='none';errEl.style.color='';},3000);
+      }else{
+        errEl.textContent=d.erreur||'Cle invalide';errEl.style.color='#ef4444';errEl.style.display='';
+      }
+    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.color='';errEl.style.display='';}
+    this.disabled=false;this.textContent='Tester';
+  };
+
+  qr('#ob-save2').onclick=function(){
+    var key=(keyIn.value||'').trim();
+    if(!key&&selProv!=='local'&&!hasModel){errEl.textContent='Cle vide. Utilise "Configurer plus tard" pour passer.';errEl.style.display='';return;}
+    if(key){
+      var defModel=(PROV[selProv]&&PROV[selProv].models[0])||'';
+      localStorage.setItem('neogen_key_'+selProv,key);
+      localStorage.setItem('neogen_active_provider',selProv);
+      if(defModel)localStorage.setItem('neogen_active_model',defModel);
+      localStorage.setItem('neogen_verified_'+selProv,'1');
+    }
+    onDone();
+  };
+
+  qr('#ob-skip2').onclick=function(){onDone();};
+}
+
+/* Étape 3 — Profil */
+function _obStep3(box,overlay){
+  var div=document.createElement('div');
+  div.innerHTML='<p style="font-size:13px;color:var(--mut);margin:0 0 18px;line-height:1.6">Dis a NEOGEN qui tu es. Ses agents utiliseront ce profil pour personaliser chaque reponse.</p>'
+    +'<div class="auth-field"><label>Prenom ou pseudo <span style="color:#ef4444">*</span></label>'
+    +'<input type="text" id="ob-prenom" placeholder="Jordan..." autocomplete="given-name"></div>'
+    +'<div class="auth-field"><label>Tes projets actuels</label>'
+    +'<textarea id="ob-projets" placeholder="NEOGEN (SaaS IA), VIVARIUM (code vivant)..." rows="2" style="resize:vertical"></textarea></div>'
+    +'<div class="auth-field"><label>Ce que tu aimes</label>'
+    +'<textarea id="ob-aime" placeholder="IA, automatisation, code propre, systemes auto-explicatifs..." rows="2" style="resize:vertical"></textarea></div>'
+    +'<div class="auth-field"><label>Ce que tu n\'aimes pas</label>'
+    +'<textarea id="ob-naime" placeholder="commentaires excessifs, abstractions prematurees, reponses vagues..." rows="2" style="resize:vertical"></textarea></div>'
+    +'<div class="auth-field"><label>Ton style de travail</label>'
+    +'<textarea id="ob-style" placeholder="sessions longues le matin, plan avant l\'action, feedback direct..." rows="2" style="resize:vertical"></textarea></div>'
+    +'<div id="ob-perr" class="auth-error" style="display:none"></div>'
+    +'<button id="ob-sub3" style="width:100%;margin-top:8px;padding:13px">Terminer et acceder a NEOGEN</button>';
+  box.appendChild(div);
+  function qr(s){return div.querySelector(s);}
+  var errEl=qr('#ob-perr'),sub=qr('#ob-sub3');
+  sub.onclick=async function(){
+    var prenom=(qr('#ob-prenom').value||'').trim();
+    if(!prenom){errEl.textContent='Ton prenom est requis.';errEl.style.display='';return;}
+    sub.disabled=true;sub.textContent='...';
+    try{
+      var r=await fetch('/compte/profil',{method:'POST',
+        headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),
+        body:JSON.stringify({
+          prenom:prenom,
+          projets:(qr('#ob-projets').value||'').trim(),
+          aime:(qr('#ob-aime').value||'').trim(),
+          naime_pas:(qr('#ob-naime').value||'').trim(),
+          style_travail:(qr('#ob-style').value||'').trim()
+        })
+      });
+      if(r.ok){
+        overlay.remove();
+        loadCompte();
+        if(typeof _injectUserCss==='function')_injectUserCss();
+      }else{
+        var d=await r.json();
+        errEl.textContent=d.detail||'Erreur.';errEl.style.display='';
+        sub.disabled=false;sub.textContent='Terminer et acceder a NEOGEN';
+      }
+    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.display='';sub.disabled=false;sub.textContent='Terminer et acceder a NEOGEN';}
+  };
+  setTimeout(function(){var el=qr('#ob-prenom');if(el)el.focus();},80);
+}
+
+/* Lancer le check onboarding au chargement */
+(function(){
+  if(document.readyState!=='loading')_checkOnboarding();
+  else document.addEventListener('DOMContentLoaded',_checkOnboarding);
+})();

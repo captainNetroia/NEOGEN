@@ -32,6 +32,7 @@ _CRED_CANDIDATES = [
     Path(__file__).parent.parent / "credentials" / "anthropic-api.env",
 ]
 MODEL = "claude-opus-4-8"
+MODEL_SCAN = "claude-sonnet-4-6"  # scanner/conformite : pas de reasoning lourd necessaire
 
 
 # ---------------------------------------------------------------------------

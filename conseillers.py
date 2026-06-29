@@ -20,7 +20,7 @@ import sys
 
 from pydantic import BaseModel, Field
 
-from generator import _load_api_key, MODEL, parse_resilient
+from generator import _load_api_key, MODEL_SCAN, parse_resilient
 
 
 class NoteConformite(BaseModel):
@@ -55,7 +55,7 @@ def conseiller(intention: str, client, contexte: str = "") -> Conseil:
     if contexte:
         contenu += f"\n\nContexte connu sur l'utilisateur/ses projets (pour personnaliser) :\n{contexte}"
     resp = parse_resilient(
-        client, model=MODEL, max_tokens=3500, thinking={"type": "adaptive"},
+        client, model=MODEL_SCAN, max_tokens=3500,
         system=systeme,
         messages=[{"role": "user", "content": contenu}],
         output_format=Conseil,
