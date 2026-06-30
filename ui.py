@@ -149,7 +149,7 @@ def _landing() -> str:
 
     <div class="layer" onclick="showSection('analyse')">
       <span class="layer-marker" style="--lc:var(--c-analyse)"></span>
-      <div class="layer-label"><h3>Analyse</h3><p>Metriques de production et capacites utilisees</p></div>
+      <div class="layer-label"><h3>Dev &amp; Analyse</h3><p>Metriques temps reel, agent developpeur, diagnostic et forge</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
@@ -161,9 +161,9 @@ def _landing() -> str:
       <span class="layer-arrow">›</span>
     </div>
 
-    <div class="layer" onclick="showSection('ingenieur')">
-      <span class="layer-marker" style="--lc:#10b981"></span>
-      <div class="layer-label"><h3>Ingenieur</h3><p>Agent developpeur : diagnostique, forge, repare et ancre</p></div>
+    <div class="layer" onclick="showSection('marketing')">
+      <span class="layer-marker" style="--lc:var(--c-marketing)"></span>
+      <div class="layer-label"><h3>Marketing</h3><p>Strategie reseaux, copywriting, campagnes, visuels et videos IA</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
     </div>
