@@ -15,13 +15,16 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-19.
 
 
 def _head() -> str:
-    return r"""<!doctype html>
+    import pathlib as _pl
+    _css = _pl.Path(__file__).parent / "static" / "app.css"
+    _vc = int(_css.stat().st_mtime) if _css.exists() else 0
+    return f"""<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NEOGEN</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v={_vc}">
 </head>
 <body class="dark">
 

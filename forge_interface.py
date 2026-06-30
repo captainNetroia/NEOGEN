@@ -71,6 +71,14 @@ _TERMES_INTERDITS = ("@import", "url(http", "url('http", 'url("http', "url(//", 
                      "expression(", "javascript:", "behavior:", "-moz-binding", "</style",
                      "<script", "@charset", "@namespace")
 
+# Combinaisons selecteur+propriete protegees : empeche un override de casser les effets nav.
+# Format : (fragment_selecteur, fragment_propriete) — les deux doivent etre dans le meme bloc.
+_COMBOS_PROTEGEES = (
+    ("side-item", "animation"),
+    ("side-item", "transform"),
+    ("sidebar", "overflow"),
+)
+
 
 # ── Assainissement du CSS (fail-closed) ─────────────────────────────────────────
 
@@ -89,6 +97,11 @@ def _css_sain(css: str) -> tuple[bool, str]:
         cible = m.strip().strip('"').strip("'")
         if cible and not cible.startswith(("#", "/savoir", "data:image/svg")):
             return False, f"url() non autorise dans le CSS : '{cible[:40]}'"
+    # Combos selecteur+propriete qui casseraient les effets nav (animations, overflow sidebar).
+    for sel, prop in _COMBOS_PROTEGEES:
+        for bloc in re.split(r"\}", bas):
+            if sel in bloc and prop in bloc:
+                return False, f"override interdit : '{sel}' + '{prop}' (protege contre casse des effets nav)"
     return True, "ok"
 
 

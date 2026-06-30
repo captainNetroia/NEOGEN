@@ -75,20 +75,23 @@ const _breath=(function(){
   }
 
   function scan(){
-    /* panel formulaire : tres lent, amplitude minimale pour ne pas gener la saisie */
-    document.querySelectorAll('.glass.panel,.panel.glass').forEach(el=>add(el,4.5,.4));
+    /* panels : agent-chat fixes (interaction saisie), autres panneaux tres subtils */
+    document.querySelectorAll('.glass.panel,.panel.glass').forEach(function(el){
+      if(el.classList.contains('agent-chat'))return;
+      add(el,1.8,.1);
+    });
     /* sidebar items : phase Fibonacci -> chaque item a sa propre trajectoire aleatoire */
     document.querySelectorAll('.side-item').forEach(el=>add(el,3,1));
     /* placeholders (pages bientot) */
-    document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,4,.6));
-    /* icones ph-icon : lévitation plus prononcee */
-    document.querySelectorAll('.ph-icon').forEach(el=>add(el,7,0));
+    document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,2,.3));
+    /* icones ph-icon : levitation moderee */
+    document.querySelectorAll('.ph-icon').forEach(el=>add(el,4,0));
     /* cartes produits (generees dynamiquement) */
-    document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,3.5,.8));
+    document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,2,.4));
   }
 
   function frame(){
-    t+=.013;
+    t+=.009;
     /* purge les elements detaches du DOM (ex: grid.innerHTML='') */
     if(items.length)items=items.filter(o=>document.contains(o.el));
     items.forEach(o=>{
