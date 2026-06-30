@@ -4505,14 +4505,15 @@ function _obPresentation(box,onDone){
   var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
   var d=document.createElement('div');
   d.innerHTML=''
-    +'<div style="text-align:center;margin-bottom:22px">'
-    +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:6px">Fais connaissance avec NEOGEN</div>'
-    +'<div style="font-size:13px;color:rgba(255,255,255,.4);line-height:1.5">'
+    +'<div style="text-align:center;margin-bottom:28px">'
+    +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Fais connaissance avec NEOGEN</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.6">'
     +'Ses agents utiliseront ces infos pour te parler comme il faut.<br>'
     +'Plus c\'est precis, plus NEOGEN s\'adapte a toi.'
     +'</div></div>'
+    +'<div class="auth-form">'
     +'<div class="auth-field"><label>Comment tu veux qu\'on t\'appelle ? <span style="color:#ef4444">*</span></label>'
-    +'<input type="text" id="ob-prenom" placeholder="Jordan, Captain, Neo..." value="'+(prev.prenom||'')+'" autocomplete="given-name"></div>'
+    +'<input type="text" id="ob-prenom" placeholder="Alex, Sam, Max..." value="'+(prev.prenom||'')+'" autocomplete="given-name"></div>'
     +'<div class="auth-field"><label>T\'es ou avec l\'IA ?</label>'
     +'<select id="ob-niveau" style="width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:var(--txt);font-size:14px">'
     +'<option value="">- Ton niveau -</option>'
@@ -4529,8 +4530,9 @@ function _obPresentation(box,onDone){
     +'<textarea id="ob-vision" placeholder="Lancer un SaaS IA, automatiser mon business, explorer les LLMs..." rows="2" style="resize:none">'+(prev.vision||'')+'</textarea></div>'
     +'<div class="auth-field"><label>Tes objectifs avec NEOGEN</label>'
     +'<textarea id="ob-objectifs" placeholder="Gagner du temps, creer des agents, apprendre..." rows="2" style="resize:none">'+(prev.objectifs||'')+'</textarea></div>'
-    +'<div id="ob-err2" class="auth-error" style="display:none"></div>'
-    +'<button id="ob-next2" style="width:100%;margin-top:10px;padding:13px;font-size:15px;font-weight:700;'
+    +'</div>'
+    +'<div id="ob-err2" class="auth-error" style="display:none;margin-top:12px"></div>'
+    +'<button id="ob-next2" style="width:100%;margin-top:18px;padding:13px;font-size:15px;font-weight:700;'
     +'background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;'
     +'border-radius:10px;cursor:pointer">Suivant ></button>';
   box.appendChild(d);
