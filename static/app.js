@@ -4377,112 +4377,239 @@ function _isInactive(){
   }catch(e){return false;}
 }
 
-/* Point d'entrée principal — appelé au chargement de la page */
+
+/* ===================================================================
+   ONBOARDING 4 etapes - NEOGEN
+   1: Bienvenue · 2: Presentation · 3: Compte+API · 4: Plans
+=================================================================== */
+
 async function _checkOnboarding(){
-  /* Inactivité : token présent mais session trop ancienne → forcer re-login */
-  if(_authToken()&&_isInactive()){
-    localStorage.removeItem('neogen_auth_token');
-  }
-  if(!_authToken()){
-    _showOnboardingOverlay(1);
-    return;
-  }
+  if(_authToken()&&_isInactive()){localStorage.removeItem('neogen_auth_token');}
+  if(!_authToken()){_showOnboardingOverlay(1);return;}
   const user=await _fetchMe();
-  if(!user){
-    localStorage.removeItem('neogen_auth_token');
-    _showOnboardingOverlay(1);
-    return;
+  if(!user){localStorage.removeItem('neogen_auth_token');_showOnboardingOverlay(1);return;}
+  if(!user.profil_complet){_showOnboardingOverlay(2,user);return;}
+  if(!localStorage.getItem('neogen_ob_done')){_showOnboardingOverlay(4,user);return;}
+}
+
+/* -- Canvas pluie Matrix ----------------------------------------- */
+function _matrixCanvas(overlay){
+  var c=document.createElement('canvas');
+  c.style.cssText='position:absolute;inset:0;width:100%;height:100%;opacity:0.13;pointer-events:none;z-index:0';
+  overlay.appendChild(c);
+  var ctx=c.getContext('2d'),cols,drops;
+  function init(){
+    c.width=overlay.offsetWidth||window.innerWidth;
+    c.height=overlay.offsetHeight||window.innerHeight;
+    cols=Math.floor(c.width/14);
+    drops=Array.from({length:cols},function(){return Math.random()*-60|0;});
   }
-  if(!user.profil_complet){
-    _showOnboardingOverlay(2,user);
-    return;
+  init();
+  window.addEventListener('resize',init,{passive:true});
+  var chars='NEOGEN01アイウエオカキクケコサシスセソ23456789';
+  var raf;
+  function draw(){
+    ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle='#00ff41';ctx.font='13px monospace';
+    for(var i=0;i<drops.length;i++){
+      ctx.fillText(chars[Math.random()*chars.length|0],i*14,drops[i]*14);
+      if(drops[i]*14>c.height&&Math.random()>0.975)drops[i]=0;
+      drops[i]++;
+    }
+    raf=requestAnimationFrame(draw);
   }
-  /* Profil complet et session valide — rien à faire */
+  draw();
+  return function(){cancelAnimationFrame(raf);window.removeEventListener('resize',init);c.remove();};
 }
 
 function _showOnboardingOverlay(startStep,user){
   var ex=document.getElementById('ntr-onboarding');if(ex)ex.remove();
   var overlay=document.createElement('div');
   overlay.id='ntr-onboarding';
-  overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(10,12,18,.94);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)';
+  overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(4,8,12,.97);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);overflow:auto;padding:20px 0';
   document.body.appendChild(overlay);
+  var stopMatrix=_matrixCanvas(overlay);
   var step=startStep;
 
   function render(){
-    overlay.innerHTML='';
+    var oldBox=overlay.querySelector('.ntr-ob-box');if(oldBox)oldBox.remove();
+    var isPlans=(step===4);
     var box=document.createElement('div');
-    box.style.cssText='position:relative;width:min(500px,95vw);max-height:90vh;overflow-y:auto;border-radius:20px;background:var(--bg2,#13151a);border:1px solid rgba(255,255,255,.1);padding:36px 32px 28px;box-shadow:0 32px 96px rgba(0,0,0,.8)';
+    box.className='ntr-ob-box';
+    box.style.cssText='position:relative;z-index:1;width:min('+(isPlans?'840px':'500px')+',96vw);max-height:92vh;overflow-y:auto;border-radius:20px;background:rgba(8,12,18,.98);border:1px solid rgba(0,255,65,.15);padding:36px 32px 28px;box-shadow:0 0 80px rgba(0,255,65,.06),0 32px 96px rgba(0,0,0,.95)';
     overlay.appendChild(box);
 
-    /* Stepper */
-    var stepLabels=['Ton compte','Modele IA','Ton profil'];
-    var sh='<div style="display:flex;align-items:center;justify-content:center;margin-bottom:24px">';
-    for(var i=1;i<=3;i++){
-      var done=i<step,active=i===step;
-      sh+='<div style="display:flex;align-items:center">'
-        +'<div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;'
-        +(done?'background:#10b981;color:#fff;':'')
-        +(active?'background:var(--acc,#6366f1);color:#fff;box-shadow:0 0 0 4px rgba(99,102,241,.22);':'')
-        +(!done&&!active?'background:rgba(255,255,255,.07);color:var(--mut,#6b7280);':'')
-        +'">'+(done?'&#10003;':i)+'</div>';
-      if(i<3)sh+='<div style="width:52px;height:2px;background:'+(done?'rgba(16,185,129,.5)':'rgba(255,255,255,.08)')+'"></div>';
+    if(step>1){
+      var labels={2:'Presentation',3:'Mon compte',4:'Mon pack'};
+      var sh='<div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:28px">';
+      for(var i=2;i<=4;i++){
+        var done=i<step,active=i===step;
+        sh+='<div style="display:flex;align-items:center">'
+          +'<div style="display:flex;flex-direction:column;align-items:center;gap:5px">'
+          +'<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:all .3s;'
+          +(done?'background:#00ff41;color:#000;box-shadow:0 0 14px rgba(0,255,65,.5)':'')
+          +(active?'background:rgba(0,255,65,.12);color:#00ff41;border:2px solid #00ff41;box-shadow:0 0 24px rgba(0,255,65,.25)':'')
+          +(!done&&!active?'background:rgba(255,255,255,.05);color:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.08)':'')
+          +'">'+(done?'✓':(i-1))+'</div>'
+          +'<div style="font-size:10px;letter-spacing:.5px;'+(active?'color:#00ff41':'color:rgba(255,255,255,.25)')+'">'+labels[i]+'</div>'
+          +'</div>';
+        if(i<4)sh+='<div style="width:50px;height:1px;background:'+(done?'rgba(0,255,65,.4)':'rgba(255,255,255,.07)')+';margin:0 6px;margin-bottom:20px"></div>';
+        sh+='</div>';
+      }
       sh+='</div>';
+      box.innerHTML=sh;
     }
-    sh+='</div>';
-    sh+='<div style="text-align:center;margin-bottom:24px">'
-      +'<div style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Etape '+step+' sur 3</div>'
-      +'<div style="font-size:22px;font-weight:800;color:var(--txt)">'+stepLabels[step-1]+'</div>'
-      +'</div>';
-    box.innerHTML=sh;
 
-    if(step===1)_obStep1(box,overlay,function(u){
-      if(u&&u.profil_complet){overlay.remove();loadCompte();}
-      else{step=2;render();}
+    if(step===1)_obBienvenue(box,function(){step=2;render();});
+    else if(step===2)_obPresentation(box,function(){step=3;render();});
+    else if(step===3)_obCompte(box,function(u){
+      if(u&&localStorage.getItem('neogen_ob_done')){stopMatrix();overlay.remove();loadCompte();}
+      else{step=4;render();}
     });
-    else if(step===2)_obStep2(box,function(){step=3;render();});
-    else if(step===3)_obStep3(box,overlay);
+    else if(step===4)_obPlans(box,overlay,stopMatrix);
   }
   render();
 }
 
-/* Étape 1 — Connexion / Inscription */
-function _obStep1(box,overlay,onDone){
-  var mode='login';
+/* -- Step 1 - Bienvenue ------------------------------------------ */
+function _obBienvenue(box,onNext){
+  var d=document.createElement('div');
+  d.style.cssText='text-align:center;padding:24px 8px 12px';
+  d.innerHTML=''
+    +'<div style="font-size:46px;font-weight:900;letter-spacing:5px;color:#00ff41;'
+    +'text-shadow:0 0 40px rgba(0,255,65,.7),0 0 80px rgba(0,255,65,.3);margin-bottom:10px">NEOGEN</div>'
+    +'<div style="font-size:11px;color:rgba(0,255,65,.45);letter-spacing:4px;text-transform:uppercase;margin-bottom:36px">Intelligence collective autonome</div>'
+    +'<div style="font-size:15px;color:rgba(255,255,255,.65);line-height:1.75;max-width:400px;margin:0 auto 40px">'
+    +'Bienvenue. NEOGEN est un systeme multi-agents qui pense, cree et evolue avec toi.<br>'
+    +'Avant de commencer, laisse-moi apprendre a te connaitre.'
+    +'</div>'
+    +'<button id="ob-start" style="padding:15px 50px;font-size:16px;font-weight:800;'
+    +'background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.6);color:#00ff41;'
+    +'border-radius:12px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;'
+    +'transition:all .25s;box-shadow:0 0 20px rgba(0,255,65,.1)">Commencer</button>'
+    +'<div style="margin-top:22px;font-size:11px;color:rgba(255,255,255,.18)">'
+    +'Prend 2 minutes · 7 jours d\'essai gratuits · Annulable a tout moment'
+    +'</div>';
+  box.appendChild(d);
+  var btn=d.querySelector('#ob-start');
+  btn.onmouseenter=function(){this.style.background='rgba(0,255,65,.16)';this.style.boxShadow='0 0 40px rgba(0,255,65,.25)';};
+  btn.onmouseleave=function(){this.style.background='rgba(0,255,65,.08)';this.style.boxShadow='0 0 20px rgba(0,255,65,.1)';};
+  btn.onclick=onNext;
+}
+
+/* -- Step 2 - Presentation (interrogatoire de copinage) ---------- */
+function _obPresentation(box,onDone){
+  var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
+  var d=document.createElement('div');
+  d.innerHTML=''
+    +'<div style="text-align:center;margin-bottom:22px">'
+    +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:6px">Fais connaissance avec NEOGEN</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.4);line-height:1.5">'
+    +'Ses agents utiliseront ces infos pour te parler comme il faut.<br>'
+    +'Plus c\'est precis, plus NEOGEN s\'adapte a toi.'
+    +'</div></div>'
+    +'<div class="auth-field"><label>Comment tu veux qu\'on t\'appelle ? <span style="color:#ef4444">*</span></label>'
+    +'<input type="text" id="ob-prenom" placeholder="Jordan, Captain, Neo..." value="'+(prev.prenom||'')+'" autocomplete="given-name"></div>'
+    +'<div class="auth-field"><label>T\'es ou avec l\'IA ?</label>'
+    +'<select id="ob-niveau" style="width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:var(--txt);font-size:14px">'
+    +'<option value="">- Ton niveau -</option>'
+    +'<option value="debutant"'+(prev.niveau==='debutant'?' selected':'')+'>Debutant — Je decouvre l\'IA</option>'
+    +'<option value="intermediaire"'+(prev.niveau==='intermediaire'?' selected':'')+'>Intermediaire — Je l\'utilise au quotidien</option>'
+    +'<option value="avance"'+(prev.niveau==='avance'?' selected':'')+'>Avance — Je code avec les APIs</option>'
+    +'<option value="expert"'+(prev.niveau==='expert'?' selected':'')+'>Expert — Je construis des systemes IA</option>'
+    +'</select></div>'
+    +'<div class="auth-field"><label>Tes passions / hobbies</label>'
+    +'<textarea id="ob-hobbies" placeholder="IA, automatisation, gaming, musique, business, voyage..." rows="2" style="resize:none">'+(prev.hobbies||'')+'</textarea></div>'
+    +'<div class="auth-field"><label>Ton style de travail</label>'
+    +'<textarea id="ob-style" placeholder="Sessions longues le matin, plan avant d\'agir, autonome..." rows="2" style="resize:none">'+(prev.style_travail||'')+'</textarea></div>'
+    +'<div class="auth-field"><label>Ta vision / ton projet</label>'
+    +'<textarea id="ob-vision" placeholder="Lancer un SaaS IA, automatiser mon business, explorer les LLMs..." rows="2" style="resize:none">'+(prev.vision||'')+'</textarea></div>'
+    +'<div class="auth-field"><label>Tes objectifs avec NEOGEN</label>'
+    +'<textarea id="ob-objectifs" placeholder="Gagner du temps, creer des agents, apprendre..." rows="2" style="resize:none">'+(prev.objectifs||'')+'</textarea></div>'
+    +'<div id="ob-err2" class="auth-error" style="display:none"></div>'
+    +'<button id="ob-next2" style="width:100%;margin-top:10px;padding:13px;font-size:15px;font-weight:700;'
+    +'background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;'
+    +'border-radius:10px;cursor:pointer">Suivant ></button>';
+  box.appendChild(d);
+  function qr(s){return d.querySelector(s);}
+  qr('#ob-next2').onclick=function(){
+    var prenom=(qr('#ob-prenom').value||'').trim();
+    if(!prenom){var e=qr('#ob-err2');e.textContent='Dis-moi comment t\'appeler.';e.style.display='';return;}
+    localStorage.setItem('neogen_ob_profil',JSON.stringify({
+      prenom:prenom,niveau:qr('#ob-niveau').value,
+      hobbies:(qr('#ob-hobbies').value||'').trim(),
+      style_travail:(qr('#ob-style').value||'').trim(),
+      vision:(qr('#ob-vision').value||'').trim(),
+      objectifs:(qr('#ob-objectifs').value||'').trim()
+    }));
+    onDone();
+  };
+  setTimeout(function(){var el=qr('#ob-prenom');if(el)el.focus();},80);
+}
+
+/* -- Step 3 - Compte + API (optionnel) --------------------------- */
+function _obCompte(box,onDone){
+  var mode='register';
+  var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
   var fd=document.createElement('div');
-  fd.innerHTML='<div class="auth-tabs">'
-    +'<div class="auth-tab active" id="ob-tab-l">Se connecter</div>'
-    +'<div class="auth-tab" id="ob-tab-r">Creer un compte</div></div>'
+  fd.innerHTML=''
+    +'<div style="text-align:center;margin-bottom:20px">'
+    +'<div style="font-size:19px;font-weight:800;color:#fff;margin-bottom:5px">Cree ton compte NEOGEN</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.35)">Pour sauvegarder ton profil et acceder a tes agents</div>'
+    +'</div>'
+    +'<div class="auth-tabs">'
+    +'<div class="auth-tab active" id="ob-tab-r">Creer un compte</div>'
+    +'<div class="auth-tab" id="ob-tab-l" style="opacity:.55">Deja un compte</div>'
+    +'</div>'
     +'<div class="auth-form">'
-    +'<div class="auth-field" id="ob-name-w" style="display:none"><label>Prenom</label>'
-    +'<input type="text" id="ob-name" placeholder="Ton prenom..."></div>'
+    +'<div class="auth-field" id="ob-name-w"><label>Prenom</label>'
+    +'<input type="text" id="ob-name" placeholder="Ton prenom..." value="'+(prev.prenom||'')+'"></div>'
     +'<div class="auth-field"><label>Email</label>'
     +'<input type="email" id="ob-email" placeholder="ton@email.com" autocomplete="email"></div>'
     +'<div class="auth-field"><label>Mot de passe</label>'
-    +'<input type="password" id="ob-pw" placeholder="..." autocomplete="current-password"></div>'
-    +'<div class="auth-field" id="ob-pw2-w" style="display:none"><label>Confirmer</label>'
+    +'<input type="password" id="ob-pw" placeholder="6 caracteres minimum..." autocomplete="new-password"></div>'
+    +'<div class="auth-field" id="ob-pw2-w"><label>Confirmer le mot de passe</label>'
     +'<input type="password" id="ob-pw2" placeholder="..." autocomplete="new-password"></div>'
-    +'<div id="ob-err1" class="auth-error" style="display:none"></div>'
-    +'<button id="ob-sub1" style="width:100%;margin-top:6px">Se connecter</button>'
+    +'<div id="ob-err3" class="auth-error" style="display:none"></div>'
+    +'<button id="ob-sub3" style="width:100%;margin-top:6px;background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;border-radius:8px;font-weight:700;padding:13px;font-size:15px;cursor:pointer">Creer mon compte</button>'
+    +'</div>'
+    +'<div style="margin-top:18px;border-top:1px solid rgba(255,255,255,.06);padding-top:16px">'
+    +'<div style="font-size:12px;color:rgba(255,255,255,.3);margin-bottom:10px;text-align:center">Optionnel — Connecte ton modele IA maintenant</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<select id="ob-prov3" style="flex:1;min-width:0;padding:9px 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--txt);font-size:12px">'
+    +'<option value="">Provider IA...</option>'
+    +'<option value="anthropic">Anthropic (Claude)</option>'
+    +'<option value="openai">OpenAI (GPT)</option>'
+    +'<option value="gemini">Gemini</option>'
+    +'<option value="deepseek">DeepSeek</option>'
+    +'<option value="mistral">Mistral</option>'
+    +'<option value="local">Ollama (local)</option>'
+    +'</select>'
+    +'<input type="password" id="ob-key3" placeholder="Cle API..." '
+    +'style="flex:2;min-width:0;padding:9px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--txt);font-size:12px;font-family:monospace" autocomplete="off">'
+    +'</div>'
     +'</div>';
   box.appendChild(fd);
   var qr=function(s){return fd.querySelector(s);};
-  var errEl=qr('#ob-err1'),sub=qr('#ob-sub1');
-  function sw(m){
+  var errEl=qr('#ob-err3'),sub=qr('#ob-sub3');
+  function setTab(m){
     mode=m;
     qr('#ob-tab-l').classList.toggle('active',m==='login');
     qr('#ob-tab-r').classList.toggle('active',m==='register');
+    qr('#ob-tab-l').style.opacity=m==='login'?'1':'0.55';
+    qr('#ob-tab-r').style.opacity=m==='register'?'1':'0.55';
     qr('#ob-name-w').style.display=m==='register'?'flex':'none';
     qr('#ob-pw2-w').style.display=m==='register'?'flex':'none';
     sub.textContent=m==='register'?'Creer mon compte':'Se connecter';
     errEl.style.display='none';
   }
-  qr('#ob-tab-l').onclick=function(){sw('login');};
-  qr('#ob-tab-r').onclick=function(){sw('register');};
+  qr('#ob-tab-r').onclick=function(){setTab('register');};
+  qr('#ob-tab-l').onclick=function(){setTab('login');};
   async function doAuth(){
     var email=(qr('#ob-email').value||'').trim();
     var pw=qr('#ob-pw').value||'';
-    var name=(qr('#ob-name').value||'').trim();
-    var pw2=qr('#ob-pw2').value||'';
+    var name=(qr('#ob-name')?qr('#ob-name').value||'':'');
+    var pw2=(qr('#ob-pw2')?qr('#ob-pw2').value||'':'');
     errEl.style.display='none';
     if(!email||!pw){errEl.textContent='Email et mot de passe requis.';errEl.style.display='';return;}
     if(mode==='register'&&pw.length<6){errEl.textContent='Mot de passe trop court (6 min).';errEl.style.display='';return;}
@@ -4490,155 +4617,131 @@ function _obStep1(box,overlay,onDone){
     sub.disabled=true;sub.textContent='...';
     try{
       var url=mode==='login'?'/auth/login':'/auth/register';
-      var body=mode==='login'?{email:email,password:pw}:{email:email,password:pw,name:name};
+      var regName=(name||(prev.prenom||'')||email.split('@')[0]).trim();
+      var body=mode==='login'?{email:email,password:pw}:{email:email,password:pw,name:regName};
       var r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       var d=await r.json();
       if(!r.ok){errEl.textContent=d.detail||'Erreur';errEl.style.display='';sub.disabled=false;sub.textContent=mode==='register'?'Creer mon compte':'Se connecter';return;}
       localStorage.setItem('neogen_auth_token',d.token);
       if(typeof _injectUserCss==='function')_injectUserCss();
+      if(prev&&prev.prenom){
+        await fetch('/compte/profil',{method:'POST',
+          headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),
+          body:JSON.stringify({prenom:prev.prenom,projets:(prev.vision||''),aime:(prev.hobbies||''),naime_pas:'',style_travail:(prev.style_travail||'')})
+        }).catch(function(){});
+      }
+      var prov=qr('#ob-prov3').value,key=(qr('#ob-key3').value||'').trim();
+      if(prov&&key){
+        var mdls={anthropic:['claude-opus-4-8'],openai:['gpt-4o'],gemini:['gemini-2.5-pro'],deepseek:['deepseek-chat'],mistral:['mistral-large-latest'],local:['llama3.2']};
+        localStorage.setItem('neogen_key_'+prov,key);
+        localStorage.setItem('neogen_active_provider',prov);
+        localStorage.setItem('neogen_active_model',(mdls[prov]&&mdls[prov][0])||'');
+      }
       var me=await _fetchMe();
       onDone(me);
     }catch(e){errEl.textContent='Erreur reseau.';errEl.style.display='';sub.disabled=false;sub.textContent=mode==='register'?'Creer mon compte':'Se connecter';}
   }
   sub.onclick=doAuth;
-  ['#ob-email','#ob-pw','#ob-pw2'].forEach(function(s){
-    var el=qr(s);if(el)el.addEventListener('keydown',function(e){if(e.key==='Enter')doAuth();});
-  });
+  ['#ob-email','#ob-pw','#ob-pw2'].forEach(function(s){var el=qr(s);if(el)el.addEventListener('keydown',function(e){if(e.key==='Enter')doAuth();});});
   setTimeout(function(){var el=qr('#ob-email');if(el)el.focus();},80);
 }
 
-/* Étape 2 — Modèle IA */
-function _obStep2(box,onDone){
-  var PROV={
-    anthropic:{label:'Anthropic (Claude)',ph:'sk-ant-api03-...',models:['claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5']},
-    openai:{label:'OpenAI (GPT)',ph:'sk-proj-...',models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini']},
-    gemini:{label:'Gemini',ph:'AIzaSy... ou AQ....',models:['gemini-2.5-pro','gemini-2.0-flash','gemini-1.5-pro']},
-    deepseek:{label:'DeepSeek',ph:'sk-...',models:['deepseek-chat','deepseek-reasoner']},
-    mistral:{label:'Mistral',ph:'...',models:['mistral-large-latest','mistral-small-latest']},
-    moonshot:{label:'Kimi (Moonshot)',ph:'sk-...',models:['kimi-k2.7-code','kimi-k2.5']},
-    local:{label:'Local (Ollama)',ph:'http://host.docker.internal:11434/v1',models:['llama3.2','qwen2.5','mistral']}
-  };
-  var selProv=localStorage.getItem('neogen_active_provider')||'anthropic';
-  var hasModel=!!(localStorage.getItem('neogen_active_provider')&&localStorage.getItem('neogen_active_model'));
-
-  var div=document.createElement('div');
-  div.innerHTML='<p style="font-size:13px;color:var(--mut);margin:0 0 18px;line-height:1.6">'
-    +(hasModel?'Un modele est deja configure. Tu peux le modifier ou passer directement.':'Connecte ta cle API pour que NEOGEN genere avec le modele de ton choix.')
-    +'</p>'
-    +'<div class="auth-field"><label>Fournisseur</label>'
-    +'<select id="ob-prov" style="width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:var(--txt);font-size:14px">'
-    +Object.keys(PROV).map(function(k){return'<option value="'+k+'"'+(k===selProv?' selected':'')+'>'+PROV[k].label+'</option>';}).join('')
-    +'</select></div>'
-    +'<div class="auth-field"><label id="ob-klbl">Cle API</label>'
-    +'<input type="password" id="ob-key" style="font-family:monospace" autocomplete="off">'
+/* -- Step 4 - Choix de pack -------------------------------------- */
+function _obPlans(box,overlay,stopMatrix){
+  var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
+  var prenom=prev.prenom?' '+prev.prenom:'';
+  var d=document.createElement('div');
+  d.innerHTML=''
+    +'<div style="text-align:center;margin-bottom:30px">'
+    +'<div style="font-size:22px;font-weight:900;color:#fff;margin-bottom:8px">Lance ton aventure'+prenom+' !</div>'
+    +'<div style="font-size:13px;color:rgba(255,255,255,.4)">7 jours gratuits — annulable avant la fin d\'essai — rappel mail J-2</div>'
     +'</div>'
-    +'<div id="ob-kerr" class="auth-error" style="display:none"></div>'
-    +'<div style="display:flex;gap:10px;margin-top:18px">'
-    +'<button id="ob-test2" class="ghost" style="flex:1">Tester</button>'
-    +'<button id="ob-save2" style="flex:2">'+(hasModel?'Confirmer & Suivant':'Sauvegarder & Suivant')+'</button>'
+
+    /* Essential hero card */
+    +'<div style="border:1px solid #00ff41;border-radius:16px;padding:26px 28px;margin-bottom:22px;background:rgba(0,255,65,.03);box-shadow:0 0 60px rgba(0,255,65,.07),inset 0 1px 0 rgba(0,255,65,.1)">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">'
+    +'<div style="font-size:20px;font-weight:800;color:#00ff41;letter-spacing:1px">Essential</div>'
+    +'<div style="background:rgba(0,255,65,.15);border:1px solid rgba(0,255,65,.5);border-radius:20px;padding:4px 14px;font-size:11px;color:#00ff41;font-weight:800;letter-spacing:1px">7 JOURS GRATUITS</div>'
     +'</div>'
-    +'<div style="text-align:center;margin-top:14px">'
-    +'<span id="ob-skip2" style="font-size:12px;color:var(--mut);cursor:pointer;opacity:.6;text-decoration:underline">Configurer plus tard</span>'
-    +'</div>';
-  box.appendChild(div);
+    +'<div style="font-size:28px;font-weight:900;color:#fff;margin-bottom:18px">14,99€<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,.4)">/mois apres essai</span></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;margin-bottom:22px">'
+    +['1 500 GEN/mois','4 providers IA + local','Multi-agents RPA Apprentissage','Vision active Crons','5 Donner vie/mois','15 applis + 7 deploiements','Mode Juge 60 GEN','Plugin Hostinger'].map(function(f){
+      return'<div style="font-size:12.5px;color:rgba(255,255,255,.72);display:flex;align-items:center;gap:7px"><span style="color:#00ff41;font-size:10px">●</span>'+f+'</div>';
+    }).join('')
+    +'</div>'
+    +'<button id="ob-essential" style="width:100%;padding:15px;font-size:15px;font-weight:900;background:#00ff41;color:#000;border:none;border-radius:11px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;box-shadow:0 4px 20px rgba(0,255,65,.3)">'
+    +'Demarrer mon essai gratuit →'
+    +'</button>'
+    +'<div style="text-align:center;margin-top:10px;font-size:11px;color:rgba(255,255,255,.28)">'
+    +'Rappel par mail 2 jours avant le 1er debit · Annulable a tout moment · Aucun frais cache'
+    +'</div>'
+    +'</div>'
 
-  function qr(s){return div.querySelector(s);}
-  var errEl=qr('#ob-kerr');
-  var keyIn=qr('#ob-key');
+    /* Pro + Power */
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'
+    +[
+      {n:'Pro',p:'29,99€',pal:'pro',feats:['4 500 GEN/mois','6 providers IA + local','Crons illimites','15 Donner vie/mois','50 applis + 25 deploiements','Webhook & API']},
+      {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','Donner vie illimite','Crons illimites','Applis illimitees','API + Telemetrie privee']}
+    ].map(function(pk){
+      return'<div style="border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:18px;background:rgba(255,255,255,.015)">'
+        +'<div style="font-size:15px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:3px">'+pk.n+'</div>'
+        +'<div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:14px">'+pk.p+'<span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.35)">/mois</span></div>'
+        +pk.feats.map(function(f){return'<div style="font-size:11.5px;color:rgba(255,255,255,.48);margin-bottom:5px;display:flex;align-items:center;gap:5px"><span style="color:rgba(0,255,65,.4);font-size:9px">●</span>'+f+'</div>';}).join('')
+        +'<button data-pal="'+pk.pal+'" class="ob-plan-btn" style="width:100%;margin-top:14px;padding:9px;font-size:13px;font-weight:600;background:transparent;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:9px;cursor:pointer;transition:all .2s">Choisir '+pk.n+'</button>'
+        +'</div>';
+    }).join('')
+    +'</div>'
 
-  function refreshProv(){
-    var p=PROV[selProv]||PROV.anthropic;
-    keyIn.placeholder=p.ph;
-    keyIn.value=localStorage.getItem('neogen_key_'+selProv)||'';
-    if(selProv==='local'){qr('#ob-klbl').textContent='URL de base (Ollama)';}
-    else{qr('#ob-klbl').textContent='Cle API';}
-    errEl.style.display='none';
-  }
-  refreshProv();
+    /* Enterprise */
+    +'<div style="border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px">'
+    +'<div><div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.6)">Enterprise</div>'
+    +'<div style="font-size:11.5px;color:rgba(255,255,255,.28);margin-top:2px">Infrastructure isolee · SLA 99,9% · Support dedie · Contrat personnalise</div></div>'
+    +'<div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.4);white-space:nowrap">Sur mesure</div>'
+    +'</div>'
 
-  qr('#ob-prov').onchange=function(){selProv=this.value;refreshProv();};
+    /* Freemium */
+    +'<div style="text-align:center">'
+    +'<button id="ob-freemium" style="background:transparent;border:none;font-size:12px;color:rgba(255,255,255,.28);cursor:pointer;padding:10px 20px;text-decoration:underline">'
+    +'Passer en version Freemium (acces limite, sans CB)'
+    +'</button></div>';
 
-  qr('#ob-test2').onclick=async function(){
-    var key=(keyIn.value||'').trim();
-    if(!key&&selProv!=='local'){errEl.textContent='Cle vide.';errEl.style.display='';return;}
-    errEl.style.display='none';
-    this.disabled=true;this.textContent='...';
+  box.appendChild(d);
+
+  d.querySelectorAll('.ob-plan-btn').forEach(function(btn){
+    btn.onmouseenter=function(){this.style.borderColor='rgba(0,255,65,.3)';this.style.color='rgba(255,255,255,.9)';};
+    btn.onmouseleave=function(){this.style.borderColor='rgba(255,255,255,.15)';this.style.color='rgba(255,255,255,.6)';};
+  });
+
+  var essBtn=d.querySelector('#ob-essential');
+  essBtn.onmouseenter=function(){this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 30px rgba(0,255,65,.5)';};
+  essBtn.onmouseleave=function(){this.style.transform='';this.style.boxShadow='0 4px 20px rgba(0,255,65,.3)';};
+  essBtn.onclick=async function(){
+    this.disabled=true;this.textContent='Redirection vers Stripe...';
     try{
-      var r=await fetch('/integrations/verifier',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({type:'key',name:selProv,value:key})});
-      var d=await r.json();
-      if(d.ok){
-        errEl.textContent='Connexion OK';errEl.style.color='#10b981';errEl.style.display='';
-        setTimeout(function(){errEl.style.display='none';errEl.style.color='';},3000);
-      }else{
-        errEl.textContent=d.erreur||'Cle invalide';errEl.style.color='#ef4444';errEl.style.display='';
-      }
-    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.color='';errEl.style.display='';}
-    this.disabled=false;this.textContent='Tester';
+      var r=await fetch('/premium/checkout',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify({palier:'essential',plan:'mensuel'})});
+      var j=await r.json();
+      if(j.url){localStorage.setItem('neogen_ob_done','1');window.location.href=j.url;}
+      else{this.disabled=false;this.textContent='Demarrer mon essai gratuit →';}
+    }catch(e){this.disabled=false;this.textContent='Demarrer mon essai gratuit →';}
   };
 
-  qr('#ob-save2').onclick=function(){
-    var key=(keyIn.value||'').trim();
-    if(!key&&selProv!=='local'&&!hasModel){errEl.textContent='Cle vide. Utilise "Configurer plus tard" pour passer.';errEl.style.display='';return;}
-    if(key){
-      var defModel=(PROV[selProv]&&PROV[selProv].models[0])||'';
-      localStorage.setItem('neogen_key_'+selProv,key);
-      localStorage.setItem('neogen_active_provider',selProv);
-      if(defModel)localStorage.setItem('neogen_active_model',defModel);
-      localStorage.setItem('neogen_verified_'+selProv,'1');
-    }
-    onDone();
-  };
+  d.querySelectorAll('.ob-plan-btn').forEach(function(btn){
+    btn.onclick=async function(){
+      var pal=this.getAttribute('data-pal'),orig=this.textContent;
+      this.disabled=true;this.textContent='...';
+      try{
+        var r=await fetch('/premium/checkout',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify({palier:pal,plan:'mensuel'})});
+        var j=await r.json();
+        if(j.url){localStorage.setItem('neogen_ob_done','1');window.location.href=j.url;}
+        else{this.disabled=false;this.textContent=orig;}
+      }catch(e){this.disabled=false;this.textContent=orig;}
+    };
+  });
 
-  qr('#ob-skip2').onclick=function(){onDone();};
-}
-
-/* Étape 3 — Profil */
-function _obStep3(box,overlay){
-  var div=document.createElement('div');
-  div.innerHTML='<p style="font-size:13px;color:var(--mut);margin:0 0 18px;line-height:1.6">Dis a NEOGEN qui tu es. Ses agents utiliseront ce profil pour personaliser chaque reponse.</p>'
-    +'<div class="auth-field"><label>Prenom ou pseudo <span style="color:#ef4444">*</span></label>'
-    +'<input type="text" id="ob-prenom" placeholder="Jordan..." autocomplete="given-name"></div>'
-    +'<div class="auth-field"><label>Tes projets actuels</label>'
-    +'<textarea id="ob-projets" placeholder="NEOGEN (SaaS IA), VIVARIUM (code vivant)..." rows="2" style="resize:vertical"></textarea></div>'
-    +'<div class="auth-field"><label>Ce que tu aimes</label>'
-    +'<textarea id="ob-aime" placeholder="IA, automatisation, code propre, systemes auto-explicatifs..." rows="2" style="resize:vertical"></textarea></div>'
-    +'<div class="auth-field"><label>Ce que tu n\'aimes pas</label>'
-    +'<textarea id="ob-naime" placeholder="commentaires excessifs, abstractions prematurees, reponses vagues..." rows="2" style="resize:vertical"></textarea></div>'
-    +'<div class="auth-field"><label>Ton style de travail</label>'
-    +'<textarea id="ob-style" placeholder="sessions longues le matin, plan avant l\'action, feedback direct..." rows="2" style="resize:vertical"></textarea></div>'
-    +'<div id="ob-perr" class="auth-error" style="display:none"></div>'
-    +'<button id="ob-sub3" style="width:100%;margin-top:8px;padding:13px">Terminer et acceder a NEOGEN</button>';
-  box.appendChild(div);
-  function qr(s){return div.querySelector(s);}
-  var errEl=qr('#ob-perr'),sub=qr('#ob-sub3');
-  sub.onclick=async function(){
-    var prenom=(qr('#ob-prenom').value||'').trim();
-    if(!prenom){errEl.textContent='Ton prenom est requis.';errEl.style.display='';return;}
-    sub.disabled=true;sub.textContent='...';
-    try{
-      var r=await fetch('/compte/profil',{method:'POST',
-        headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),
-        body:JSON.stringify({
-          prenom:prenom,
-          projets:(qr('#ob-projets').value||'').trim(),
-          aime:(qr('#ob-aime').value||'').trim(),
-          naime_pas:(qr('#ob-naime').value||'').trim(),
-          style_travail:(qr('#ob-style').value||'').trim()
-        })
-      });
-      if(r.ok){
-        overlay.remove();
-        loadCompte();
-        if(typeof _injectUserCss==='function')_injectUserCss();
-      }else{
-        var d=await r.json();
-        errEl.textContent=d.detail||'Erreur.';errEl.style.display='';
-        sub.disabled=false;sub.textContent='Terminer et acceder a NEOGEN';
-      }
-    }catch(e){errEl.textContent='Erreur reseau.';errEl.style.display='';sub.disabled=false;sub.textContent='Terminer et acceder a NEOGEN';}
+  d.querySelector('#ob-freemium').onclick=function(){
+    localStorage.setItem('neogen_ob_done','1');
+    stopMatrix();overlay.remove();loadCompte();
   };
-  setTimeout(function(){var el=qr('#ob-prenom');if(el)el.focus();},80);
 }
 
 /* Lancer le check onboarding au chargement */
