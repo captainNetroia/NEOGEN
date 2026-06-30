@@ -26,6 +26,9 @@ import json
 from typing import Callable
 from pydantic import BaseModel, Field
 
+import ancre_divergence
+import audit_eclair
+import eclair
 import gateway
 import user_namespace as _ns
 from sanitizer import nettoyer
@@ -252,19 +255,64 @@ PROFILS: dict[str, dict] = {
             "'chercher_code' / 'carte_code'. Applique les 3 etats (CERTAIN / INCONNU / ANGLE MORT). "
             "Si une expertise te manque, APPELLE l'agent adapte ('appeler_agent' : veilleur pour la "
             "sante, analyste pour les patterns, architecte pour la gouvernance).\n"
-            "3. PLAN : decide la voie la plus efficace pour atteindre l'objectif :\n"
-            "   - Nouvelle capacite/fonction -> 'forger_capacite' (code genere, teste sandbox, integre "
-            "A CHAUD) puis ANCRE-la ('ancrage' : avant_validation_code / apres_erreur / "
-            "avant_reponse_agent / periodique) pour qu'elle agisse TOUTE SEULE. C'est la voie "
-            "AUTOMATIQUE preferee (effet immediat, sans rebuild).\n"
-            "   - Modifier un module existant -> 'proposer_patch' (teste la syntaxe, sauvegarde, "
-            "signale le rebuild). Ne le fais que si une cellule ne suffit pas.\n"
+            "2b. AUDIT ARCHITECTURE (OBLIGATOIRE avant tout choix de strategie) : si le projet tourne "
+            "dans Docker, verifier IMMEDIATEMENT quels fichiers sont bind-montes : "
+            "'lire_fichier docker-compose.yml' -> section 'volumes'. "
+            "REGLE : un fichier liste dans volumes = bind-monte = modifiable sans rebuild. "
+            "Un fichier NON liste = bake dans l'image = rebuild Docker obligatoire apres modification. "
+            "Choisir la strategie EN FONCTION de ca AVANT de toucher un seul fichier. "
+            "Ne jamais supposer qu'un fichier est accessible sans l'avoir verifie dans le docker-compose. "
+            "Exemple : static/app.js non monte -> JS masonry = rebuild obligatoire, "
+            "data/ui_overrides.css monte -> CSS = immediat sans rebuild. "
+            "Ignorer cette verification = 5+ prompts perdu a essayer des approches qui ne fonctionnent pas.\n"
+            "2c. AUDIT SCHEMA & ANGLES MORTS (OBLIGATOIRE avant toute forge) : pour chaque structure "
+            "de donnees que ton code va LIRE (JSON, dict, registre...), utilise 'lire_fichier' ou "
+            "'lire_source' pour inspecter un echantillon reel. Pour chaque champ que tu prevois de "
+            "lire : confirme qu'il EXISTE dans les donnees reelles. Si un champ est ABSENT de tous "
+            "les enregistrements -> ANGLE MORT detecte -> tu dois : (a) le signaler explicitement "
+            "dans ta reponse, (b) ecrire dans la cellule un code qui gere ce cas manquant "
+            "(ne jamais supposer que le champ existe), (c) inclure dans la cellule une fonction "
+            "_test_<nom>() qui couvre AU MINIMUM 3 scenarios : cas normal (champ present), "
+            "cas absent (angle mort), cas limite (valeur vide ou zero). Sans ces 3 tests, "
+            "la cellule n'est pas declaree operationnelle.\n"
+            "3. CLASSIFICATION OBLIGATOIRE avant le plan — le LANGAGE suit le PROBLEME, pas l'habitude :\n"
+            "   A) LOGIQUE BACKEND mesurable (scanne, analyse, detecte, calcule, genere rapport, "
+            "periodiquement, extrait, compare, classe, refactor, surveille, pipeline) "
+            "-> CELLULE PYTHON forgee + ancrage. JAMAIS du CSS ou JS pour ca.\n"
+            "   B) COMPORTEMENT FRONTEND interactif (masonry, reorganisation de bulles/cartes, scroll, "
+            "filtre dynamique, tri, animation DOM, interaction utilisateur, liste qui s'organise, "
+            "compteur live, toggle, drag) -> PATCH JAVASCRIPT sur static/app.js. "
+            "Exemple : les bulles desorganisees dans un panel = JavaScript masonry, pas CSS. "
+            "Rappel etape 2b : app.js non monte -> rebuild obligatoire apres patch.\n"
+            "   C) VISUEL PUR (couleur, spacing, bordure, typographie, ombre, fond) "
+            "-> OVERRIDE CSS sur data/ui_overrides.css. Immediat, pas de rebuild.\n"
+            "   D) SECURITE / PERFORMANCE SYSTEME (hachage cryptographique, verification d'integrite, "
+            "parsing binaire, chiffrement, analyse memoire, performance bas niveau) "
+            "-> RUST si la cellule Python atteint ses limites (GIL, vitesse, securite memoire). "
+            "Rust = uniquement si Python est insuffisant ET que rustc est disponible dans l'env. "
+            "Pour les taches de securite courantes (HMAC, AES, SHA) : Python + librairie 'cryptography' "
+            "reste la voie preferee. Rust = escalade justifiee, pas un reflexe.\n"
+            "   E) MODIFICATION MODULE EXISTANT complexe (Python, JS, Rust, ou autre) "
+            "-> 'proposer_patch' sur le fichier concerne, quel que soit son langage.\n"
+            "REGLE ABSOLUE : le LANGAGE suit le PROBLEME. DOM/UI = JS. Calcul/analyse = Python. "
+            "Securite critique bas-niveau = Rust si justifie. Visuel = CSS. Jamais intervertir.\n"
+            "3b. PLAN : decide la voie la plus efficace pour atteindre l'objectif :\n"
+            "   - Nouvelle capacite/fonction backend -> 'forger_capacite' (code Python genere, "
+            "teste sandbox, integre A CHAUD) puis ANCRE-la. Voie AUTOMATIQUE preferee.\n"
+            "   - Probleme frontend JS (comportement UI/DOM) -> 'proposer_patch' sur static/app.js "
+            "(JavaScript). Signale que rebuild Docker sera necessaire.\n"
+            "   - Visuel CSS -> 'proposer_patch' sur data/ui_overrides.css. Immediat.\n"
+            "   - Securite/perf bas-niveau -> 'proposer_patch' sur fichier Rust si justifie, "
+            "sinon cellule Python + lib cryptography.\n"
+            "   - Modifier module existant (Python/JS/Rust/autre) -> 'proposer_patch' sur le fichier reel.\n"
             "   - Tache recurrente -> 'creer_bebe_agent' pour deleguer durablement.\n"
             "4. TEST & REPARATION : apres avoir forge/patche, VERIFIE ('capacite_forgee' pour invoquer, "
             "'sante_appli' pour les journeys). Si echec -> UTILISE 'inspecter_capacite(nom)' pour lire "
             "le code source de la capacite en UNE etape (plus rapide que lire_source par tranches). "
             "Identifie le bug dans le code retourne, re-forge avec la correction, re-teste. "
-            "Ne declare 'fonctionnel' que si c'est teste.\n"
+            "Ne declare 'fonctionnel' que si c'est teste. "
+            "VERIFIE AUSSI que la fonction _test_<nom>() existe et passe (python data/cellules_forgees/<nom>.py). "
+            "Sans test qui passe : declare PARTIELLEMENT OPERATIONNEL et note la dette.\n"
             "REFLEXE CAPACITE CASSEE : echec invocation -> inspecter_capacite -> re-forger -> re-tester. "
             "Le registre des capacites forgees est TOUJOURS data/cellules_forgees.json.\n"
             "5. LIVRAISON : 'creer_rapport' ou reponse claire : ce qui a ete fait, le verdict du test, "
@@ -498,6 +546,25 @@ def _savoir_pertinent(requete: str, k: int = 3) -> str:
             "utilise-le si c'est utile pour cette demande) :\n" + "\n".join(lignes))
 
 
+# ---------------------------------------------------------------------------
+# DIRECTIVE RIGUEUR OPERATIONNELLE — active pour TOUS les agents, toujours.
+# Forgee par L'Ingenieur (cellule verifier_rigueur_operationnelle, score 90.7)
+# et elevee au rang de directive systemique par Jordan (2026-06-30).
+# ---------------------------------------------------------------------------
+_DIRECTIVE_RIGUEUR = (
+    "\n\nDIRECTIVE RIGUEUR OPERATIONNELLE (non negociable, tous agents) :\n"
+    "1. TRACER : avant d'agir, comprendre le flux complet (cause racine, "
+    "pas l'effet visible). Chercher QUI declenche QUOI, dans quel ordre, "
+    "quelle condition exacte. Jamais commencer par 'essayer quelque chose'.\n"
+    "2. VERIFIER : apres chaque changement, preuve machine — outil, HTTP, grep, "
+    "docker ps, reponse API. Jamais deleguer la verification a l'utilisateur "
+    "avec 'rafraichis et dis-moi'.\n"
+    "3. DECLARER : etat reel uniquement. Jamais 'ca devrait marcher' ou "
+    "'normalement c'est bon'. Uniquement ce qui est prouve par une verification "
+    "concrete. Si non prouve : dire explicitement 'non verifie'.\n"
+)
+
+
 def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
              user=None) -> str:
     """Construit le prompt systeme : role + protocole + liste d'outils autorises.
@@ -561,6 +628,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
         + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
+        + _DIRECTIVE_RIGUEUR
         + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
         + design_bloc + directives_bloc + coherence_bloc + integ_bloc + gardefou_bloc
     )
@@ -729,13 +797,15 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
                 pass
 
     _outils_reussis: list[str] = []
+    _eu_derive = False
 
     _max_etapes = int(profil.get("max_etapes", MAX_ETAPES))
     for _ in range(_max_etapes):
         if len(messages) > MAX_MESSAGES_BOUCLE:
             messages = messages[:1] + messages[-(MAX_MESSAGES_BOUCLE - 1):]
         try:
-            res = cl.messages.create(system=systeme, messages=messages, max_tokens=4000)
+            res = cl.messages.create(system=systeme, messages=eclair.compresser_messages(messages),
+                                     max_tokens=4000)
             step = _parse_step(_texte_de(res))
         except Exception as e:
             msg = nettoyer(f"Le modele n'a pas pu repondre : {e}")
@@ -744,10 +814,22 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             return msg
         if step.pensee:
             _emit({"type": "pensee", "agent": role, "texte": nettoyer(step.pensee)})
+            # Verifie la derive seulement avant une ACTION (outil) : la pensee finale de
+            # synthese (sans outil) n'a structurellement pas le vocabulaire de l'ancre
+            # (c'est un resume, pas une reformulation du sujet) -> faux positif systematique.
+            if step.outil:
+                _derive = ancre_divergence.verifier(message, step.pensee)
+                if _derive["derive"]:
+                    _eu_derive = True
+                    _emit({"type": "derive", "agent": role, "score": _derive["score"]})
+                    messages.append(ancre_divergence.rappel(message))
 
         if not step.outil:
             reponse = nettoyer(step.reponse or step.pensee or "")
             _emit({"type": "reponse", "agent": role, "texte": reponse})
+            if _eu_derive:
+                _emit({"type": "audit", "agent": role,
+                       "texte": audit_eclair.auditer(messages, reponse)})
             if _profondeur == 0 and _outils_reussis:
                 _cristalliser_trajectoire(role, message, _outils_reussis)
             _maj_bandit(succes=bool(reponse))
