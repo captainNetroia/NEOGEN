@@ -113,7 +113,7 @@ const _breath=(function(){
 const $=s=>document.querySelector(s);
 const errMsg=x=>{if(x==null)return'';if(typeof x==='string')return x;if(x.message)return x.message;try{return JSON.stringify(x);}catch(e){return String(x);}};
 const esc=s=>(s||'').replace(/[<>]/g,'');
-const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Analyse',evolution:'Evolution',ingenieur:"L'Ingenieur",integrations:'Integrations',don:'Soutenir'};
+const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Dev & Analyse',evolution:'Evolution',marketing:'Marketing',integrations:'Integrations',don:'Soutenir'};
 
 function showSection(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -127,7 +127,8 @@ function showSection(name){
   history.replaceState(null,'','#'+name);
   if(name==='production')loadProduits();
   if(name==='compte')loadCompte();
-  if(name==='analyse')loadAnalyse();
+  if(name==='analyse'){loadAnalyse();if(typeof loadIngenieur==='function')loadIngenieur();}
+  if(name==='marketing')loadMarketing();
   if(name==='cerveau'){loadMemoire();loadSkills();}
   if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
   /* scan post-section : enregistre les panels rendus dynamiquement (fragments, chats) */
@@ -1369,6 +1370,14 @@ async function loadAutoAmelioration(){
     }catch(e){}
   }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
 }
+function anlzTab(tab){
+  document.querySelectorAll('[data-anlz-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.anlzTab===tab);});
+  document.querySelectorAll('[data-anlz-pane]').forEach(function(p){p.style.display=p.dataset.anlzPane===tab?'':'none';});
+  if(tab==='ingenieur'&&typeof loadIngenieur==='function')loadIngenieur();
+}
+function loadMarketing(){
+  /* Marketing section ne charge pas de donnees dynamiques pour l'instant — placeholder pour extensions futures */
+}
 async function loadAnalyse(){
   loadAutoAmelioration();
   const statsEl=$('#analyse-stats'),capsEl=$('#analyse-caps'),tentEl=$('#analyse-tentatives');
@@ -1928,7 +1937,7 @@ function _loadCustom(){
 })();
 
 /* Hash routing : on load + bouton back navigateur */
-const SECTIONS=['cerveau','creation','production','compte','analyse','integrations','don'];
+const SECTIONS=['cerveau','creation','production','compte','analyse','evolution','marketing','integrations','don'];
 function routeHash(){
   const h=location.hash.slice(1);
   if(h&&SECTIONS.includes(h))showSection(h);
@@ -2147,10 +2156,12 @@ window.deleteImitation=async function(id){
 // Load imitation list on integrations section
 const _origShowSection=showSection;
 showSection=function(name){
+  // Redirect ingenieur → onglet ingenieur dans Dev & Analyse
+  if(name==='ingenieur'){_origShowSection('analyse');anlzTab('ingenieur');return;}
   _origShowSection(name);
   if(name==='integrations'){loadImitationList();pollRpaStatus();}
   if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();if(window.loadBebeAgents)loadBebeAgents();}
-  if(name==='ingenieur'&&window.loadIngenieur){loadIngenieur();}
+  if(name==='marketing'&&window.loadMarketing){loadMarketing();}
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -2250,7 +2261,9 @@ function buildChat(mount){
     +'<span class="agent-chat-sub">'+esc(sub)+'</span>'
     +'<label class="eco-toggle" id="aceco-'+role+'" title="Mode economie : choisit le modele le plus econome selon ta demande (moins de tokens)">'
     +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
+    +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">&#128203;</button>'
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
+    +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input" style="flex-direction:column;align-items:stretch">'
     +'<div class="ac-img-prev" id="acimgprev-'+role+'"></div>'
@@ -2333,14 +2346,110 @@ function buildChat(mount){
     ecocb.onchange=function(){localStorage.setItem('neogen_eco',this.checked?'1':'0');
       document.querySelectorAll('[id^="ececb-"]').forEach(function(c){c.checked=ecocb.checked;});};
   }
-  const KEY='neogen_chat_'+role;
-  let hist=[];try{hist=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){hist=[];}
+  // ── Conversations multi-tours ────────────────────────────────────────────────
+  let hist=[];
+  let _convId=null;
+  const _AKEY='neogen_active_conv_'+role;
+  const _hasAuth=!!_authToken();
+  function _genId(){return Math.random().toString(36).slice(2,10);}
   function add(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
-  function _save(){try{localStorage.setItem(KEY,JSON.stringify(hist.slice(-40)));}catch(e){}}
-  hist.forEach(function(m){if(m.role==='user')add('ac-msg user',esc(m.content));else add('ac-msg agent','<div class="ac-md">'+_mdLite(m.content)+'</div>');});
-  if(clr)clr.onclick=function(){hist=[];_save();log.innerHTML='';};
+  function _renderMsg(m){if((m.role==='user'))add('ac-msg user',esc(m.content||''));else add('ac-msg agent','<div class="ac-md">'+_mdLite(m.content||'')+'</div>');}
+
+  async function _syncConv(extra){
+    if(!_hasAuth)return;
+    if(!_convId)_convId=_genId();
+    const fu=hist.find(function(m){return m.role==='user';});
+    const title=(fu?fu.content.slice(0,45):'Conversation');
+    const body=Object.assign({id:_convId,role:role,title:title,messages:hist.slice(-60)},extra||{});
+    try{const r=await fetch('/agent/convs',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify(body)});
+      if(r.ok)localStorage.setItem(_AKEY,_convId);}catch(e){}
+  }
+
+  async function _newConv(){
+    if(_convId&&hist.length>0){await _syncConv();}
+    _convId=_genId();hist=[];log.innerHTML='';
+    localStorage.setItem(_AKEY,_convId);
+    add('ac-trace','&#128172; Nouvelle conversation');
+  }
+
+  async function _compact(){
+    if(hist.length<6){add('ac-trace','&#9888; Pas assez de messages (minimum 6).');return;}
+    const banner=add('ac-trace action','&#9203; Compression en cours…');
+    try{
+      await _syncConv({archived:true});
+      const r=await fetch('/agent/compact',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify({role:role,messages:hist})});
+      if(!r.ok)throw new Error('erreur '+r.status);
+      const d=await r.json();const summary=d.summary||'';
+      _convId=_genId();hist=[{role:'assistant',content:'[Contexte r\xe9sum\xe9]\n\n'+summary}];
+      log.innerHTML='';
+      add('ac-msg agent','<div class="ac-md"><div style="opacity:.6;font-size:11px;margin-bottom:6px">&#128203; Contexte de la conversation pr\xe9c\xe9dente</div>'+_mdLite(summary)+'</div>');
+      await _syncConv();banner.remove();
+      add('ac-trace','&#10003; Conversation compress\xe9e — contexte pr\xe9serv\xe9');
+    }catch(e){banner.innerHTML='&#9888; Erreur compression : '+esc(e.message||'');}
+  }
+
+  async function _loadConvPanel(){
+    const panel=document.getElementById('aconvp-'+role);if(!panel)return;
+    panel.innerHTML='<div style="padding:8px 12px;font-size:13px;opacity:.6">Chargement…</div>';
+    const _nc='<button style="width:100%;padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:inherit" id="_nc-'+role+'">+ Nouvelle conversation</button>';
+    if(!_hasAuth){panel.innerHTML='<div style="padding:8px 12px">'+_nc+'<div style="padding:6px 0 0;font-size:12px;opacity:.5">Connectez-vous pour sauvegarder</div></div>';document.getElementById('_nc-'+role).onclick=function(){panel.style.display='none';_newConv();};return;}
+    try{
+      const r=await fetch('/agent/convs?role='+encodeURIComponent(role),{headers:_authHdrs()});
+      if(!r.ok)throw new Error('');
+      const data=await r.json();const convs=data.convs||[];
+      let html='<div style="padding:6px 12px 6px">'+_nc+'</div>';
+      if(!convs.length){html+='<div style="padding:4px 12px 8px;font-size:12px;opacity:.5">Aucune conversation pr\xe9c\xe9dente</div>';}
+      else{convs.forEach(function(c){
+        const active=c.id===_convId;
+        const dt=c.updated_at?new Date(c.updated_at+'Z').toLocaleDateString('fr',{day:'2-digit',month:'2-digit'}):'';
+        html+='<div class="conv-item'+(active?' conv-active':'')+'" data-cid="'+esc(c.id)+'">'
+          +'<div class="conv-title">'+esc(c.title||'Sans titre')+'</div>'
+          +'<div class="conv-meta">'+esc(dt)+' · '+c.message_count+' msg'+(c.archived?' · archiv\xe9e':'')+'</div>'
+          +'</div>';
+      });}
+      panel.innerHTML=html;
+      document.getElementById('_nc-'+role).onclick=function(){panel.style.display='none';_newConv();};
+      panel.querySelectorAll('.conv-item').forEach(function(el){
+        el.onclick=async function(){
+          const id=el.dataset.cid;if(id===_convId){panel.style.display='none';return;}
+          panel.style.display='none';
+          try{const rr=await fetch('/agent/convs/'+encodeURIComponent(id)+'?role='+encodeURIComponent(role),{headers:_authHdrs()});
+            if(!rr.ok)return;const conv=await rr.json();
+            _convId=conv.id;hist=conv.messages||[];log.innerHTML='';
+            hist.forEach(_renderMsg);localStorage.setItem(_AKEY,_convId);
+            add('ac-trace','&#128194; '+esc(conv.title||'Conversation charg\xe9e'));
+          }catch(e){add('ac-trace action','&#9888; Erreur chargement');}
+        };
+      });
+    }catch(e){panel.innerHTML='<div style="padding:10px 12px;font-size:13px;opacity:.5">Erreur chargement</div>';}
+  }
+
+  // Init : charger la conversation active depuis le backend, ou cr\xe9er une nouvelle
+  (async function(){
+    if(!_hasAuth){
+      try{hist=JSON.parse(localStorage.getItem('neogen_chat_'+role)||'[]');}catch(e){hist=[];}
+      hist.forEach(_renderMsg);return;
+    }
+    const saved=localStorage.getItem(_AKEY);
+    if(saved){try{
+      const r=await fetch('/agent/convs/'+encodeURIComponent(saved)+'?role='+encodeURIComponent(role),{headers:_authHdrs()});
+      if(r.ok){const conv=await r.json();_convId=conv.id;hist=conv.messages||[];hist.forEach(_renderMsg);return;}
+    }catch(e){}}
+    _convId=_genId();localStorage.setItem(_AKEY,_convId);
+  })();
+
+  // Bouton conversations
+  const _convBtn=mount.querySelector('#acconvs-'+role);
+  const _convPanel=document.getElementById('aconvp-'+role);
+  if(_convBtn&&_convPanel){_convBtn.onclick=function(){
+    if(_convPanel.style.display==='none'){_convPanel.style.display='block';_loadConvPanel();}
+    else{_convPanel.style.display='none';}
+  };}
+
+  if(clr)clr.onclick=function(){hist=[];log.innerHTML='';if(_hasAuth){_convId=_genId();localStorage.setItem(_AKEY,_convId);}else{try{localStorage.removeItem('neogen_chat_'+role);}catch(e){}}};
   async function envoyer(){
     const msg=(inp.value||'').trim();if(!msg)return;
+    if(msg==='/compat'){inp.value='';await _compact();return;}
     inp.value='';inp.style.height='auto';btn.disabled=true;
     add('ac-msg user',esc(msg));
     let derniereReponse='';let forgeLine=null;
@@ -2370,7 +2479,7 @@ function buildChat(mount){
           else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
         }
       }
-      if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});_save();}
+      if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});_syncConv();if(hist.length===30){setTimeout(function(){add('ac-trace','&#9889; Conversation longue — compression automatique…');_compact();},800);}else if(hist.length>30&&hist.length%10===0){add('ac-trace','&#9889; '+hist.length+' messages — tapez /compat pour compresser');}}
     }catch(e){add('ac-trace action','&#9888; '+errMsg(e));}
     finally{btn.disabled=false;inp.focus();}
   }
@@ -4403,23 +4512,24 @@ var _TUTOS={
   compte:{titre:'Compte',icon:'👤',color:'var(--c-compte)',video:'/static/tutos/compte.mp4',
     etapes:['Configure ton profil — les agents l\'utilisent pour personnaliser leurs réponses',
              'Gère ton abonnement, tes crédits et ton historique de sessions']},
-  analyse:{titre:'Analyse',icon:'📊',color:'var(--c-analyse)',video:'/static/tutos/analyse.mp4',
-    etapes:['Visualise l\'activité en temps réel — requêtes, modèles, coûts, succès',
-             'Identifie les patterns pour optimiser ton usage et piloter ton budget IA']},
+  analyse:{titre:'Dev & Analyse',icon:'📊',color:'var(--c-analyse)',video:'/static/tutos/analyse.mp4',
+    etapes:['Onglet Analyse : visualise les métriques en temps réel — requêtes, modèles, coûts, succès',
+             'Onglet Ingénieur : confie une tâche de code, diagnostique ou répare en direct',
+             'Les deux agents coordonnent pour observer ET améliorer le système']},
   evolution:{titre:'Evolution',icon:'🌱',color:'#10b981',video:'/static/tutos/evolution.mp4',
     etapes:['NEOGEN analyse ses silos de savoir et génère des propositions d\'amélioration',
              'Chaque proposition te revient — tu approuves ou refuses, tu gardes le contrôle',
              'Les évolutions validées s\'intègrent au système en direct, sans redémarrage']},
-  ingenieur:{titre:"L'Ingénieur",icon:'🛠️',color:'#10b981',video:'/static/tutos/ingenieur.mp4',
-    etapes:['Confie une tâche précise — il lit le code, diagnostique et forge une solution',
-             'Les patchs proposés passent par un garde-fou avant toute intégration',
-             'Lance un diagnostic instantané pour voir l\'état complet du système']},
+  marketing:{titre:'Marketing',icon:'🪁',color:'var(--c-marketing)',video:'/static/tutos/marketing.mp4',
+    etapes:['Parle à Mercure — stratégie réseaux, copywriting, campagnes, visuels et vidéos IA',
+             'Utilise Magnific MCP pour générer des images et vidéos directement depuis l\'agent',
+             'NotebookLM synthétise les tendances pour construire tes briefings marketing']},
   integrations:{titre:'Intégrations',icon:'🔌',color:'var(--c-integration)',video:'/static/tutos/integrations.mp4',
     etapes:['Connecte ton modèle IA favori — Anthropic, OpenAI, Gemini, local (Ollama)...',
              'L\'agent RPA automatise des actions réelles sur ton ordinateur',
              'L\'apprentissage continu enregistre tes routines automatiquement']}
 };
-var _TOUR_ORDER=['cerveau','creation','production','evolution','ingenieur','integrations'];
+var _TOUR_ORDER=['cerveau','creation','production','evolution','marketing','integrations'];
 
 function _tutoModal(section,opts){
   opts=opts||{};

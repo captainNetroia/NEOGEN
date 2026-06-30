@@ -81,18 +81,18 @@ def _sidebar() -> str:
     <span id="gen-wallet-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.12);border-radius:99px;padding:1px 8px">0 GEN</span>
   </div>
   <div class="side-item" style="--lc:var(--c-analyse)" onclick="showSection('analyse')" id="side-analyse">
-    <span class="side-dot"></span>Analyse
+    <span class="side-dot"></span>Dev &amp; Analyse
     <span class="side-badge live">live</span>
+    <span id="ing-rebuild-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.14);border-radius:99px;padding:1px 8px">rebuild</span>
   </div>
   <div class="side-item" style="--lc:#10b981" onclick="showSection('evolution')" id="side-evolution">
     <span class="side-dot"></span>Evolution
     <span class="side-badge live">live</span>
     <span id="evo-badge-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);border-radius:99px;padding:1px 8px">0</span>
   </div>
-  <div class="side-item" style="--lc:#10b981" onclick="showSection('ingenieur')" id="side-ingenieur">
-    <span class="side-dot"></span>Ingenieur
+  <div class="side-item" style="--lc:var(--c-marketing)" onclick="showSection('marketing')" id="side-marketing">
+    <span class="side-dot"></span>Marketing
     <span class="side-badge live">live</span>
-    <span id="ing-rebuild-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.14);border-radius:99px;padding:1px 8px">rebuild</span>
   </div>
   <div class="side-item" style="--lc:var(--c-integration)" onclick="showSection('integrations')" id="side-integrations">
     <span class="side-dot"></span>Integrations
@@ -582,25 +582,59 @@ def _section_compte() -> str:
 
 
 def _section_analyse() -> str:
-    return r"""<!-- ANALYSE -->
+    return r"""<!-- DEV & ANALYSE (fusionne Analyse + Ingenieur) -->
 <div id="section-analyse" class="section">
   <div class="sec-header">
-    <h2><span class="sec-dot" style="background:var(--c-analyse)"></span>Analyse</h2>
-    <p>Metriques de production, capacites utilisees, repartition tentatives.</p>
+    <h2><span class="sec-dot" style="background:var(--c-analyse)"></span>Dev &amp; Analyse</h2>
+    <p>Metriques, diagnostics et developpement autonome — observer, mesurer, coder.</p>
   </div>
-  <div class="agent-chat-mount" data-agent="analyste" data-titre="📊 L'Analyste" data-sub="Je lis les metriques, identifie les tendances et propose des optimisations basees sur les donnees reelles."></div>
-  <div class="stat-grid" id="analyse-stats"></div>
-  <div class="panel glass" style="margin-bottom:18px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Auto-amelioration (l'usage nourrit le systeme)</div>
-    <div id="analyse-auto"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+
+  <!-- Onglets -->
+  <div class="prov-tabs" style="margin-bottom:18px">
+    <span class="prov-tab active" data-anlz-tab="analyse" onclick="anlzTab('analyse')">📊 Analyse</span>
+    <span class="prov-tab" data-anlz-tab="ingenieur" onclick="anlzTab('ingenieur')">🛠️ Ingenieur</span>
   </div>
-  <div class="panel glass" style="margin-bottom:18px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Capacites utilisees</div>
-    <div id="analyse-caps"></div>
+
+  <!-- Pane Analyse -->
+  <div data-anlz-pane="analyse">
+    <div class="agent-chat-mount" data-agent="analyste" data-titre="📊 L'Analyste" data-sub="Je lis les metriques, identifie les tendances et propose des optimisations basees sur les donnees reelles."></div>
+    <div class="stat-grid" id="analyse-stats"></div>
+    <div class="panel glass" style="margin-bottom:18px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Auto-amelioration (l'usage nourrit le systeme)</div>
+      <div id="analyse-auto"><div style="color:var(--mut);font-size:13px">Chargement...</div></div>
+    </div>
+    <div class="panel glass" style="margin-bottom:18px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Capacites utilisees</div>
+      <div id="analyse-caps"></div>
+    </div>
+    <div class="panel glass">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Repartition tentatives</div>
+      <div id="analyse-tentatives"></div>
+    </div>
   </div>
-  <div class="panel glass">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Repartition tentatives</div>
-    <div id="analyse-tentatives"></div>
+
+  <!-- Pane Ingenieur -->
+  <div data-anlz-pane="ingenieur" style="display:none">
+    <div id="section-ingenieur">
+      <div class="agent-chat-mount" data-agent="ingenieur" data-titre="🛠️ L'Ingenieur" data-sub="Demande-moi de coder, reparer, diagnostiquer ou rendre une fonction operationnelle. J'agis avec mes outils : je lis le code, je forge, j'ancre, je teste."></div>
+      <div class="panel glass" style="margin-bottom:18px">
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input id="ing-tache-input" placeholder="Confie une tache a l'Ingenieur (ex: archive la capacite obsolete, ajoute telle fonction)..."
+                 style="flex:1;min-width:240px;font-size:13px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(16,185,129,.3);border-radius:10px;color:#e2e8f0">
+          <button id="ing-tache-btn" style="font-size:13px;padding:10px 18px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">Confier</button>
+          <button id="ing-diag-btn" class="ghost" style="font-size:13px;padding:10px 16px">&#128269; Diagnostic instantane</button>
+        </div>
+        <pre id="ing-diag-out" style="display:none;font-size:11px;line-height:1.5;white-space:pre-wrap;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;max-height:300px;overflow:auto;margin:0"></pre>
+      </div>
+      <div class="panel glass">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>
+          Interventions
+        </div>
+        <div style="font-size:11px;opacity:.55;margin-bottom:12px">Patchs de code proposes, autorisations noyau, rebuild requis apres patch de module.</div>
+        <div id="ingenieur-corps" style="font-size:12px">Chargement...</div>
+      </div>
+    </div>
   </div>
 </div>
 """
@@ -1082,6 +1116,114 @@ def _section_evolution() -> str:
 """
 
 
+def _section_marketing() -> str:
+    return r"""<!-- MARKETING -->
+<div id="section-marketing" class="section">
+  <div class="sec-header">
+    <h2><span class="sec-dot" style="background:var(--c-marketing)"></span>Marketing</h2>
+    <p>Strategie, creation de contenu, campagnes et distribution — amplifie ta presence digitale.</p>
+  </div>
+
+  <!-- Agent Mercure -->
+  <div class="agent-chat-mount" data-agent="marketeur" data-titre="🪁 Mercure" data-sub="Strategie reseaux, copywriting, visuels, campagnes, analyse de performance — dis-moi ta cible et ton objectif."></div>
+
+  <!-- Plateformes Reseaux Sociaux -->
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Reseaux Sociaux</div>
+    <div class="mkt-platform-grid">
+      <div class="mkt-platform-card" style="--pc:#e1306c"><span>📸</span><b>Instagram</b><span class="mkt-tag">Stories · Reels · Posts</span></div>
+      <div class="mkt-platform-card" style="--pc:#1877f2"><span>📘</span><b>Facebook / Meta</b><span class="mkt-tag">Ads · Pages · Groupes</span></div>
+      <div class="mkt-platform-card" style="--pc:#0a66c2"><span>💼</span><b>LinkedIn</b><span class="mkt-tag">B2B · Articles · Ads</span></div>
+      <div class="mkt-platform-card" style="--pc:#1da1f2"><span>🐦</span><b>X / Twitter</b><span class="mkt-tag">Threads · Tendances</span></div>
+      <div class="mkt-platform-card" style="--pc:#ff0050"><span>🎵</span><b>TikTok</b><span class="mkt-tag">UGC · Tendances · Ads</span></div>
+      <div class="mkt-platform-card" style="--pc:#ff0000"><span>▶️</span><b>YouTube</b><span class="mkt-tag">Shorts · Videos · SEO</span></div>
+      <div class="mkt-platform-card" style="--pc:#e60023"><span>📌</span><b>Pinterest</b><span class="mkt-tag">Visuels · Trafic</span></div>
+      <div class="mkt-platform-card" style="--pc:#25d366"><span>💬</span><b>WhatsApp / SMS</b><span class="mkt-tag">Broadcast · CRM</span></div>
+    </div>
+  </div>
+
+  <!-- Creation Visuelle & Video -->
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Creation Image &amp; Video</div>
+    <div class="mkt-platform-grid">
+      <div class="mkt-platform-card mkt-available" style="--pc:#f97316" title="MCP disponible dans NEOGEN"><span>✨</span><b>Magnific</b><span class="mkt-tag">MCP actif · Images &amp; Videos IA</span></div>
+      <div class="mkt-platform-card" style="--pc:#a855f7"><span>🎨</span><b>Midjourney</b><span class="mkt-tag">Illustrations · Concepts</span></div>
+      <div class="mkt-platform-card" style="--pc:#10b981"><span>🖼️</span><b>DALL-E / GPT-4o</b><span class="mkt-tag">Images OpenAI</span></div>
+      <div class="mkt-platform-card" style="--pc:#ef4444"><span>🎬</span><b>Runway</b><span class="mkt-tag">Video IA Gen-3</span></div>
+      <div class="mkt-platform-card" style="--pc:#3b82f6"><span>🎥</span><b>Pika Labs</b><span class="mkt-tag">Video courte IA</span></div>
+      <div class="mkt-platform-card" style="--pc:#f59e0b"><span>🖌️</span><b>Canva</b><span class="mkt-tag">Design templates</span></div>
+      <div class="mkt-platform-card" style="--pc:#ec4899"><span>🎭</span><b>HeyGen</b><span class="mkt-tag">Avatar video IA</span></div>
+      <div class="mkt-platform-card" style="--pc:#6366f1"><span>🔊</span><b>ElevenLabs</b><span class="mkt-tag">Voix IA · Podcasts</span></div>
+    </div>
+  </div>
+
+  <!-- MCP & Integrations Recommandees -->
+  <div class="panel glass" style="margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">MCP &amp; Plugins Recommandes</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="mkt-mcp-card mkt-available">
+        <span style="font-size:20px">✨</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">Magnific MCP <span class="mkt-badge-ok">Disponible</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Generation d'images, upscale, videos, voix — directement depuis ton agent Mercure.</div>
+        </div>
+      </div>
+      <div class="mkt-mcp-card mkt-available">
+        <span style="font-size:20px">📓</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">NotebookLM MCP <span class="mkt-badge-ok">Disponible</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Recherche approfondie, synthese de tendances, briefings marketing construits sur des sources reelles.</div>
+        </div>
+      </div>
+      <div class="mkt-mcp-card">
+        <span style="font-size:20px">⚡</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">n8n Workflows <span class="mkt-badge">Recommande</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Automatise la publication multi-plateforme : cree ton contenu dans NEOGEN, publie en automatique via n8n.</div>
+        </div>
+      </div>
+      <div class="mkt-mcp-card">
+        <span style="font-size:20px">📊</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">Meta Business MCP <span class="mkt-badge">A installer</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Gestion des campagnes Meta Ads, statistiques et audiences directement depuis ton agent.</div>
+        </div>
+      </div>
+      <div class="mkt-mcp-card">
+        <span style="font-size:20px">🔍</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">Google Analytics MCP <span class="mkt-badge">A installer</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Tes metriques GA4 accessibles directement dans la conversation avec Mercure.</div>
+        </div>
+      </div>
+      <div class="mkt-mcp-card">
+        <span style="font-size:20px">📧</span>
+        <div>
+          <div style="font-weight:600;font-size:14px">Brevo / Mailchimp MCP <span class="mkt-badge">A installer</span></div>
+          <div style="font-size:12px;opacity:.65;margin-top:2px">Campagnes email et newsletters pilotees depuis NEOGEN.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Outils Marketing Essentiels -->
+  <div class="panel glass">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Outils Essentiels</div>
+    <div class="mkt-platform-grid">
+      <div class="mkt-platform-card" style="--pc:#f97316"><span>📈</span><b>Google Analytics 4</b><span class="mkt-tag">Trafic · Conversions</span></div>
+      <div class="mkt-platform-card" style="--pc:#4285f4"><span>🔍</span><b>Google Ads</b><span class="mkt-tag">SEA · Display</span></div>
+      <div class="mkt-platform-card" style="--pc:#007bff"><span>📧</span><b>Brevo</b><span class="mkt-tag">Email · SMS · Automation</span></div>
+      <div class="mkt-platform-card" style="--pc:#ffe01b"><span>📨</span><b>Mailchimp</b><span class="mkt-tag">Email Marketing</span></div>
+      <div class="mkt-platform-card" style="--pc:#ff6550"><span>📐</span><b>Semrush</b><span class="mkt-tag">SEO · Mots-cles</span></div>
+      <div class="mkt-platform-card" style="--pc:#10b981"><span>🔗</span><b>Buffer</b><span class="mkt-tag">Planificateur social</span></div>
+      <div class="mkt-platform-card" style="--pc:#6366f1"><span>📅</span><b>Hootsuite</b><span class="mkt-tag">Gestion reseaux</span></div>
+      <div class="mkt-platform-card" style="--pc:#a855f7"><span>🎯</span><b>Meta Pixel</b><span class="mkt-tag">Retargeting · ROI</span></div>
+    </div>
+  </div>
+</div>
+"""
+
+
 def _section_ingenieur() -> str:
     return r"""
 <div id="section-ingenieur" class="section">
@@ -1125,7 +1267,7 @@ PAGE = (
     + _section_compte()
     + _section_analyse()
     + _section_evolution()
-    + _section_ingenieur()
+    + _section_marketing()
     + _section_integrations()
     + _modals()
     + _section_don()
@@ -1141,6 +1283,7 @@ _ANCRES_ZONES = {
     "production":  '<div id="section-production" class="section">',
     "compte":      '<div id="section-compte" class="section">',
     "analyse":     '<div id="section-analyse" class="section">',
+    "marketing":   '<div id="section-marketing" class="section">',
     "evolution":   '<div id="section-evolution" class="section">',
     "integrations": '<div id="section-integrations" class="section">',
 }

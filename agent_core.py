@@ -281,6 +281,29 @@ PROFILS: dict[str, dict] = {
             "fonctionnel et plus coherent — c'est ta mission."
         ),
     },
+    "marketeur": {
+        "titre": "Mercure",
+        "tier": "fort",
+        "delegue": False,
+        "outils": [
+            "conseiller", "discerner", "rappeler", "memoriser",
+            "lire_fichier", "creer_rapport", "proposer_conversation",
+            "lister_skills", "utiliser_skill", "creer_skill", "integration",
+        ],
+        "role": (
+            "Tu es MERCURE, le strategiste marketing et creatif de NEOGEN. "
+            "Tu aides a planifier, creer et distribuer du contenu a fort impact : "
+            "strategie reseaux sociaux, copywriting, visuels, videos, campagnes publicitaires. "
+            "Tu connais les outils IA de creation (Magnific, DALL-E, Runway, Canva) et les plateformes "
+            "digitales (Meta Ads, LinkedIn, X/Twitter, TikTok, YouTube, Instagram, Pinterest). "
+            "Tu combines creativite et data : tu pars des objectifs business, tu cibles les bonnes "
+            "audiences, tu optimises les messages pour chaque canal. "
+            "REGLE SKILLS : avant toute tache concrete (rediger, planifier, analyser, creer), "
+            "verifie via lister_skills si un skill existe — invoque utiliser_skill si oui. "
+            "Propose d'en cristalliser un nouveau si manquant. "
+            "Dis-moi ta cible, ton message, ton canal et ton objectif : je te guide vers le resultat."
+        ),
+    },
     "veilleur": {
         "titre": "Le Veilleur",
         "tier": "moyen",
@@ -339,6 +362,8 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent", "explorer_graphe", "scanner_tensions", "remonter_alerte", "sante_appli", "coherence_appli"],
     "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "resoudre_objectif", "appeler_agent", "explorer_graphe", "rever", "scanner_tensions", "remonter_alerte"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],
+    "marketing":    ["conseiller", "discerner", "rappeler", "memoriser", "lire_fichier", "creer_rapport",
+                     "lister_skills", "utiliser_skill", "creer_skill", "integration", "proposer_conversation"],
 }
 
 _SECTION_KEYWORDS = {
@@ -349,6 +374,7 @@ _SECTION_KEYWORDS = {
     "analyse":      ("analyste", "analyse", "metrique", "statistique", "pattern"),
     "evolution":    ("architecte", "evolution", "store", "noyau", "gouverne", "changement"),
     "integrations": ("connecteur", "integration", "provider", "api", "fournisseur"),
+    "marketing":    ("marketeur", "mercure", "marketing", "social", "reseau", "campagne", "contenu", "publicite"),
 }
 
 
