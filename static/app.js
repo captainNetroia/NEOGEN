@@ -4386,6 +4386,142 @@ function _isInactive(){
    1: Bienvenue · 2: Presentation · 3: Compte+API · 4: Plans
 =================================================================== */
 
+/* ===== SYSTEME TUTORIAL (modal ? + tour guide) ===== */
+var _TUTOS={
+  cerveau:{titre:'Le Cerveau',icon:'🧠',color:'#a855f7',video:'/static/tutos/cerveau.mp4',
+    etapes:['Parle en langage naturel — le Cerveau comprend, délègue et synthétise',
+             'Tes skills et ta mémoire sont utilisés automatiquement à chaque échange',
+             'Crée des tâches autonomes — l\'agent agit seul selon le planning que tu fixes']},
+  creation:{titre:'Création',icon:'✨',color:'var(--c-creation)',video:'/static/tutos/creation.mp4',
+    etapes:['Décris ce que tu veux créer — texte, image, rapport, script...',
+             'NEOGEN génère avec le modèle IA que tu as configuré dans Intégrations',
+             'Chaque résultat est archivé dans Production pour y revenir ou déployer']},
+  production:{titre:'Production',icon:'📦',color:'var(--c-production)',video:'/static/tutos/production.mp4',
+    etapes:['Retrouve toutes tes créations — filtre par actives, toutes ou archivées',
+             'Déploie directement sur ton domaine Hostinger en un clic',
+             'Chaque fichier est versionné et téléchargeable à tout moment']},
+  compte:{titre:'Compte',icon:'👤',color:'var(--c-compte)',video:'/static/tutos/compte.mp4',
+    etapes:['Configure ton profil — les agents l\'utilisent pour personnaliser leurs réponses',
+             'Gère ton abonnement, tes crédits et ton historique de sessions']},
+  analyse:{titre:'Analyse',icon:'📊',color:'var(--c-analyse)',video:'/static/tutos/analyse.mp4',
+    etapes:['Visualise l\'activité en temps réel — requêtes, modèles, coûts, succès',
+             'Identifie les patterns pour optimiser ton usage et piloter ton budget IA']},
+  evolution:{titre:'Evolution',icon:'🌱',color:'#10b981',video:'/static/tutos/evolution.mp4',
+    etapes:['NEOGEN analyse ses silos de savoir et génère des propositions d\'amélioration',
+             'Chaque proposition te revient — tu approuves ou refuses, tu gardes le contrôle',
+             'Les évolutions validées s\'intègrent au système en direct, sans redémarrage']},
+  ingenieur:{titre:"L'Ingénieur",icon:'🛠️',color:'#10b981',video:'/static/tutos/ingenieur.mp4',
+    etapes:['Confie une tâche précise — il lit le code, diagnostique et forge une solution',
+             'Les patchs proposés passent par un garde-fou avant toute intégration',
+             'Lance un diagnostic instantané pour voir l\'état complet du système']},
+  integrations:{titre:'Intégrations',icon:'🔌',color:'var(--c-integration)',video:'/static/tutos/integrations.mp4',
+    etapes:['Connecte ton modèle IA favori — Anthropic, OpenAI, Gemini, local (Ollama)...',
+             'L\'agent RPA automatise des actions réelles sur ton ordinateur',
+             'L\'apprentissage continu enregistre tes routines automatiquement']}
+};
+var _TOUR_ORDER=['cerveau','creation','production','evolution','ingenieur','integrations'];
+
+function _tutoModal(section,opts){
+  opts=opts||{};
+  var t=_TUTOS[section];if(!t)return;
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(4,8,12,.96);display:flex;align-items:center;justify-content:center;padding:20px;animation:_fIn .18s ease';
+  var box=document.createElement('div');
+  box.style.cssText='background:rgba(10,18,30,.98);border:1px solid rgba(255,255,255,.1);border-radius:20px;width:min(560px,96vw);max-height:88vh;overflow-y:auto;padding:28px;position:relative';
+
+  /* barre de progression tour */
+  var progHtml='';
+  if(opts.tourMode&&opts.total>1){
+    progHtml='<div style="display:flex;gap:5px;justify-content:center;margin-bottom:22px">'
+      +Array.from({length:opts.total},function(_,i){
+        return '<div style="width:32px;height:3px;border-radius:99px;background:'+(i===opts.current?t.color||'#00ff41':'rgba(255,255,255,.12)')+'"></div>';
+      }).join('')+'</div>';
+  }
+
+  /* video + placeholder */
+  var vid='<div style="position:relative;border-radius:12px;overflow:hidden;background:#050d15;margin-bottom:22px;aspect-ratio:16/9">'
+    +'<video id="ng-tvid" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .3s">'
+    +'<source src="'+t.video+'" type="video/mp4"></video>'
+    +'<div id="ng-tph" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:rgba(255,255,255,.25);text-align:center;pointer-events:none">'
+    +'<div style="font-size:40px">🎬</div>'
+    +'<div style="font-size:13px;line-height:1.5">Vidéo en cours de production<br><span style="font-size:11px;opacity:.6">Les étapes ci-dessous résument tout</span></div>'
+    +'</div></div>';
+
+  /* étapes numérotées */
+  var steps='<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:26px">'
+    +t.etapes.map(function(e,i){
+      return '<div style="display:flex;gap:12px;align-items:flex-start">'
+        +'<div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;background:rgba(0,255,65,.1);border:1px solid rgba(0,255,65,.28);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#00ff41;margin-top:1px">'+(i+1)+'</div>'
+        +'<div style="font-size:14px;color:rgba(255,255,255,.82);line-height:1.55">'+e+'</div>'
+        +'</div>';
+    }).join('')+'</div>';
+
+  /* boutons */
+  var isLast=opts.tourMode&&(opts.current===opts.total-1);
+  var nav='<div style="display:flex;gap:8px">';
+  if(opts.tourMode){
+    nav+='<button id="ng-tskip" style="flex:1;background:transparent;border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.35);border-radius:10px;padding:11px;font-size:13px;cursor:pointer;font-family:inherit">Passer le tour</button>';
+    if(opts.current>0)nav+='<button id="ng-tprev" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);border-radius:10px;padding:11px 16px;font-size:13px;cursor:pointer;font-family:inherit">← Retour</button>';
+    nav+='<button id="ng-tnext" style="flex:2;background:rgba(0,255,65,.1);border:1px solid rgba(0,255,65,.4);color:#00ff41;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'+(isLast?'Terminer ✓':'Suivant →')+'</button>';
+  }else{
+    nav+='<button id="ng-tclose" style="width:100%;background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.35);color:#00ff41;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Compris ✓</button>';
+  }
+  nav+='</div>';
+
+  box.innerHTML=progHtml
+    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
+    +'<div style="font-size:28px;line-height:1">'+t.icon+'</div>'
+    +'<div><div style="font-size:18px;font-weight:800;color:#fff">'+t.titre+'</div>'
+    +(opts.tourMode?'<div style="font-size:12px;color:rgba(255,255,255,.3);margin-top:2px">Étape '+(opts.current+1)+' / '+opts.total+'</div>':'')
+    +'</div></div>'
+    +vid+steps+nav;
+  ov.appendChild(box);document.body.appendChild(ov);
+
+  /* video canplay -> fade in, masque placeholder */
+  var v=box.querySelector('#ng-tvid'),ph=box.querySelector('#ng-tph');
+  if(v){
+    v.addEventListener('canplay',function(){v.style.opacity='1';if(ph)ph.style.display='none';},{once:true});
+    v.load();
+  }
+
+  function _rm(){ov.remove();}
+  var bc=box.querySelector('#ng-tclose');if(bc)bc.onclick=_rm;
+  var bs=box.querySelector('#ng-tskip');if(bs)bs.onclick=function(){localStorage.setItem('neogen_tour_done','1');_rm();};
+  var bn=box.querySelector('#ng-tnext');if(bn)bn.onclick=function(){_rm();if(opts.onNext)opts.onNext();else{localStorage.setItem('neogen_tour_done','1');}};
+  var bp=box.querySelector('#ng-tprev');if(bp)bp.onclick=function(){_rm();if(opts.onPrev)opts.onPrev();};
+  ov.addEventListener('click',function(e){if(e.target===ov)_rm();});
+}
+
+function showTuto(section){_tutoModal(section,{tourMode:false});}
+
+function _startTour(){
+  if(localStorage.getItem('neogen_tour_done'))return;
+  var secs=_TOUR_ORDER;
+  function go(i){
+    if(i>=secs.length){localStorage.setItem('neogen_tour_done','1');return;}
+    _tutoModal(secs[i],{tourMode:true,current:i,total:secs.length,
+      onNext:function(){go(i+1);},
+      onPrev:i>0?function(){go(i-1);}:null});
+  }
+  go(0);
+}
+
+/* Injection des boutons ? dans chaque section */
+document.addEventListener('DOMContentLoaded',function(){
+  Object.keys(_TUTOS).forEach(function(sec){
+    var el=document.getElementById('section-'+sec);if(!el)return;
+    var hdr=el.querySelector('.sec-header');if(!hdr)return;
+    hdr.style.position='relative';
+    var btn=document.createElement('button');
+    btn.className='ghost';btn.title='Comment ça marche ?';btn.textContent='?';
+    btn.style.cssText='position:absolute;top:0;right:0;width:30px;height:30px;padding:0;font-size:14px;font-weight:800;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.55;transition:opacity .15s;font-family:inherit';
+    btn.onmouseenter=function(){this.style.opacity='1';};
+    btn.onmouseleave=function(){this.style.opacity='.55';};
+    btn.onclick=function(){showTuto(sec);};
+    hdr.appendChild(btn);
+  });
+});
+
 async function _checkOnboarding(){
   if(_authToken()&&_isInactive()){localStorage.removeItem('neogen_auth_token');}
   if(!_authToken()){_showOnboardingOverlay(1);return;}
@@ -4393,6 +4529,8 @@ async function _checkOnboarding(){
   if(!user){localStorage.removeItem('neogen_auth_token');_showOnboardingOverlay(1);return;}
   if(!user.profil_complet){_showOnboardingOverlay(2,user);return;}
   if(!localStorage.getItem('neogen_ob_done')){_showOnboardingOverlay(4,user);return;}
+  /* utilisateur completement onboarde -> tour guide si jamais vu */
+  setTimeout(_startTour,600);
 }
 
 /* -- Canvas pluie Matrix ----------------------------------------- */
@@ -4746,6 +4884,7 @@ function _obPlans(box,overlay,stopMatrix){
   d.querySelector('#ob-freemium').onclick=function(){
     localStorage.setItem('neogen_ob_done','1');
     stopMatrix();overlay.remove();loadCompte();
+    setTimeout(_startTour,500);
   };
 }
 
