@@ -260,6 +260,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
                       x_llm_key: str | None = Header(default=None),
                       x_llm_base: str | None = Header(default=None),
                       x_llm_eco: str | None = Header(default=None),
+                      x_eclair: str | None = Header(default=None),
                       authorization: str | None = Header(default=None)):
     import queue, threading
     from sanitizer import nettoyer
@@ -272,6 +273,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
     _ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
     _exiger_byok(_ctx)
     _eco = str(x_llm_eco or "").strip() in ("1", "true", "True", "on")
+    _mode_eclair = str(x_eclair or "1").strip() in ("1", "true", "True", "on")
     _user = _auth(authorization)
     hist = [{"role": m.role, "content": m.content} for m in demande.historique]
 
@@ -313,7 +315,7 @@ def agent_chat_stream(role: str, demande: DemandeChat,
                     msg = f"{prefix}\n\n{msg}".strip() if msg.strip() else prefix
                 except Exception as _e_fic:
                     msg = f"[Fichier joint : {demande.fichier_nom} — lecture echouee : {_e_fic}]\n\n{msg}".strip()
-            dialoguer(role, msg, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user)
+            dialoguer(role, msg, historique=hist, ctx=_ctx, emit=emit, eco=_eco, user=_user, mode_eclair=_mode_eclair)
         except Exception as e:
             file_evts.put({"type": "erreur", "message": nettoyer(str(e))})
         finally:

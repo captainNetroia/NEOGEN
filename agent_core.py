@@ -737,7 +737,8 @@ def _parse_step(txt: str) -> AgentStep:
 
 def dialoguer(role: str, message: str, historique: list[dict] | None = None,
               ctx=None, emit: Callable[[dict], None] | None = None,
-              _client=None, _profondeur: int = 0, eco: bool = False, user=None) -> str:
+              _client=None, _profondeur: int = 0, eco: bool = False, user=None,
+              mode_eclair: bool = True) -> str:
     """
     Fait avancer un agent jusqu'a une reponse. Retourne la reponse finale (str).
     - role : cle de PROFILS (cerveau/createur/genealogiste/secretaire)
@@ -804,8 +805,8 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if len(messages) > MAX_MESSAGES_BOUCLE:
             messages = messages[:1] + messages[-(MAX_MESSAGES_BOUCLE - 1):]
         try:
-            res = cl.messages.create(system=systeme, messages=eclair.compresser_messages(messages),
-                                     max_tokens=4000)
+            _msgs_api = eclair.compresser_messages(messages) if mode_eclair else messages
+            res = cl.messages.create(system=systeme, messages=_msgs_api, max_tokens=4000)
             step = _parse_step(_texte_de(res))
         except Exception as e:
             msg = nettoyer(f"Le modele n'a pas pu repondre : {e}")
@@ -817,7 +818,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             # Verifie la derive seulement avant une ACTION (outil) : la pensee finale de
             # synthese (sans outil) n'a structurellement pas le vocabulaire de l'ancre
             # (c'est un resume, pas une reformulation du sujet) -> faux positif systematique.
-            if step.outil:
+            if step.outil and mode_eclair:
                 _derive = ancre_divergence.verifier(message, step.pensee)
                 if _derive["derive"]:
                     _eu_derive = True
@@ -827,7 +828,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if not step.outil:
             reponse = nettoyer(step.reponse or step.pensee or "")
             _emit({"type": "reponse", "agent": role, "texte": reponse})
-            if _eu_derive:
+            if _eu_derive and mode_eclair:
                 _emit({"type": "audit", "agent": role,
                        "texte": audit_eclair.auditer(messages, reponse)})
             if _profondeur == 0 and _outils_reussis:

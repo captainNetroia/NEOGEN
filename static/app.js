@@ -888,6 +888,48 @@ $('#btn-openlegi').onclick=async()=>{
 function _authToken(){return localStorage.getItem('neogen_auth_token');}
 function _authHdrs(){const t=_authToken();return t?{'Authorization':'Bearer '+t}:{};}
 
+/* Masonry : positionne les cartes absolument pour supprimer les vides entre lignes. */
+function _attachDetailsToggle(id,colW,gap){
+  var c=document.getElementById(id);
+  if(!c)return;
+  c.querySelectorAll('details').forEach(function(det){
+    if(det.dataset.masonryBound)return;
+    det.dataset.masonryBound='1';
+    det.addEventListener('toggle',function(){
+      requestAnimationFrame(function(){_applyMasonry(id,colW||350,gap||8);});
+    });
+  });
+}
+
+function _applyMasonry(id,colW,gap){
+  colW=colW||215;gap=gap||8;
+  var c=document.getElementById(id);
+  if(!c)return;
+  var items=Array.from(c.children).filter(function(el){return el.style.display!=='none';});
+  if(!items.length){c.style.height='';return;}
+  var totalW=c.clientWidth;
+  if(!totalW)return;
+  var numCols=Math.max(1,Math.floor((totalW+gap)/(colW+gap)));
+  var aColW=Math.floor((totalW-(numCols-1)*gap)/numCols);
+  c.style.position='relative';
+  c.style.display='block';
+  var colH=new Array(numCols).fill(0);
+  items.forEach(function(el){
+    if(el.classList&&el.classList.contains('pensee-groupe-header')){
+      var maxH=Math.max.apply(null,colH);
+      el.style.position='absolute';el.style.left='0';el.style.top=maxH+'px';el.style.width=totalW+'px';
+      var h=el.offsetHeight+gap;
+      for(var i=0;i<numCols;i++)colH[i]=maxH+h;
+    }else{
+      var min=Math.min.apply(null,colH);var col=colH.indexOf(min);
+      el.style.position='absolute';el.style.left=(col*(aColW+gap))+'px';el.style.top=colH[col]+'px';
+      el.style.width=aColW+'px';el.style.boxSizing='border-box';
+      colH[col]+=el.offsetHeight+gap;
+    }
+  });
+  c.style.height=Math.max.apply(null,colH)+'px';
+}
+
 /* Gateway helper : ajoute provider/modele/cle ACTIFS aux en-tetes de production.
    La cle vit cote client (localStorage) ; le backend la consomme par requete, jamais persistee. */
 function _llmHdrs(extra){
@@ -900,7 +942,8 @@ function _llmHdrs(extra){
     if(p==='local'){ if(k)h['X-LLM-Base']=k; }   /* pour local, le champ porte l'URL de base */
     else if(k){ h['X-LLM-Key']=k; }
   }
-  if(localStorage.getItem('neogen_eco')!=='0')h['X-LLM-Eco']='1';   /* mode economie ACTIF par defaut (intelligent) */
+  if(localStorage.getItem('neogen_eco')!=='0')h['X-LLM-Eco']='1';
+  if(localStorage.getItem('neogen_eclair')!=='0')h['X-ECLAIR']='1';
   var _t=(typeof _authToken==='function')?_authToken():null;
   if(_t)h['Authorization']='Bearer '+_t;   /* identifie l'utilisateur pour les quotas */
   return h;
@@ -2262,6 +2305,7 @@ function buildChat(mount){
     +'<label class="eco-toggle" id="aceco-'+role+'" title="Mode economie : choisit le modele le plus econome selon ta demande (moins de tokens)">'
     +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
     +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">&#128203;</button>'
+    +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte + détection de dérive (réduit le coût sur les longues conversations)"><input type="checkbox" id="eclrcb-'+role+'"><span>&#9889; ÉCLAIR</span></label>'
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
     +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
@@ -2342,9 +2386,15 @@ function buildChat(mount){
     for(var i=0;i<items.length;i++){if(items[i].type.startsWith('image/')){_addImg(items[i].getAsFile());}}
   });
   if(ecocb){
-    ecocb.checked=localStorage.getItem('neogen_eco')!=='0';   /* actif par defaut */
+    ecocb.checked=localStorage.getItem('neogen_eco')!=='0';
     ecocb.onchange=function(){localStorage.setItem('neogen_eco',this.checked?'1':'0');
       document.querySelectorAll('[id^="ececb-"]').forEach(function(c){c.checked=ecocb.checked;});};
+  }
+  const eclrcb=mount.querySelector('#eclrcb-'+role);
+  if(eclrcb){
+    eclrcb.checked=localStorage.getItem('neogen_eclair')!=='0';
+    eclrcb.onchange=function(){localStorage.setItem('neogen_eclair',this.checked?'1':'0');
+      document.querySelectorAll('[id^="eclrcb-"]').forEach(function(c){c.checked=eclrcb.checked;});};
   }
   // ── Conversations multi-tours ────────────────────────────────────────────────
   let hist=[];
@@ -2391,7 +2441,7 @@ function buildChat(mount){
   async function _loadConvPanel(){
     const panel=document.getElementById('aconvp-'+role);if(!panel)return;
     panel.innerHTML='<div style="padding:8px 12px;font-size:13px;opacity:.6">Chargement…</div>';
-    const _nc='<button style="width:100%;padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:inherit" id="_nc-'+role+'">+ Nouvelle conversation</button>';
+    const _nc='<button style="width:100%;padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:inherit" id="_nc-'+role+'">&#9998; Nouvelle conversation</button>';
     if(!_hasAuth){panel.innerHTML='<div style="padding:8px 12px">'+_nc+'<div style="padding:6px 0 0;font-size:12px;opacity:.5">Connectez-vous pour sauvegarder</div></div>';document.getElementById('_nc-'+role).onclick=function(){panel.style.display='none';_newConv();};return;}
     try{
       const r=await fetch('/agent/convs?role='+encodeURIComponent(role),{headers:_authHdrs()});
@@ -2477,6 +2527,8 @@ function buildChat(mount){
           else if(evt.type==='reponse'){var _rt=evt.texte||'';var _isStep=_rt.trimStart().startsWith('{')&&['"outil"','"pensee"','"arguments"'].filter(function(k){return _rt.includes(k);}).length>=2;if(_isStep){add('ac-trace action','&#9888; Reponse illisible (petit modele). Reformule ta demande.');}else{derniereReponse=_rt;if(_rt)add('ac-msg agent','<div class="ac-md">'+_mdLite(_rt)+'</div>');}}
 
           else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
+          else if(evt.type==='derive'){add('ac-trace','&#9889; Mode ÉCLAIR — dérive détectée (score '+esc(String(evt.score||''))+') : recadrage appliqué');}
+          else if(evt.type==='audit'){add('ac-trace','&#128203; AUDIT ÉCLAIR\n'+esc(evt.texte||''));}
         }
       }
       if(derniereReponse){hist.push({role:'user',content:msg});hist.push({role:'assistant',content:derniereReponse});_syncConv();if(hist.length===30){setTimeout(function(){add('ac-trace','&#9889; Conversation longue — compression automatique…');_compact();},800);}else if(hist.length>30&&hist.length%10===0){add('ac-trace','&#9889; '+hist.length+' messages — tapez /compat pour compresser');}}
@@ -3280,6 +3332,12 @@ async function loadPenseesConfig(){
     }catch(e){if(st){st.style.display='';st.textContent='Erreur : '+esc(e.message);}}
   }
   ['pensee-mode','pensee-intervalle','pensee-actif'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('change',saveCfg);});
+  var _peclair=document.getElementById('pensee-eclrcb');
+  if(_peclair){
+    _peclair.checked=localStorage.getItem('neogen_eclair')!=='0';
+    _peclair.onchange=function(){localStorage.setItem('neogen_eclair',this.checked?'1':'0');
+      document.querySelectorAll('[id^="eclrcb-"]').forEach(function(c){c.checked=_peclair.checked;});};
+  }
   async function lancerCycle(sujet,btn,label){
     btn.disabled=true;btn.textContent='Pensee en cours...';
     try{
@@ -3394,6 +3452,8 @@ function _renderPenseesList(){
     }
   }
   if(_filtrePenseesCourant&&_filtrePenseesCourant!=='tous')filtrerPensees(_filtrePenseesCourant);
+  else requestAnimationFrame(function(){_applyMasonry('pensee-list',350,8);_attachDetailsToggle('pensee-list',350,8);});
+
 }
 
 function _renderPensee(p){
@@ -3471,6 +3531,7 @@ function filtrerPensees(filtre){
   });
   var container=document.getElementById('pensee-list');
   if(!container)return;
+  container.scrollTop=0;
   // Masquer/afficher aussi les separateurs de groupe
   container.querySelectorAll('.pensee-groupe-header').forEach(function(h){h.style.display='none';});
   var cartes=container.querySelectorAll('[data-etat]');
@@ -3499,6 +3560,7 @@ function filtrerPensees(filtre){
   });
   var counter=document.getElementById('pensee-count');
   if(counter)counter.textContent=nb+' pensee'+(nb>1?'s':'')+' ('+(filtre==='tous'?'toutes':filtre)+')';
+  requestAnimationFrame(function(){_applyMasonry('pensee-list',350,8);_attachDetailsToggle('pensee-list',350,8);});
 }
 
 function filtrerProduits(filtre){
@@ -3523,13 +3585,13 @@ function filtrerPenseesType(type){
   });
   var container=document.getElementById('pensee-list');
   if(!container)return;
+  container.scrollTop=0;
   // Masquer/afficher cartes selon le type
   container.querySelectorAll('.pensee-groupe-header').forEach(function(h){
     h.style.display=(type==='tous'||h.dataset.groupe===type)?'':'none';
   });
   container.querySelectorAll('[data-ptype]').forEach(function(c){
     if(type==='tous'){
-      // Réappliquer le filtre de statut
       var et=c.dataset.etat||'';
       var f=_filtrePenseesCourant;
       var vis=f==='tous'?(et!=='archivee'):f==='pris-en-vie'?(et==='actif'||et==='generee'):f==='bulle'?(c.dataset.bulle==='1'&&et!=='archivee'):(et===f);
@@ -3538,6 +3600,7 @@ function filtrerPenseesType(type){
       c.style.display=(c.dataset.ptype===type)?'':'none';
     }
   });
+  requestAnimationFrame(function(){_applyMasonry('pensee-list',350,8);_attachDetailsToggle('pensee-list',350,8);});
 }
 
 var _filtreChangelogCourant='tous';
@@ -3554,6 +3617,7 @@ function filtrerChangelog(type){
   c.querySelectorAll('[data-ctype]').forEach(function(el){
     el.style.display=(type==='tous'||el.dataset.ctype===type)?'':'none';
   });
+  requestAnimationFrame(function(){_applyMasonry('evo-changelog',215,8);});
 }
 
 function archiverPensee(id,btn){
@@ -4056,6 +4120,7 @@ async function loadEvolutionChangelog(){
         el.style.display='none';
       c.appendChild(el);
     }
+    requestAnimationFrame(function(){_applyMasonry('evo-changelog',215,8);});
   }catch(e){}
 }
 
@@ -4163,6 +4228,7 @@ async function loadEvolutionCellules(){
       el.appendChild(det);
       c.appendChild(el);
     }
+    requestAnimationFrame(function(){_applyMasonry('evo-cellules',215,8);});
   }catch(e){}
 }
 
@@ -4602,7 +4668,8 @@ function _tutoModal(section,opts){
   ov.addEventListener('click',function(e){if(e.target===ov)_rm();});
 }
 
-function showTuto(section){_tutoModal(section,{tourMode:false});}
+var _AGENT_TUTO={createur:'creation',analyste:'analyse',marketeur:'marketing',connecteur:'integrations',genealogiste:'evolution',secretaire:'compte',ingenieur:'analyse',architecte:'evolution'};
+function showTuto(section){_tutoModal(_AGENT_TUTO[section]||section||'cerveau',{tourMode:false});}
 
 function _startTour(){
   if(localStorage.getItem('neogen_tour_done'))return;
@@ -4624,9 +4691,9 @@ document.addEventListener('DOMContentLoaded',function(){
     hdr.style.position='relative';
     var btn=document.createElement('button');
     btn.className='ghost';btn.title='Comment ça marche ?';btn.textContent='?';
-    btn.style.cssText='position:absolute;top:0;right:0;width:30px;height:30px;padding:0;font-size:14px;font-weight:800;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.55;transition:opacity .15s;font-family:inherit';
-    btn.onmouseenter=function(){this.style.opacity='1';};
-    btn.onmouseleave=function(){this.style.opacity='.55';};
+    btn.style.cssText='position:absolute;top:4px;right:4px;width:32px;height:32px;padding:0;font-size:14px;font-weight:800;border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:.85;transition:all .15s;font-family:inherit;border:1px solid rgba(0,255,65,.35);color:var(--acc);background:rgba(0,255,65,.07)';
+    btn.onmouseenter=function(){this.style.opacity='1';this.style.background='rgba(0,255,65,.15)';};
+    btn.onmouseleave=function(){this.style.opacity='.85';this.style.background='rgba(0,255,65,.07)';};
     btn.onclick=function(){showTuto(sec);};
     hdr.appendChild(btn);
   });
@@ -4679,7 +4746,7 @@ function _showOnboardingOverlay(startStep,user){
   overlay.id='ntr-onboarding';
   overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(4,8,12,.97);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);overflow:auto;padding:20px 0';
   document.body.appendChild(overlay);
-  var stopMatrix=_matrixCanvas(overlay);
+  var stopMatrix=function(){};
   var step=startStep;
 
   function render(){
@@ -4998,8 +5065,5 @@ function _obPlans(box,overlay,stopMatrix){
   };
 }
 
-/* Lancer le check onboarding au chargement */
-(function(){
-  if(document.readyState!=='loading')_checkOnboarding();
-  else document.addEventListener('DOMContentLoaded',_checkOnboarding);
-})();
+/* Lancer le check onboarding au chargement - DESACTIVE EN LOCAL */
+(function(){})();

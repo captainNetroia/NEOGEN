@@ -25,6 +25,7 @@ def _head() -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NEOGEN</title>
 <link rel="stylesheet" href="/static/app.css?v={_vc}">
+<script>localStorage.setItem('neogen_ob_done','1');</script>
 </head>
 <body class="dark">
 
@@ -365,7 +366,7 @@ def _section_cerveau() -> str:
   <!-- Modal bibliotheque de skills communautaires -->
   <div id="skills-lib-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
     <div class="glass panel" style="width:min(680px,96vw);max-height:88vh;overflow-y:auto;padding:22px 24px;position:relative">
-      <button onclick="document.getElementById('skills-lib-modal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--mut)">&times;</button>
+      <button onclick="document.getElementById('skills-lib-modal').style.display='none'" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;font-size:16px;cursor:pointer;color:rgba(255,255,255,.85);padding:2px 8px;font-weight:700">&times; Fermer</button>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut)">Bibliotheque communautaire</div>
         <button class="ghost" style="font-size:12px;padding:4px 12px;color:var(--acc)" onclick="openPublishSkillForm()">+ Proposer un skill</button>
@@ -924,6 +925,9 @@ def _section_evolution() -> str:
       </select>
       <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px;margin-left:6px;cursor:pointer">
         <input type="checkbox" id="pensee-actif" style="cursor:pointer"> Active
+      </label>
+      <label class="eco-toggle eclair-toggle" id="pensee-eclair-toggle" title="Mode ÉCLAIR : compression intelligente du contexte lors des sessions de pensée" style="margin-left:6px">
+        <input type="checkbox" id="pensee-eclrcb"><span>&#9889; ÉCLAIR</span>
       </label>
       <button id="btn-pensee-cycle" class="ghost" style="font-size:12px;padding:7px 14px;margin-left:auto">Provoquer une pensee</button>
     </div>

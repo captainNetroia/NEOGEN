@@ -182,7 +182,10 @@ def pensees_archiver_anciens(semaines: int = 1, authorization: str | None = Head
 # Types/indices qui demandent du VRAI code (passent par la forge), pas du data-driven.
 _TYPES_FORGE = {"fonction", "capacite"}
 _INDICES_TECHNIQUES = ("etapes", "code", "action", "scanner", "valider", "reparer",
-                       "parser", "detecter", "compiler", "indexer", "automatis")
+                       "parser", "detecter", "compiler", "indexer", "automatis",
+                       "scann", "analyse", "extrait", "classe ", "refactor", "periodi",
+                       "genere un", "rapport", "lecture system", "ses propres modules",
+                       "ses modules", "architecture", "surveille", "inspecte")
 
 # Indices qu'une idee concerne l'INTERFACE/experience visuelle.
 _INDICES_INTERFACE = ("interface", "affichage", "ecran", "liste", "replier", "repliable",
@@ -276,9 +279,9 @@ def pensees_donner_vie(pensee_id: str, authorization: str | None = Header(defaul
 
     evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
 
-    # VOIE 0 : idee d'INTERFACE. Les systemes backend (fossile, registry, compose_ui...)
-    # sont EXCLUS ici et tombent en VOIE 1/2/3 vers l'Ingenieur.
-    if _est_interface(evo, p) and not _est_systeme_backend(evo, p):
+    # VOIE 0 : idee d'INTERFACE. Les systemes backend ET les idees techniques (code/analyse)
+    # sont EXCLUS ici et tombent en VOIE 1/2/3 vers l'Ingenieur. Technique prime toujours sur interface.
+    if _est_interface(evo, p) and not _est_systeme_backend(evo, p) and not _est_technique(evo, p):
         idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
 
         # VOIE 0b : nouveau COMPOSANT HTML explicite -> forge_fragments -> apercu bloc HTML.
