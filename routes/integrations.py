@@ -335,14 +335,26 @@ async def openlegi_conformite(data: dict):
     if not token:
         raise HTTPException(503, "OpenLegi non configure (OPENLEGI_TOKEN manquant)")
     mcp_url = f"https://mcp.openlegi.fr/legifrance/mcp?token={token}"
+    _hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
+            # Étape 1 : initialiser la session MCP (requis par le transport HTTP Streamable)
+            init_r = await client.post(
+                mcp_url,
+                json={"jsonrpc": "2.0", "id": 0, "method": "initialize",
+                      "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                                 "clientInfo": {"name": "neogen", "version": "1.0"}}},
+                headers=_hdrs,
+            )
+            session_id = init_r.headers.get("Mcp-Session-Id", "")
+            call_hdrs = {**_hdrs, **({"Mcp-Session-Id": session_id} if session_id else {})}
+            # Étape 2 : appel réel
             r = await client.post(
                 mcp_url,
                 json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                       "params": {"name": "rechercher_code",
                                  "arguments": {"query": query, "nombreResultats": 5}}},
-                headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                headers=call_hdrs,
             )
             result = r.json()
     except Exception as e:

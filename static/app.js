@@ -2670,7 +2670,7 @@ var _PALIERS=[
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons',
      '5 "Donner vie"/mois · 15 applis · 7 deploiements',
-     'Mode Juge · Plugin Hostinger',
+     '10 Mode Juge inclus/mois (puis GEN)',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'pro',label:'Pro',prix:{mensuel:'29,99',annuel:'20,99'},couleur:'#00c4a7',
@@ -2680,7 +2680,7 @@ var _PALIERS=[
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons illimites · Webhook & API',
      '15 "Donner vie"/mois · 50 applis · 25 deploiements',
-     'Mode Juge illimite',
+     'Mode Juge illimite inclus',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'power',label:'Power',prix:{mensuel:'49,99',annuel:'34,99'},couleur:'#4ade80',
@@ -2690,7 +2690,7 @@ var _PALIERS=[
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons illimites · Webhook & API',
      '50 "Donner vie"/mois · 200 applis · 100 deploiements',
-     'Mode Juge illimite',
+     'Mode Juge illimite inclus',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'enterprise',label:'Enterprise',prix:{mensuel:'Sur mesure',annuel:'Sur mesure'},couleur:'#00ffaa',contact:true,
@@ -2895,31 +2895,35 @@ async function loadSkills(){
     const d=await(await fetch('/skills')).json();
     const list=d.skills||[];
     if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">Aucune competence apprise pour le moment. Demande au Cerveau d\'accomplir une tache reproductible, il la cristallisera.</div>';return;}
-    // Grouper par famille
     const groupes={};
-    list.forEach(function(s){
-      var f=_familleSkill(s);
-      if(!groupes[f])groupes[f]=[];
-      groupes[f].push(s);
-    });
+    list.forEach(function(s){var f=_familleSkill(s);if(!groupes[f])groupes[f]=[];groupes[f].push(s);});
     const ORDRE=['RPA','Memoire','Creation','Analyse','Orchestration','General'];
     var html='';
     ORDRE.forEach(function(famille){
       if(!groupes[famille]||!groupes[famille].length)return;
       var col=_FAMILLE_COULEUR[famille]||'#6b7280';
-      html+='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:'+col+';padding:12px 0 6px;border-top:1px solid rgba(255,255,255,.06)">'
-        +famille+' <span style="opacity:.5;font-weight:400">('+groupes[famille].length+')</span></div>';
+      html+='<div style="display:flex;align-items:center;gap:8px;margin:14px 0 8px">'
+        +'<span style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'
+        +'<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:'+col+'">'+famille+'</span>'
+        +'<span style="font-size:11px;color:var(--mut);font-weight:400">('+groupes[famille].length+')</span>'
+        +'<span style="flex:1;height:1px;background:'+col+'33"></span>'
+        +'</div>';
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-bottom:6px">';
       groupes[famille].forEach(function(s){
-        html+='<div class="hist-item" style="align-items:flex-start">'
-          +'<span class="tag ok" style="flex-shrink:0;background:'+col+'22;color:'+col+';border:1px solid '+col+'44">'+esc(s.nom)+'</span>'
-          +'<span style="flex:1"><b style="font-size:13px">'+esc(s.titre||s.nom)+'</b>'
-          +(s.auto?' <span class="badge live" style="font-size:9px">auto</span>':'')
-          +'<br><span style="font-size:12px;color:var(--mut)">'+esc(s.description||'')+'</span>'
-          +(s.outils&&s.outils.length?'<br><span style="font-size:11px;color:var(--mut)">outils: '+esc(s.outils.join(', '))+'</span>':'')
-          +'</span>'
-          +'<span style="color:var(--ko);cursor:pointer;font-weight:700;flex-shrink:0" title="Supprimer" onclick="deleteSkill(\''+esc(s.nom)+'\')">&times;</span>'
+        var titre=esc(s.titre||s.nom);
+        var desc=esc(s.description||'');
+        var nbOutils=(s.outils||[]).length;
+        html+='<div style="border:1px solid '+col+'33;border-radius:9px;padding:10px 12px;background:'+col+'08;position:relative;min-width:0">'
+          +(s.auto?'<span style="position:absolute;top:8px;left:10px;font-size:8px;font-weight:700;color:'+col+';text-transform:uppercase;letter-spacing:.6px;opacity:.7">auto</span>':'')
+          +'<div style="font-size:12px;font-weight:700;color:'+col+';margin-bottom:4px;padding-right:20px;'+(s.auto?'margin-top:12px':'')+';word-break:break-word;line-height:1.3">'+titre+'</div>'
+          +(desc?'<div style="font-size:11px;color:var(--mut);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:5px">'+desc+'</div>':'')
+          +(nbOutils?'<div style="font-size:10px;color:var(--mut);opacity:.55">'+nbOutils+' outil'+(nbOutils>1?'s':'')+'</div>':'')
+          +'<span style="position:absolute;top:7px;right:9px;color:rgba(255,255,255,.25);cursor:pointer;font-size:15px;font-weight:700;line-height:1;transition:color .15s" '
+          +'onmouseenter="this.style.color=\'#ef4444\'" onmouseleave="this.style.color=\'rgba(255,255,255,.25)\'" '
+          +'title="Supprimer" onclick="deleteSkill(\''+esc(s.nom)+'\')">&#215;</span>'
           +'</div>';
       });
+      html+='</div>';
     });
     el.innerHTML=html;
   }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
@@ -3154,6 +3158,16 @@ window.deleteTache=async function(id){
     document.getElementById('tache-nom').value='';document.getElementById('tache-msg').value='';
     form.classList.add('hidden');loadTaches();
   };
+  // Peupler le select agents dynamiquement depuis /agents
+  var sel=document.getElementById('tache-agent');
+  if(sel){
+    fetch('/agents').then(function(r){return r.json();}).then(function(d){
+      if(!d.agents)return;
+      sel.innerHTML=Object.entries(d.agents).map(function(e){
+        return '<option value="'+esc(e[0])+'">'+esc(e[1].titre||e[0])+'</option>';
+      }).join('');
+    }).catch(function(){});
+  }
   loadTaches();
 })();
 /* ===== HUB DU SAVOIR — section Evolution ===== */
@@ -5000,8 +5014,8 @@ function _obPlans(box,overlay,stopMatrix){
     /* Pro + Power */
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'
     +[
-      {n:'Pro',p:'29,99€',pal:'pro',feats:['4 500 GEN/mois','6 providers IA + local','Crons illimites','15 Donner vie/mois','50 applis + 25 deploiements','Webhook & API']},
-      {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','Donner vie illimite','Crons illimites','Applis illimitees','API + Telemetrie privee']}
+      {n:'Pro',p:'29,99€',pal:'pro',feats:['4 500 GEN/mois','6 providers IA + local','Crons illimites','15 Donner vie/mois · 50 applis','Webhook & API','⚡ ECLAIR -30 a -50% tokens']},
+      {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','50 Donner vie/mois · 200 applis','100 deploiements geres','Webhook & API','⚡ ECLAIR -30 a -50% tokens']}
     ].map(function(pk){
       return'<div style="border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:18px;background:rgba(255,255,255,.015)">'
         +'<div style="font-size:15px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:3px">'+pk.n+'</div>'

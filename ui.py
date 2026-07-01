@@ -212,7 +212,7 @@ def _section_creation() -> str:
     <textarea id="intention" placeholder="Ex : un convertisseur de temperature celsius / fahrenheit"></textarea>
     <div class="row" style="margin-top:14px">
       <button id="btn-scan">Scanner l'intention</button>
-      <button id="btn-conseils" class="ghost">Conseils (conformite)</button>
+      <button id="btn-conseils">Conseils (conformite)</button>
     </div>
     <div class="row" style="margin-top:8px;gap:8px">
       <button id="btn-openlegi" class="ghost" style="font-size:12px;padding:6px 12px">⊜ OpenLegi (Legifrance)</button>
