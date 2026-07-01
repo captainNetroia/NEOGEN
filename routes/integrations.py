@@ -16,9 +16,10 @@ class IntegVerifBody(BaseModel):
 
 @router.get("/integrations/status")
 def integrations_status():
+    # Stripe est exclusivement une infrastructure de paiement serveur (packs, abonnements, dons).
+    # Elle ne doit jamais apparaitre comme integration configurable cote utilisateur.
     return {
         "openlegi": bool(_load_cred("openlegi.env", "OPENLEGI_TOKEN")),
-        "stripe": bool(_load_cred("stripe.env", "STRIPE_SECRET_KEY")),
     }
 
 

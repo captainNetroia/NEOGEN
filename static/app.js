@@ -1888,8 +1888,6 @@ const INTEG_DEFS={
   instagram:{name:'Instagram',icon:'◉',cat:'Reseaux sociaux',bientot:true},
   linkedin:{name:'LinkedIn',icon:'◎',cat:'Reseaux sociaux',bientot:true},
   /* ── E-COMMERCE & PAIEMENT ── */
-  stripe:{name:'Stripe',icon:'◆',cat:'E-commerce & Paiement',type:'server',
-    desc:'Paiement — cle detectee automatiquement via credentials serveur'},
   shopify:{name:'Shopify',icon:'⊠',cat:'E-commerce & Paiement',bientot:true},
   /* ── INFRA & DEV ── */
   github:{name:'GitHub',icon:'⊙',cat:'Infra & Dev',type:'key',
@@ -1948,7 +1946,6 @@ function renderIntegGrid(serverStatus){
   const grid=document.getElementById('integ-grid-dynamic');if(!grid)return;
   if(serverStatus){
     if(serverStatus.openlegi&&!_iGet('openlegi'))_iSet('openlegi',{active:true,key:'(serveur)',source:'server'});
-    if(serverStatus.stripe&&!_iGet('stripe'))_iSet('stripe',{active:true,key:'(serveur)',source:'server'});
   }
   const cats={};
   Object.entries(INTEG_DEFS).forEach(([k,def])=>{
