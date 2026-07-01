@@ -4946,6 +4946,7 @@ function _showOnboardingOverlay(startStep,user){
   document.body.appendChild(overlay);
   var stopMatrix=function(){};
   var step=startStep;
+  var _compteStartMode='register'; // 'register' ou 'login', mutable depuis _obBienvenue
 
   function render(){
     var oldBox=overlay.querySelector('.ntr-ob-box');if(oldBox)oldBox.remove();
@@ -4976,20 +4977,26 @@ function _showOnboardingOverlay(startStep,user){
       box.innerHTML=sh;
     }
 
-    if(step===1)_obBienvenue(box,function(){step=2;render();});
+    if(step===1)_obBienvenue(box,
+      function(){_compteStartMode='register';step=2;render();},      // Commencer (flux normal)
+      function(){_compteStartMode='login';step=3;render();}           // Deja inscrit -> login direct
+    );
     else if(step===2)_obPresentation(box,function(){step=3;render();});
-    else if(step===3)_obCompte(box,function(u){
-      /* Toujours presenter les packs/essai apres creation du compte.
-         neogen_ob_done n'est pose QUE dans _obPlans (choix pack ou freemium explicite). */
-      step=4;render();
-    });
+    else if(step===3){
+      var _cm=_compteStartMode;_compteStartMode='register'; // reset apres usage
+      _obCompte(box,function(u){
+        /* Toujours presenter les packs/essai apres creation du compte.
+           neogen_ob_done n'est pose QUE dans _obPlans (choix pack ou freemium explicite). */
+        step=4;render();
+      },_cm);
+    }
     else if(step===4)_obPlans(box,overlay,stopMatrix);
   }
   render();
 }
 
 /* -- Step 1 - Bienvenue ------------------------------------------ */
-function _obBienvenue(box,onNext){
+function _obBienvenue(box,onNext,onLogin){
   var d=document.createElement('div');
   d.style.cssText='text-align:center;padding:24px 8px 12px';
   d.innerHTML=''
@@ -5005,13 +5012,20 @@ function _obBienvenue(box,onNext){
     +'border-radius:12px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;'
     +'transition:all .25s;box-shadow:0 0 20px rgba(0,255,65,.1)">Commencer</button>'
     +'<div style="margin-top:22px;font-size:11px;color:rgba(255,255,255,.18)">'
-    +'Prend 2 minutes · 7 jours d\'essai gratuits · Annulable a tout moment'
+    +'Prend 2 minutes &middot; 7 jours d\'essai gratuits &middot; Annulable a tout moment'
+    +'</div>'
+    +'<div style="margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,.06)">'
+    +'<span style="font-size:13px;color:rgba(255,255,255,.35)">Deja un compte ?</span> '
+    +'<button id="ob-login-link" style="background:none;border:none;cursor:pointer;font-size:13px;'
+    +'color:#00ff41;text-decoration:underline;text-underline-offset:3px;padding:0">Connecte-toi</button>'
     +'</div>';
   box.appendChild(d);
   var btn=d.querySelector('#ob-start');
   btn.onmouseenter=function(){this.style.background='rgba(0,255,65,.16)';this.style.boxShadow='0 0 40px rgba(0,255,65,.25)';};
   btn.onmouseleave=function(){this.style.background='rgba(0,255,65,.08)';this.style.boxShadow='0 0 20px rgba(0,255,65,.1)';};
   btn.onclick=onNext;
+  var lnk=d.querySelector('#ob-login-link');
+  if(lnk&&onLogin)lnk.onclick=onLogin;
 }
 
 /* -- Step 2 - Presentation (interrogatoire de copinage) ---------- */
@@ -5067,8 +5081,8 @@ function _obPresentation(box,onDone){
 }
 
 /* -- Step 3 - Compte + API (optionnel) --------------------------- */
-function _obCompte(box,onDone){
-  var mode='register';
+function _obCompte(box,onDone,startMode){
+  var mode=startMode||'register';
   var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
   var fd=document.createElement('div');
   fd.innerHTML=''
@@ -5122,6 +5136,7 @@ function _obCompte(box,onDone){
     sub.textContent=m==='register'?'Creer mon compte':'Se connecter';
     errEl.style.display='none';
   }
+  if(startMode==='login')setTab('login'); // positionnement initial si venu via "Deja un compte"
   qr('#ob-tab-r').onclick=function(){setTab('register');};
   qr('#ob-tab-l').onclick=function(){setTab('login');};
   async function doAuth(){
