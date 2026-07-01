@@ -2306,7 +2306,7 @@ function buildChat(mount){
     +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
     +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">&#128203;</button>'
     +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues conversations (détection de dérive incluse)"><input type="checkbox" id="eclrcb-'+role+'"><span>&#9889; ÉCLAIR</span></label>'
-    +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
+    +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#10005;</button></div>'
     +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input" style="flex-direction:column;align-items:stretch">'
@@ -4713,16 +4713,37 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 });
 
+function _applyPremiumUi(palier){
+  var free=(!palier||palier==='gratuit');
+  document.querySelectorAll('.eco-toggle').forEach(function(el){
+    if(free){
+      el.classList.add('eco-locked');
+      var cb=el.querySelector('input[type=checkbox]');if(cb){cb.checked=false;cb.disabled=true;}
+      el.title='Mode premium requis — passez à Essential ou supérieur';
+    }else{
+      el.classList.remove('eco-locked');
+      var cb=el.querySelector('input[type=checkbox]');if(cb)cb.disabled=false;
+    }
+  });
+}
+
 async function _checkOnboarding(){
   if(_authToken()&&_isInactive()){localStorage.removeItem('neogen_auth_token');}
-  if(!_authToken()){_showOnboardingOverlay(1);return;}
+  if(!_authToken()){_applyPremiumUi('gratuit');_showOnboardingOverlay(1);return;}
   const user=await _fetchMe();
-  if(!user){localStorage.removeItem('neogen_auth_token');_showOnboardingOverlay(1);return;}
+  if(!user){localStorage.removeItem('neogen_auth_token');_applyPremiumUi('gratuit');_showOnboardingOverlay(1);return;}
+  _applyPremiumUi(user.palier||'gratuit');
   if(!user.profil_complet){_showOnboardingOverlay(2,user);return;}
   if(!localStorage.getItem('neogen_ob_done')){_showOnboardingOverlay(4,user);return;}
   /* utilisateur completement onboarde -> tour guide si jamais vu */
   setTimeout(_startTour,600);
 }
+
+/* Overlay obligatoire sur la version PUBLIQUE uniquement (pas sur localhost/127.0.0.1) */
+document.addEventListener('DOMContentLoaded',function(){
+  var h=window.location.hostname;
+  if(h!=='localhost'&&h!=='127.0.0.1')setTimeout(_checkOnboarding,400);
+});
 
 /* -- Canvas pluie Matrix ----------------------------------------- */
 function _matrixCanvas(overlay){

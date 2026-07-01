@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -326,6 +327,53 @@ async def integrations_verifier(body: IntegVerifBody):
     return {"ok": False, "erreur": "Type d'integration inconnu."}
 
 
+def _parse_mcp_resp(r) -> dict:
+    """Parse MCP response: JSON ou SSE (data: {...} lines)."""
+    import json as _json
+    ct = r.headers.get("content-type", "")
+    text = r.text.strip()
+    if not text:
+        return {}
+    if "event-stream" in ct or text.startswith("data:"):
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                payload = line[5:].strip()
+                if payload and payload != "[DONE]":
+                    try:
+                        return _json.loads(payload)
+                    except Exception:
+                        continue
+        return {}
+    try:
+        return r.json()
+    except Exception:
+        return {}
+
+
+def _extraire_termes_legaux_sync(intention: str) -> str:
+    """Extrait 2-3 mots-clés juridiques depuis une intention utilisateur (appel sync LLM)."""
+    try:
+        from generator import _load_api_key, MODEL_SCAN
+        import anthropic
+        key = _load_api_key()
+        if not key:
+            return intention[:60]
+        c = anthropic.Anthropic(api_key=key)
+        msg = c.messages.create(
+            model=MODEL_SCAN, max_tokens=40,
+            messages=[{"role": "user", "content": (
+                f"Extrais 2-3 mots-cles juridiques francais pour rechercher dans Legifrance "
+                f"(ex: 'donnees personnelles RGPD', 'e-commerce droit consommation'). "
+                f"Intention : '{intention}'. "
+                f"Reponds uniquement avec les mots-cles, sans ponctuation ni explication."
+            )}],
+        )
+        return (msg.content[0].text or "").strip() or intention[:60]
+    except Exception:
+        return intention[:60]
+
+
 @router.post("/openlegi/conformite")
 async def openlegi_conformite(data: dict):
     query = (data.get("query") or "").strip()
@@ -334,11 +382,14 @@ async def openlegi_conformite(data: dict):
     token = _load_cred("openlegi.env", "OPENLEGI_TOKEN")
     if not token:
         raise HTTPException(503, "OpenLegi non configure (OPENLEGI_TOKEN manquant)")
+
+    # Extraction LLM des termes juridiques pertinents (SDK sync -> thread)
+    legal_query = await asyncio.to_thread(_extraire_termes_legaux_sync, query)
+
     mcp_url = f"https://mcp.openlegi.fr/legifrance/mcp?token={token}"
     _hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            # Étape 1 : initialiser la session MCP (requis par le transport HTTP Streamable)
+        async with httpx.AsyncClient(timeout=25) as client:
             init_r = await client.post(
                 mcp_url,
                 json={"jsonrpc": "2.0", "id": 0, "method": "initialize",
@@ -347,16 +398,18 @@ async def openlegi_conformite(data: dict):
                 headers=_hdrs,
             )
             session_id = init_r.headers.get("Mcp-Session-Id", "")
+            if not session_id:
+                init_body = _parse_mcp_resp(init_r)
+                session_id = (init_body.get("result") or {}).get("sessionId", "")
             call_hdrs = {**_hdrs, **({"Mcp-Session-Id": session_id} if session_id else {})}
-            # Étape 2 : appel réel
             r = await client.post(
                 mcp_url,
                 json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                      "params": {"name": "rechercher_code",
-                                 "arguments": {"query": query, "nombreResultats": 5}}},
+                      "params": {"name": "rechercher_dans_texte_legal",
+                                 "arguments": {"search": legal_query, "page_size": 5}}},
                 headers=call_hdrs,
             )
-            result = r.json()
+            result = _parse_mcp_resp(r)
     except Exception as e:
         raise HTTPException(502, f"OpenLegi inaccessible : {e}")
-    return {"resultats": result.get("result", result), "query": query}
+    return {"resultats": result.get("result", result), "query": legal_query}
