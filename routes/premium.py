@@ -87,9 +87,6 @@ def premium_checkout(body: PremiumCheckoutBody | None = None,
         params = dict(
             mode=mode,
             payment_method_types=["card"],
-            # Stripe Link desactive : evite que le numero de telephone du compte marchand
-            # apparaisse lors du checkout (Stripe Link auto-remplit via l'email reconnu).
-            payment_method_options={"link": {"display_preference": {"preference": "none"}}},
             line_items=[{"price": price_id, "quantity": 1}],
             client_reference_id=user["id"],
             customer_email=user.get("email"),
