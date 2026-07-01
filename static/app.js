@@ -2305,7 +2305,7 @@ function buildChat(mount){
     +'<label class="eco-toggle" id="aceco-'+role+'" title="Mode economie : choisit le modele le plus econome selon ta demande (moins de tokens)">'
     +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
     +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">&#128203;</button>'
-    +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte + détection de dérive (réduit le coût sur les longues conversations)"><input type="checkbox" id="eclrcb-'+role+'"><span>&#9889; ÉCLAIR</span></label>'
+    +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues conversations (détection de dérive incluse)"><input type="checkbox" id="eclrcb-'+role+'"><span>&#9889; ÉCLAIR</span></label>'
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#128465;</button></div>'
     +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
@@ -2669,29 +2669,29 @@ var _PALIERS=[
      '4 providers IA + local',
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons',
-     '5 "Donner vie"/mois (puis 50 GEN)',
-     '15 applis + 7 deploiements geres',
-     'Mode Juge 60 GEN · Plugin Hostinger',
+     '5 "Donner vie"/mois · 15 applis · 7 deploiements',
+     'Mode Juge · Plugin Hostinger',
+     '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'pro',label:'Pro',prix:{mensuel:'29,99',annuel:'20,99'},couleur:'#00c4a7',
    features:[
      '4 500 GEN/mois',
      '6 providers IA + local',
      'Multi-agents · RPA · Apprentissage',
-     'Vision active · Crons illimites',
-     '15 "Donner vie"/mois (puis 50 GEN)',
-     '50 applis + 25 deploiements geres',
-     'Mode Juge 60 GEN · Webhook & API',
+     'Vision active · Crons illimites · Webhook & API',
+     '15 "Donner vie"/mois · 50 applis · 25 deploiements',
+     'Mode Juge illimite',
+     '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'power',label:'Power',prix:{mensuel:'49,99',annuel:'34,99'},couleur:'#4ade80',
    features:[
      '12 000 GEN/mois',
      'Tous providers IA + local',
      'Multi-agents · RPA · Apprentissage',
-     'Vision active · Crons illimites',
-     '"Donner vie" illimite',
-     'Applis illimitees',
-     'Webhook & API · Telemetrie privee',
+     'Vision active · Crons illimites · Webhook & API',
+     '50 "Donner vie"/mois · 200 applis · 100 deploiements',
+     'Mode Juge illimite',
+     '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
   {cle:'enterprise',label:'Enterprise',prix:{mensuel:'Sur mesure',annuel:'Sur mesure'},couleur:'#00ffaa',contact:true,
    features:[

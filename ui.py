@@ -926,7 +926,7 @@ def _section_evolution() -> str:
       <label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px;margin-left:6px;cursor:pointer">
         <input type="checkbox" id="pensee-actif" style="cursor:pointer"> Active
       </label>
-      <label class="eco-toggle eclair-toggle" id="pensee-eclair-toggle" title="Mode ÉCLAIR : compression intelligente du contexte lors des sessions de pensée" style="margin-left:6px">
+      <label class="eco-toggle eclair-toggle" id="pensee-eclair-toggle" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues sessions" style="margin-left:6px">
         <input type="checkbox" id="pensee-eclrcb"><span>&#9889; ÉCLAIR</span>
       </label>
       <button id="btn-pensee-cycle" class="ghost" style="font-size:12px;padding:7px 14px;margin-left:auto">Provoquer une pensee</button>
