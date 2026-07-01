@@ -2849,7 +2849,7 @@ function renderTarifs(palierActuel){
     var prixHtml=p.contact
       ?'<div style="font-size:16px;font-weight:700;color:'+p.couleur+';margin-bottom:6px">Sur mesure</div>'
       :'<div style="font-size:18px;font-weight:800;color:var(--txt);margin-bottom:6px">'+prix+'&#8364;<span style="font-size:10px;font-weight:400;color:var(--mut)">'+per+'</span></div>';
-    var btnHtml=actif?'<button class="ghost" disabled style="width:100%;font-size:11px;opacity:.5">Plan actuel</button>'
+    var btnHtml=actif?'<button class="ghost" disabled style="width:100%;font-size:11px;color:'+p.couleur+';opacity:.85;cursor:default">&#10003; Plan actuel</button>'
       :p.contact?'<a href="mailto:captain@netroia.com?subject=NEOGEN%20Enterprise" style="display:block;text-align:center;padding:7px 0;border-radius:8px;font-size:11px;font-weight:600;color:'+p.couleur+';border:1px solid '+p.couleur+';text-decoration:none">Nous contacter</a>'
       :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>';
     return '<div class="plan-card" style="border-color:'+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+'">'

@@ -507,10 +507,10 @@ def _section_compte() -> str:
   <div class="panel glass" style="margin-bottom:18px" id="packs-gen-panel">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Recharger des Genyte (GEN)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="packs-grid">
-      <button class="ghost pack-btn" data-pack="starter" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">100 GEN</span><span style="font-size:11px;opacity:.7">Starter — 2&#8364;</span></button>
-      <button class="ghost pack-btn" data-pack="pro" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">500 GEN</span><span style="font-size:11px;opacity:.7">Pro — 8&#8364; <span style="color:#10b981">-20%</span></span></button>
-      <button class="ghost pack-btn" data-pack="power" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">1 500 GEN</span><span style="font-size:11px;opacity:.7">Power — 20&#8364; <span style="color:#10b981">-33%</span></span></button>
-      <button class="ghost pack-btn" data-pack="ultimate" style="flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">5 000 GEN</span><span style="font-size:11px;opacity:.7">Ultimate — 50&#8364; <span style="color:#10b981">-50%</span></span></button>
+      <button class="ghost pack-btn" data-pack="starter" style="display:flex;flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">100 GEN</span><span style="font-size:11px;opacity:.7">Starter — 2&#8364;</span></button>
+      <button class="ghost pack-btn" data-pack="pro" style="display:flex;flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">500 GEN</span><span style="font-size:11px;opacity:.7">Pro — 8&#8364; <span style="color:#10b981">-20%</span></span></button>
+      <button class="ghost pack-btn" data-pack="power" style="display:flex;flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">1 500 GEN</span><span style="font-size:11px;opacity:.7">Power — 20&#8364; <span style="color:#10b981">-33%</span></span></button>
+      <button class="ghost pack-btn" data-pack="ultimate" style="display:flex;flex-direction:column;gap:2px;padding:10px 8px;text-align:center"><span style="font-size:15px;font-weight:800;color:#f59e0b">5 000 GEN</span><span style="font-size:11px;opacity:.7">Ultimate — 50&#8364; <span style="color:#10b981">-50%</span></span></button>
     </div>
   </div>
 

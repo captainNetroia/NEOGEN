@@ -299,7 +299,7 @@ button.ghost{
   box-shadow:none;
 }
 button.ghost:hover{background:rgba(255,255,255,.36);box-shadow:none;}
-body.dark button.ghost{background:rgba(0,232,105,.07);border-color:rgba(0,232,105,.24);}
+body.dark button.ghost{background:rgba(0,232,105,.07);border-color:rgba(0,232,105,.24);color:var(--acc);}
 body.dark button.ghost:hover{background:rgba(0,232,105,.13);}
 
 /* ── 12. STATUS + TAGS ── */
@@ -517,6 +517,7 @@ body.dark .profil-field input{background:rgba(255,255,255,.07);border-color:rgba
 body.dark .auth-tabs{background:rgba(0,232,105,.06);border-color:rgba(0,255,65,.12);}
 .auth-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;color:var(--mut);transition:all .15s;}
 .auth-tab.active{background:rgba(255,255,255,.70);color:var(--txt);}
+body.dark .auth-tab{color:#94a3b8;}
 body.dark .auth-tab.active{background:rgba(0,232,105,.14);color:var(--acc);}
 .auth-form{display:flex;flex-direction:column;gap:16px;}
 .auth-field{display:flex;flex-direction:column;gap:6px;}
@@ -574,7 +575,7 @@ body.dark .stat-card{background:rgba(0,14,4,.45);}
   transition:background .15s,color .15s,border-color .15s;user-select:none;}
 .prov-tab:hover:not(.active){background:rgba(255,255,255,.60);color:var(--txt);}
 .prov-tab.active{background:var(--acc);color:#fff;border-color:var(--acc);}
-body.dark .prov-tab{background:rgba(0,14,4,.45);border-color:rgba(0,255,65,.10);color:var(--mut);}
+body.dark .prov-tab{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.20);color:#cbd5e1;}
 body.dark .prov-tab:hover:not(.active){background:rgba(0,14,4,.72);color:var(--txt);}
 body.dark .prov-tab.active{background:rgba(0,232,105,.15);color:var(--acc);border-color:rgba(0,232,105,.38);}
 
@@ -748,11 +749,13 @@ body:not(.dark) .side-item.active{color:var(--txt);}
 
 /* ── 30. CONSENTEMENT ── */
 .consent-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
-.consent-btn{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--brd);background:transparent;color:var(--mut);transition:all .15s;}
+.consent-btn{padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--brd);background:rgba(100,116,139,.10);color:var(--txt2);transition:all .15s;}
+.consent-btn:hover{background:rgba(100,116,139,.22);}
 .consent-btn.active{background:var(--acc);color:#000;border-color:var(--acc);}
 .consent-btn.danger.active{background:#dc2626;border-color:#dc2626;color:#fff;}
 .consent-btn.safe.active{background:#16a34a;border-color:#16a34a;color:#fff;}
-body.dark .consent-btn{border-color:rgba(255,255,255,.15);}
+body.dark .consent-btn{border-color:rgba(255,255,255,.22);color:#cbd5e1;background:rgba(255,255,255,.05);}
+body.dark .consent-btn:hover{background:rgba(255,255,255,.11);}
 
 /* ── 31. RESPONSIVE ── */
 @media(max-width:780px){
@@ -830,12 +833,15 @@ body:not(.dark) .mkt-mcp-card{background:rgba(15,23,42,.03);border-color:rgba(15
 .ac-md h3{font-size:15px;margin:8px 0 4px;}.ac-md ul{margin:4px 0 4px 18px;}.ac-md li{margin:2px 0;}
 .ac-md code{background:rgba(0,255,65,.08);padding:1px 5px;border-radius:5px;font-size:12px;color:var(--acc);font-family:ui-monospace,monospace;}
 body:not(.dark) .ac-md code{background:rgba(15,23,42,.08);color:var(--txt);}
-.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:var(--mut);margin-left:auto;margin-right:8px;user-select:none;}
-.eco-toggle input{width:30px;height:16px;appearance:none;background:rgba(100,116,139,.35);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;margin-left:auto;margin-right:8px;user-select:none;}
+.eco-toggle input{width:30px;height:16px;appearance:none;background:rgba(148,163,184,.4);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
 .eco-toggle input:checked{background:var(--ok);}
 .eco-toggle input::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;}
 .eco-toggle input:checked::after{left:16px;}
 .eco-toggle:has(input:checked){color:var(--ok);}
+/* ÉCLAIR : distinct du toggle Eco (ambre/jaune au lieu du vert) pour reperage visuel immediat */
+.eclair-toggle input:checked{background:#f59e0b;box-shadow:0 0 10px rgba(245,158,11,.55);}
+.eclair-toggle:has(input:checked){color:#f59e0b;text-shadow:0 0 8px rgba(245,158,11,.35);}
 .ac-img-prev{display:none;align-items:center;gap:6px;padding:3px 8px 6px;font-size:11px;color:var(--mut);}
 .ac-img-prev img{max-height:52px;max-width:68px;border-radius:6px;object-fit:contain;border:1px solid var(--brd);}
 .ac-md table{border-collapse:collapse;margin:8px 0;font-size:12px;width:100%;}
