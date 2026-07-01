@@ -7,7 +7,8 @@ from pydantic import BaseModel
 from .deps import (
     _auth, _load_cred,
     _set_premium, _marquer_essai_utilise, _lier_stripe_customer,
-    _revoquer_premium_par_customer,
+    _revoquer_premium_par_customer, _palier_depuis_price_id,
+    _USERS, _rjsonl,
 )
 
 router = APIRouter()
@@ -154,13 +155,45 @@ async def premium_webhook(request: Request):
     etype = event.get("type")
     obj = event.get("data", {}).get("object", {})
     if etype == "checkout.session.completed":
+        meta = obj.get("metadata") or {}
         uid = obj.get("client_reference_id")
-        if uid and obj.get("payment_status") in ("paid", "no_payment_required"):
-            palier_evt = (obj.get("metadata") or {}).get("palier", "essential")
+        paye = obj.get("payment_status") in ("paid", "no_payment_required")
+        if meta.get("type") == "credits":
+            # Achat ponctuel de Genyte (pack GEN) : ne doit JAMAIS toucher au palier/abonnement.
+            if uid and paye:
+                gen = int(meta.get("gen") or 0)
+                pack = meta.get("pack", "")
+                sess_id = obj.get("id") or ""
+                import credits as _cred
+                deja = any((t.get("metadata") or {}).get("session_id") == sess_id
+                          for t in _cred.historique(uid, limite=200))
+                if gen > 0 and not deja:
+                    _cred.crediter(uid, gen, "purchase", f"Pack GEN {pack}",
+                                   metadata={"session_id": sess_id})
+        elif uid and paye:
+            palier_evt = meta.get("palier", "essential")
             _set_premium(uid, True, palier_evt)
             _lier_stripe_customer(uid, obj.get("customer") or "")
             import credits as _cred
             _cred.recharger_mensuel(uid, palier_evt)
+    elif etype in ("invoice.paid", "invoice.payment_succeeded"):
+        # Renouvellement mensuel d'abonnement : recredite l'allocation GEN du palier.
+        if obj.get("billing_reason") == "subscription_cycle":
+            customer_id = obj.get("customer") or ""
+            lines = (obj.get("lines") or {}).get("data") or []
+            price_id = ""
+            if lines:
+                price_id = ((lines[0].get("price") or {}) or {}).get("id") or ""
+            palier_evt = _palier_depuis_price_id(price_id) if price_id else "essential"
+            uid = None
+            if customer_id:
+                for u in _rjsonl(_USERS):
+                    if u.get("stripe_customer_id") == customer_id:
+                        uid = u.get("id")
+                        break
+            if uid:
+                import credits as _cred
+                _cred.recharger_mensuel(uid, palier_evt)
     elif etype in ("customer.subscription.deleted",):
         _revoquer_premium_par_customer(obj.get("customer") or "")
     elif etype == "invoice.payment_failed":
@@ -345,7 +378,7 @@ def credits_recharger(body: CreditsRechargerBody, authorization: str = Header(No
             client_reference_id=user["id"],
             customer_email=user.get("email"),
             metadata={"type": "credits", "pack": body.pack, "gen": str(pack["gen"])},
-            success_url=f"{base_url}/#compte?credits_ok={pack['gen']}",
+            success_url=f"{base_url}/#compte?credits_ok={pack['gen']}&credits_session={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/#compte",
         )
         return {"url": session.url, "pack": body.pack, "gen": pack["gen"]}
@@ -374,7 +407,12 @@ def credits_confirmer_recharge(data: dict, authorization: str = Header(None)):
     gen = int((sess.get("metadata") or {}).get("gen", 0))
     pack = (sess.get("metadata") or {}).get("pack", "")
     import credits as _cred
-    nouveau = _cred.crediter(user["id"], gen, "purchase", f"Pack GEN {pack}")
+    deja = any((t.get("metadata") or {}).get("session_id") == session_id
+              for t in _cred.historique(user["id"], limite=200))
+    if deja:
+        return {"ok": True, "gen_ajoutes": 0, "nouveau_solde": _cred.solde(user["id"]), "deja_credite": True}
+    nouveau = _cred.crediter(user["id"], gen, "purchase", f"Pack GEN {pack}",
+                             metadata={"session_id": session_id})
     return {"ok": True, "gen_ajoutes": gen, "nouveau_solde": nouveau}
 
 

@@ -21,3 +21,10 @@ Thumbs.db
 docs/esoleau-*
 docs/HANDOFF-*
 docs/LANCEMENT-*
+
+# Secrets accidentellement notes en clair (mot de passe root, cles SSH, jetons)
+docs/Neogen-vps.txt
+
+# Videos tuto : fichiers volumineux (jusqu'a 230 Mo, > limite GitHub 100 Mo)
+# Deployees hors-git via SCP direct vers static/video_tuto/ sur le VPS.
+static/video_tuto/

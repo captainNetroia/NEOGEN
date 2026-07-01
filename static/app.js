@@ -2850,7 +2850,7 @@ function renderTarifs(palierActuel){
       ?'<div style="font-size:16px;font-weight:700;color:'+p.couleur+';margin-bottom:6px">Sur mesure</div>'
       :'<div style="font-size:18px;font-weight:800;color:var(--txt);margin-bottom:6px">'+prix+'&#8364;<span style="font-size:10px;font-weight:400;color:var(--mut)">'+per+'</span></div>';
     var btnHtml=actif?'<button class="ghost" disabled style="width:100%;font-size:11px;color:'+p.couleur+';opacity:.85;cursor:default">&#10003; Plan actuel</button>'
-      :p.contact?'<a href="mailto:captain@netroia.com?subject=NEOGEN%20Enterprise" style="display:block;text-align:center;padding:7px 0;border-radius:8px;font-size:11px;font-weight:600;color:'+p.couleur+';border:1px solid '+p.couleur+';text-decoration:none">Nous contacter</a>'
+      :p.contact?'<button class="ghost tarif-contact-btn" style="width:100%;font-size:11px;color:'+p.couleur+';border-color:'+p.couleur+'">Nous contacter</button>'
       :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>';
     return '<div class="plan-card" style="border-color:'+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+'">'
       +'<div style="font-size:12px;font-weight:700;color:'+p.couleur+';margin-bottom:4px">'+esc(p.label)+'</div>'
@@ -2863,6 +2863,57 @@ function renderTarifs(palierActuel){
   grid.querySelectorAll('.tarif-upgrade-btn').forEach(function(btn){
     btn.onclick=function(){_passerPremium(_tarifPeriod,btn.dataset.palier,btn);};
   });
+  grid.querySelectorAll('.tarif-contact-btn').forEach(function(btn){
+    btn.onclick=_ouvrirModalContactEntreprise;
+  });
+}
+
+async function _ouvrirModalContactEntreprise(){
+  var ex=document.getElementById('modal-contact-entreprise');if(ex)ex.remove();
+  var t=(typeof _authToken==='function')?_authToken():null;
+  var user=(t&&typeof _fetchMe==='function')?(await _fetchMe()||{}):{};
+  var ov=document.createElement('div');
+  ov.id='modal-contact-entreprise';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(4,8,12,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div style="background:rgba(10,18,30,.98);border:1px solid rgba(255,255,255,.1);border-radius:18px;width:min(440px,96vw);padding:26px;position:relative">'
+    +'<button id="mce-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:rgba(255,255,255,.4)">&times;</button>'
+    +'<div style="font-size:17px;font-weight:800;color:#fff;margin-bottom:4px">Parlons de ton besoin Enterprise</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:18px">On te repond directement par email.</div>'
+    +'<div class="auth-form">'
+    +'<div class="auth-field"><label>Nom</label><input type="text" id="mce-nom" placeholder="Ton nom"></div>'
+    +'<div class="auth-field"><label>Email</label><input type="email" id="mce-email" placeholder="ton@email.com"></div>'
+    +'<div class="auth-field"><label>Societe</label><input type="text" id="mce-societe" placeholder="Nom de ta societe (optionnel)"></div>'
+    +'<div class="auth-field"><label>Ton besoin</label><textarea id="mce-besoin" rows="4" placeholder="Volumetrie, cas d\'usage, delai..."></textarea></div>'
+    +'</div>'
+    +'<div id="mce-err" class="auth-error" style="display:none;margin-top:6px"></div>'
+    +'<button id="mce-submit" style="width:100%;margin-top:14px;padding:12px;font-size:14px;font-weight:700;background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;border-radius:10px;cursor:pointer">Envoyer la demande</button>'
+    +'<div id="mce-status" style="font-size:12px;margin-top:8px;text-align:center"></div>';
+  document.body.appendChild(ov);
+  var qr=function(s){return ov.querySelector(s);};
+  if(user.email)qr('#mce-email').value=user.email;
+  if(user.name)qr('#mce-nom').value=user.name;
+  qr('#mce-close').onclick=function(){ov.remove();};
+  qr('#mce-submit').onclick=async function(){
+    var nom=(qr('#mce-nom').value||'').trim();
+    var email=(qr('#mce-email').value||'').trim();
+    var societe=(qr('#mce-societe').value||'').trim();
+    var besoin=(qr('#mce-besoin').value||'').trim();
+    var err=qr('#mce-err'),st=qr('#mce-status'),btn=qr('#mce-submit');
+    err.style.display='none';
+    if(!email||email.indexOf('@')<0){err.textContent='Email invalide.';err.style.display='';return;}
+    if(!besoin){err.textContent='Decris ton besoin.';err.style.display='';return;}
+    btn.disabled=true;btn.textContent='Envoi...';
+    try{
+      var r=await fetch('/contact/entreprise',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({nom:nom,email:email,societe:societe,besoin:besoin})});
+      var d=await r.json().catch(function(){return{};});
+      if(r.ok){
+        st.innerHTML='<span style="color:var(--ok)">Demande envoyee ! On te repond rapidement.</span>';
+        setTimeout(function(){ov.remove();},1800);
+      }else{err.textContent=d.detail||'Erreur';err.style.display='';btn.disabled=false;btn.textContent='Envoyer la demande';}
+    }catch(e){err.textContent='Erreur reseau.';err.style.display='';btn.disabled=false;btn.textContent='Envoyer la demande';}
+  };
 }
 
 async function _passerPremium(plan,palier,btn){
@@ -4740,34 +4791,41 @@ function _isInactive(){
 
 /* ===== SYSTEME TUTORIAL (modal ? + tour guide) ===== */
 var _TUTOS={
-  cerveau:{titre:'Le Cerveau',icon:'🧠',color:'#a855f7',video:'/static/tutos/cerveau.mp4',
+  cerveau:{titre:'Le Cerveau',icon:'🧠',color:'#a855f7',video:'/static/video_tuto/Cerveau.mp4',
     etapes:['Parle en langage naturel — le Cerveau comprend, délègue et synthétise',
-             'Tes skills et ta mémoire sont utilisés automatiquement à chaque échange',
+             'Il forge ses propres compétences (skills) quand une tâche réussie est reproductible, et les réinvoque automatiquement la prochaine fois',
+             'Sa mémoire retient tes préférences, projets et faits d\'une session à l\'autre pour personnaliser chaque réponse',
              'Crée des tâches autonomes — l\'agent agit seul selon le planning que tu fixes']},
-  creation:{titre:'Création',icon:'✨',color:'var(--c-creation)',video:'/static/tutos/creation.mp4',
-    etapes:['Décris ce que tu veux créer — texte, image, rapport, script...',
-             'NEOGEN génère avec le modèle IA que tu as configuré dans Intégrations',
+  creation:{titre:'Création',icon:'✨',color:'var(--c-creation)',
+    videos:['/static/video_tuto/ADN.mp4','/static/video_tuto/scanneretConseil.mp4'],
+    etapes:['Décris ce que tu veux créer — texte, image, rapport, script, application...',
+             'NEOGEN scanne ton intention et forge un ADN : la structure génétique qui définit ce que ta création va devenir',
+             'Il génère ensuite le résultat avec le modèle IA que tu as configuré dans Intégrations, à partir de cet ADN',
              'Chaque résultat est archivé dans Production pour y revenir ou déployer']},
-  production:{titre:'Production',icon:'📦',color:'var(--c-production)',video:'/static/tutos/production.mp4',
+  production:{titre:'Production',icon:'📦',color:'var(--c-production)',video:'/static/video_tuto/Productionetligne.mp4',
     etapes:['Retrouve toutes tes créations — filtre par actives, toutes ou archivées',
+             'Chaque création a une lignée : son historique de générations, tu peux comparer les versions et revenir à une génération précédente',
              'Déploie directement sur ton domaine Hostinger en un clic',
              'Chaque fichier est versionné et téléchargeable à tout moment']},
-  compte:{titre:'Compte',icon:'👤',color:'var(--c-compte)',video:'/static/tutos/compte.mp4',
+  compte:{titre:'Compte',icon:'👤',color:'var(--c-compte)',
+    videos:['/static/video_tuto/comptedarkclair.mp4','/static/video_tuto/Pre_Compte.mp4'],
     etapes:['Configure ton profil — les agents l\'utilisent pour personnaliser leurs réponses',
              'Gère ton abonnement, tes crédits et ton historique de sessions']},
-  analyse:{titre:'Dev & Analyse',icon:'📊',color:'var(--c-analyse)',video:'/static/tutos/analyse.mp4',
+  analyse:{titre:'Dev & Analyse',icon:'📊',color:'var(--c-analyse)',video:'/static/video_tuto/devetanalyse.mp4',
     etapes:['Onglet Analyse : visualise les métriques en temps réel — requêtes, modèles, coûts, succès',
              'Onglet Ingénieur : confie une tâche de code, diagnostique ou répare en direct',
              'Les deux agents coordonnent pour observer ET améliorer le système']},
-  evolution:{titre:'Evolution',icon:'🌱',color:'#10b981',video:'/static/tutos/evolution.mp4',
+  evolution:{titre:'Evolution',icon:'🌱',color:'#10b981',video:'/static/video_tuto/evolution.mp4',
     etapes:['NEOGEN analyse ses silos de savoir et génère des propositions d\'amélioration',
+             'Propose un sujet et déclenche une pensée : le système en discute, et plusieurs agents peuvent dialoguer entre eux sur ce sujet',
+             'Tu peux participer à la conversation en direct plutôt que d\'observer seulement',
              'Chaque proposition te revient — tu approuves ou refuses, tu gardes le contrôle',
              'Les évolutions validées s\'intègrent au système en direct, sans redémarrage']},
-  marketing:{titre:'Marketing',icon:'🪁',color:'var(--c-marketing)',video:'/static/tutos/marketing.mp4',
+  marketing:{titre:'Marketing',icon:'🪁',color:'var(--c-marketing)',video:'/static/video_tuto/Pre_Marketing.mp4',
     etapes:['Parle à Mercure — stratégie réseaux, copywriting, campagnes, visuels et vidéos IA',
-             'Utilise Magnific MCP pour générer des images et vidéos directement depuis l\'agent',
+             'Utilise un MCP créateur de vidéo ou d\'image (ex. Magnific) pour que l\'agent produise avec toi exactement ce que tu souhaites',
              'NotebookLM synthétise les tendances pour construire tes briefings marketing']},
-  integrations:{titre:'Intégrations',icon:'🔌',color:'var(--c-integration)',video:'/static/tutos/integrations.mp4',
+  integrations:{titre:'Intégrations',icon:'🔌',color:'var(--c-integration)',video:'/static/video_tuto/Pre_Intergration.mp4',
     etapes:['Connecte ton modèle IA favori — Anthropic, OpenAI, Gemini, local (Ollama)...',
              'L\'agent RPA automatise des actions réelles sur ton ordinateur',
              'L\'apprentissage continu enregistre tes routines automatiquement']}
@@ -4791,10 +4849,17 @@ function _tutoModal(section,opts){
       }).join('')+'</div>';
   }
 
-  /* video + placeholder */
-  var vid='<div style="position:relative;border-radius:12px;overflow:hidden;background:#050d15;margin-bottom:22px;aspect-ratio:16/9">'
+  /* video(s) + placeholder — supporte plusieurs videos par tuto (onglets) */
+  var vids=t.videos||(t.video?[t.video]:[]);
+  var vidTabs=vids.length>1?'<div style="display:flex;gap:6px;margin-bottom:8px">'
+    +vids.map(function(_,i){
+      return '<button class="ng-tvid-tab" data-i="'+i+'" style="flex:1;padding:6px 0;font-size:11px;font-weight:700;border-radius:8px;cursor:pointer;font-family:inherit;'
+        +(i===0?'background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.4);color:#00ff41':'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4)')
+        +'">'+(i+1)+'</button>';
+    }).join('')+'</div>':'';
+  var vid=vidTabs+'<div style="position:relative;border-radius:12px;overflow:hidden;background:#050d15;margin-bottom:22px;aspect-ratio:16/9">'
     +'<video id="ng-tvid" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .3s">'
-    +'<source src="'+t.video+'" type="video/mp4"></video>'
+    +(vids[0]?'<source src="'+vids[0]+'" type="video/mp4">':'')+'</video>'
     +'<div id="ng-tph" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:rgba(255,255,255,.25);text-align:center;pointer-events:none">'
     +'<div style="font-size:40px">🎬</div>'
     +'<div style="font-size:13px;line-height:1.5">Vidéo en cours de production<br><span style="font-size:11px;opacity:.6">Les étapes ci-dessous résument tout</span></div>'
@@ -4833,9 +4898,26 @@ function _tutoModal(section,opts){
   /* video canplay -> fade in, masque placeholder */
   var v=box.querySelector('#ng-tvid'),ph=box.querySelector('#ng-tph');
   if(v){
-    v.addEventListener('canplay',function(){v.style.opacity='1';if(ph)ph.style.display='none';},{once:true});
+    v.addEventListener('canplay',function(){v.style.opacity='1';if(ph)ph.style.display='none';});
     v.load();
   }
+  /* onglets multi-video : bascule la source au clic */
+  box.querySelectorAll('.ng-tvid-tab').forEach(function(tab){
+    tab.onclick=function(){
+      var i=parseInt(tab.dataset.i,10);
+      box.querySelectorAll('.ng-tvid-tab').forEach(function(b){
+        var on=b===tab;
+        b.style.background=on?'rgba(0,255,65,.12)':'rgba(255,255,255,.05)';
+        b.style.borderColor=on?'rgba(0,255,65,.4)':'rgba(255,255,255,.1)';
+        b.style.color=on?'#00ff41':'rgba(255,255,255,.4)';
+      });
+      if(v&&vids[i]){
+        v.style.opacity='0';if(ph)ph.style.display='';
+        v.querySelector('source').src=vids[i];
+        v.load();
+      }
+    };
+  });
 
   function _rm(){ov.remove();}
   var bc=box.querySelector('#ng-tclose');if(bc)bc.onclick=_rm;

@@ -20,6 +20,7 @@ _DATA = _os.path.join(_BASE, "data")
 _USERS = _os.path.join(_DATA, "users.jsonl")
 _SESSIONS = _os.path.join(_DATA, "sessions.jsonl")
 _FEEDBACKS = _os.path.join(_DATA, "feedbacks.jsonl")
+_CONTACTS_ENTREPRISE = _os.path.join(_DATA, "contacts_entreprise.jsonl")
 _ADMIN_EMAIL = _os.environ.get("NEOGEN_ADMIN_EMAIL", "").strip().lower()
 
 

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from .deps import (
     _auth, _est_admin, _ajsonl, _rjsonl, _wjsonl,
     _hashpw, _verifypw, _user_by_email, _make_session,
-    _USERS, _SESSIONS, _FEEDBACKS,
+    _USERS, _SESSIONS, _FEEDBACKS, _CONTACTS_ENTREPRISE,
 )
 
 _BASE = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
@@ -210,6 +210,31 @@ def post_feedback(data: dict, authorization: str = Header(None)):
     }
     _ajsonl(_FEEDBACKS, fb)
     return {"ok": True, "id": fb["id"]}
+
+
+@router.post("/contact/entreprise")
+def contact_entreprise(data: dict):
+    nom = (data.get("nom") or "").strip()
+    email = (data.get("email") or "").strip()
+    societe = (data.get("societe") or "").strip()
+    besoin = (data.get("besoin") or "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Email invalide")
+    if not besoin:
+        raise HTTPException(400, "Decris ton besoin")
+    entree = {
+        "id": str(_uid.uuid4()),
+        "nom": nom, "email": email, "societe": societe, "besoin": besoin,
+        "created_at": _dt.utcnow().isoformat(),
+    }
+    _ajsonl(_CONTACTS_ENTREPRISE, entree)
+    # Notification email best-effort (non bloquant : la demande est deja enregistree ci-dessus)
+    try:
+        import emailer
+        emailer.envoyer_contact_entreprise(nom, email, societe, besoin)
+    except Exception:
+        pass
+    return {"ok": True, "id": entree["id"]}
 
 
 @router.get("/admin/feedbacks")

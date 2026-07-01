@@ -137,6 +137,32 @@ def envoyer_bienvenue(to: str, prenom: str = "") -> dict:
         return {"ok": False, "raison": str(e)[:200]}
 
 
+def envoyer_contact_entreprise(nom: str, email: str, societe: str, besoin: str) -> dict:
+    """Notifie l'admin (captain@netroia.com) d'une demande Entreprise. Best-effort, ne leve jamais."""
+    try:
+        import html as _html
+        sujet = f"NEOGEN Enterprise — demande de {(nom or email or '').strip()[:120]}"
+        nom, email, societe, besoin = (_html.escape((v or "")[:400]) for v in (nom, email, societe, besoin))
+        html = f"""<!DOCTYPE html><html><body style="margin:0;background:#04080c;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#04080c;padding:28px 0">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#080c12;border:1px solid rgba(0,255,65,.15);border-radius:16px;padding:30px 28px">
+<tr><td>
+<div style="font-size:13px;font-weight:800;letter-spacing:2px;color:#00ff41;text-transform:uppercase;margin-bottom:18px">Nouvelle demande Entreprise</div>
+<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#e4e7eb">
+<tr><td style="padding:6px 0;color:#9aa5b1;width:110px">Nom</td><td style="padding:6px 0">{nom or '-'}</td></tr>
+<tr><td style="padding:6px 0;color:#9aa5b1">Email</td><td style="padding:6px 0"><a href="mailto:{email}" style="color:#00ff41">{email}</a></td></tr>
+<tr><td style="padding:6px 0;color:#9aa5b1">Societe</td><td style="padding:6px 0">{societe or '-'}</td></tr>
+</table>
+<div style="margin-top:16px;padding:14px 16px;background:rgba(0,255,65,.06);border:1px solid rgba(0,255,65,.2);border-radius:10px;font-size:13px;color:#cbd2d9;line-height:1.6;white-space:pre-wrap">{besoin or '-'}</div>
+</td></tr></table>
+</td></tr></table></body></html>"""
+        return envoyer_email("captain@netroia.com", sujet, html, to_name="Jordan")
+    except Exception as e:
+        _log("exception contact entreprise", "erreur", err=str(e)[:200])
+        return {"ok": False, "raison": str(e)[:200]}
+
+
 if __name__ == "__main__":
     print("=" * 56)
     print("NEOGEN - EMAILER : auto-verification (offline)")
