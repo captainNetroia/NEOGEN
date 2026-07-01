@@ -879,11 +879,20 @@ def mon_skill_forger(
 
     import forge_evolution as _forge
     byok_key = ctx.api_key if ctx else None
+    _u = _user_courant(authorization)
     job_id = _forge.lancer_forge_async(
         besoin, titre=titre,
-        user=_user_courant(authorization),
+        user=_u,
         byok_key=byok_key,
     )
+    # Comptabilise la forge lancee (applique la limite mensuelle des paliers payants).
+    # Owner/enterprise : limite None => jamais bloque, l'increment reste sans effet.
+    try:
+        import quotas as _quotas
+        if _u and _u.get("id"):
+            _quotas.incrementer(_u["id"], "creation_app_forge")
+    except Exception:
+        pass
     return {"ok": True, "job_id": job_id, "voie": "forge_sac"}
 
 

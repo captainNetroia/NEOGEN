@@ -168,6 +168,99 @@ async def premium_webhook(request: Request):
     return {"received": True}
 
 
+@router.get("/premium/abonnement")
+def premium_abonnement(authorization: str | None = Header(default=None)):
+    """Etat de l'abonnement Stripe de l'utilisateur (pour la section Compte)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+    import quotas as _q
+    p = _q.palier(user)
+    base = {"palier": p, "actif": p != "gratuit"}
+    cid = user.get("stripe_customer_id")
+    if not cid or p == "gratuit":
+        return {**base, "abonnement": None}
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        return {**base, "abonnement": None}
+    import stripe as _stripe
+    _stripe.api_key = secret_key
+    try:
+        subs = _stripe.Subscription.list(customer=cid, status="all", limit=3)
+        for s in subs.get("data", []):
+            if s.get("status") in ("active", "trialing", "past_due"):
+                return {**base, "abonnement": {
+                    "id": s.get("id"),
+                    "statut": s.get("status"),
+                    "annulation_prevue": bool(s.get("cancel_at_period_end")),
+                    "fin_periode": s.get("current_period_end"),
+                }}
+    except Exception as e:
+        return {**base, "abonnement": None, "erreur": str(e)[:120]}
+    return {**base, "abonnement": None}
+
+
+@router.post("/premium/annuler")
+def premium_annuler(authorization: str | None = Header(default=None)):
+    """Programme la resiliation a la fin de la periode payee (garde l'acces jusque-la)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+    cid = user.get("stripe_customer_id")
+    if not cid:
+        raise HTTPException(status_code=400, detail="Aucun abonnement Stripe lie a ce compte.")
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(status_code=503, detail="Stripe non configure")
+    import stripe as _stripe
+    _stripe.api_key = secret_key
+    try:
+        subs = _stripe.Subscription.list(customer=cid, status="active", limit=3)
+        cible = None
+        for s in subs.get("data", []):
+            if s.get("status") in ("active", "trialing", "past_due"):
+                cible = s
+                break
+        if not cible:
+            raise HTTPException(status_code=404, detail="Aucun abonnement actif a resilier.")
+        maj = _stripe.Subscription.modify(cible["id"], cancel_at_period_end=True)
+        return {"ok": True, "annulation_prevue": True,
+                "fin_periode": maj.get("current_period_end"),
+                "message": "Resiliation programmee. Tu gardes l'acces jusqu'a la fin de la periode payee."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+
+
+@router.post("/premium/reactiver")
+def premium_reactiver(authorization: str | None = Header(default=None)):
+    """Annule une resiliation programmee (reprend l'abonnement)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+    cid = user.get("stripe_customer_id")
+    if not cid:
+        raise HTTPException(status_code=400, detail="Aucun abonnement Stripe lie a ce compte.")
+    secret_key = _load_cred("stripe.env", "STRIPE_SECRET_KEY")
+    if not secret_key:
+        raise HTTPException(status_code=503, detail="Stripe non configure")
+    import stripe as _stripe
+    _stripe.api_key = secret_key
+    try:
+        subs = _stripe.Subscription.list(customer=cid, status="all", limit=3)
+        for s in subs.get("data", []):
+            if s.get("cancel_at_period_end"):
+                _stripe.Subscription.modify(s["id"], cancel_at_period_end=False)
+                return {"ok": True, "annulation_prevue": False,
+                        "message": "Abonnement repris. Aucune resiliation prevue."}
+        raise HTTPException(status_code=404, detail="Aucune resiliation programmee a annuler.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Stripe : {e}")
+
+
 # ── Don ────────────────────────────────────────────────────────────────────────
 
 @router.post("/don/checkout")

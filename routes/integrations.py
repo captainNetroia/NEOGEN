@@ -374,6 +374,49 @@ def _extraire_termes_legaux_sync(intention: str) -> str:
         return intention[:60]
 
 
+def _structurer_resultats_legaux_sync(intention: str, raw_text: str) -> dict:
+    """Filtre et structure les resultats bruts Legifrance vers un JSON exploitable.
+    Ne garde que les articles pertinents pour l'objectif. Ne leve jamais (repli propre)."""
+    import json as _json
+    fallback = {"articles": [], "synthese": "", "brut": (raw_text or "")[:1200]}
+    try:
+        from generator import _load_api_key, MODEL_SCAN
+        import anthropic
+        key = _load_api_key()
+        if not key or not (raw_text or "").strip():
+            return fallback
+        c = anthropic.Anthropic(api_key=key)
+        prompt = (
+            "Tu es juriste francais. Voici l'objectif d'un utilisateur puis des resultats bruts "
+            "de Legifrance (LODA).\n"
+            f"OBJECTIF : {intention}\n\n"
+            f"RESULTATS BRUTS :\n{raw_text[:9000]}\n\n"
+            "Selectionne UNIQUEMENT les textes/articles reellement pertinents pour l'objectif "
+            "(ignore tout hors-sujet). Reponds en JSON STRICT, sans texte autour :\n"
+            '{"synthese":"2-3 phrases sur ce que ces textes impliquent concretement pour le projet",'
+            '"articles":[{"titre":"...","reference":"ex: Article L221-5 Code de la consommation",'
+            '"resume":"1 phrase claire","pertinence":"haute|moyenne",'
+            '"lien":"url legifrance si presente sinon chaine vide",'
+            '"pourquoi":"pourquoi c est pertinent pour cet objectif precis"}]}\n'
+            "Si aucun texte n'est pertinent : articles=[] et synthese explique qu'aucun resultat "
+            "ne correspond a l'objectif."
+        )
+        msg = c.messages.create(
+            model=MODEL_SCAN, max_tokens=1600,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        txt = (msg.content[0].text or "").strip()
+        i, j = txt.find("{"), txt.rfind("}")
+        if i >= 0 and j > i:
+            data = _json.loads(txt[i:j + 1])
+            if isinstance(data, dict) and isinstance(data.get("articles"), list):
+                data.setdefault("synthese", "")
+                return data
+        return fallback
+    except Exception:
+        return fallback
+
+
 @router.post("/openlegi/conformite")
 async def openlegi_conformite(data: dict):
     query = (data.get("query") or "").strip()
@@ -412,4 +455,20 @@ async def openlegi_conformite(data: dict):
             result = _parse_mcp_resp(r)
     except Exception as e:
         raise HTTPException(502, f"OpenLegi inaccessible : {e}")
-    return {"resultats": result.get("result", result), "query": legal_query}
+
+    # Extraction du texte brut LODA depuis la reponse MCP
+    import json as _json
+    raw = result.get("result", result)
+    raw_text = ""
+    if isinstance(raw, dict):
+        content = raw.get("content")
+        if isinstance(content, list):
+            raw_text = "\n".join(str(b.get("text", "")) for b in content if isinstance(b, dict))
+        if not raw_text:
+            raw_text = _json.dumps(raw, ensure_ascii=False)
+    elif isinstance(raw, str):
+        raw_text = raw
+
+    # Structuration LLM : filtre sur l'objectif, cartes exploitables (repli propre si echec)
+    structured = await asyncio.to_thread(_structurer_resultats_legaux_sync, query, raw_text)
+    return {"resultats": structured, "query": legal_query, "termes": legal_query}

@@ -62,6 +62,19 @@ def auth_register(data: dict):
     }
     _ajsonl(_USERS, user)
     token = _make_session(uid)
+    # Credit GEN initial du palier gratuit (200 GEN) : sans ca le portefeuille affiche 0.
+    try:
+        import credits as _cred
+        _cred.recharger_mensuel(uid, "gratuit")
+    except Exception:
+        pass
+    # Email de bienvenue (best-effort, non bloquant : un echec ne casse jamais l'inscription)
+    try:
+        import threading, emailer
+        threading.Thread(target=emailer.envoyer_bienvenue,
+                         args=(email, user["name"]), daemon=True).start()
+    except Exception:
+        pass
     return {"token": token, "user": {"id": uid, "email": email, "name": user["name"]}}
 
 
@@ -74,6 +87,25 @@ def auth_login(data: dict):
         raise HTTPException(401, "Email ou mot de passe incorrect")
     token = _make_session(user["id"])
     return {"token": token, "user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
+
+
+@router.post("/auth/change-password")
+def auth_change_password(data: dict, authorization: str = Header(None)):
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifie")
+    ancien = data.get("ancien", "")
+    nouveau = data.get("nouveau", "")
+    if not _verifypw(ancien, user.get("pw_hash", "")):
+        raise HTTPException(403, "Mot de passe actuel incorrect")
+    if len(nouveau) < 6:
+        raise HTTPException(400, "Nouveau mot de passe trop court (6 caracteres minimum)")
+    users = _rjsonl(_USERS)
+    for u in users:
+        if u.get("id") == user["id"]:
+            u["pw_hash"] = _hashpw(nouveau)
+    _wjsonl(_USERS, users)
+    return {"ok": True}
 
 
 @router.get("/auth/me")

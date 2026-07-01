@@ -399,7 +399,11 @@ $('#btn-forger').onclick=()=>{
   const endpoint=studio.deleguer?'/orchestrer/stream':'/fabriquer/stream';
   forgeAdd('start',studio.deleguer?'Lancement de la delegation':'Lancement de la forge','intention envoyee','run');
   fetch(endpoint,{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)})
-    .then(resp=>{
+    .then(async resp=>{
+      if(await _maybeUpgrade(resp,$('#forge-result'))){
+        forgeAdd('err','Limite atteinte','Passe a un pack superieur pour continuer.','ko');
+        $('#btn-forger').disabled=false;return;
+      }
       const reader=resp.body.getReader();const dec=new TextDecoder();let buf='';
       function pump(){
         return reader.read().then(({done,value})=>{
@@ -860,6 +864,46 @@ function ouvrirNotebookLM(){
 }
 
 /* ===== OPENLEGI ===== */
+function _renderOpenLegi(d,intention){
+  var res=d.resultats||{};
+  var termes=d.termes||d.query||intention;
+  var head='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<b style="color:var(--acc)">⊜ Conformité juridique</b>'
+    +'<span style="font-size:11px;color:var(--mut)">Légifrance · termes : '+esc(termes)+'</span></div>';
+  /* Repli si structure inattendue (ancien format ou echec LLM) */
+  var articles=(res&&Array.isArray(res.articles))?res.articles:null;
+  if(!articles){
+    var brut=(res&&res.brut)?res.brut:(typeof res==='string'?res:JSON.stringify(res||{},null,2));
+    return '<div class="compo-premiere">'+head
+      +'<div style="font-size:12px;color:var(--mut);white-space:pre-wrap;max-height:220px;overflow:auto">'+esc((brut||'').slice(0,1200))+'</div></div>';
+  }
+  var html='<div class="compo-premiere">'+head;
+  if(res.synthese){
+    html+='<div style="padding:10px 12px;background:rgba(0,232,105,.06);border-left:2px solid var(--acc);border-radius:6px;font-size:13px;line-height:1.5;margin-bottom:10px">'+esc(res.synthese)+'</div>';
+  }
+  if(!articles.length){
+    html+='<div style="font-size:12px;color:var(--mut)">Aucun texte de loi pertinent trouvé pour cet objectif.</div></div>';
+    return html;
+  }
+  html+=articles.map(function(a){
+    var haute=(a.pertinence==='haute');
+    var badge='<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;'
+      +(haute?'background:rgba(0,232,105,.15);color:var(--acc)':'background:rgba(148,163,184,.15);color:var(--mut)')
+      +'">'+(haute?'pertinence haute':'pertinence moyenne')+'</span>';
+    var lien=(a.lien&&/^https?:\/\//.test(a.lien))
+      ?'<a href="'+esc(a.lien)+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--acc);text-decoration:underline">Voir sur Légifrance →</a>':'';
+    return '<div style="border:1px solid var(--brd);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:5px">'
+      +'<b style="font-size:13.5px">'+esc(a.titre||a.reference||'Texte')+'</b>'+badge+'</div>'
+      +(a.reference?'<div style="font-size:11px;color:var(--mut);margin-bottom:5px">'+esc(a.reference)+'</div>':'')
+      +(a.resume?'<div style="font-size:12.5px;line-height:1.5;margin-bottom:5px">'+esc(a.resume)+'</div>':'')
+      +(a.pourquoi?'<div style="font-size:11.5px;color:var(--mut);line-height:1.45;margin-bottom:6px"><b style="color:var(--txt)">Pourquoi :</b> '+esc(a.pourquoi)+'</div>':'')
+      +lien
+      +'</div>';
+  }).join('');
+  html+='</div>';
+  return html;
+}
 $('#btn-openlegi').onclick=async()=>{
   const intention=($('#intention')&&$('#intention').value||'').trim();
   if(intention.length<3){$('#scan-status').innerHTML='<span class="tag ko">vide</span> ecris une intention.';return;}
@@ -872,14 +916,7 @@ $('#btn-openlegi').onclick=async()=>{
       body:JSON.stringify({query:intention})});
     const d=await r.json();
     if(d.detail){$('#scan-status').innerHTML='<span class="tag ko">OpenLegi</span> '+errMsg(d.detail);return;}
-    const res=d.resultats;
-    let html='<div class="compo-premiere"><b>OpenLegi (Legifrance)</b> &middot; <span style="color:var(--mut);font-size:12px">resultats pour : '+esc(d.query||intention)+'</span><br>';
-    if(typeof res==='string'){html+=esc(res);}
-    else if(Array.isArray(res)){
-      html+=(res.length?res.map(r2=>'<div style="margin-top:6px;padding:6px 0;border-top:1px solid rgba(15,23,42,.08)">'+esc(typeof r2==='object'?JSON.stringify(r2):r2)+'</div>').join(''):'Aucun resultat trouve.');}
-    else{html+='<pre style="font-size:11px;white-space:pre-wrap;margin:6px 0">'+esc(JSON.stringify(res,null,2))+'</pre>';}
-    html+='</div>';
-    box.innerHTML=html;box.classList.remove('hidden');$('#scan-status').innerHTML='';
+    box.innerHTML=_renderOpenLegi(d,intention);box.classList.remove('hidden');$('#scan-status').innerHTML='';
   }catch(e){$('#scan-status').innerHTML='<span class="tag ko">erreur</span> '+errMsg(e);}
   finally{btn.disabled=false;}
 };
@@ -1124,21 +1161,36 @@ function _showAuthModal(msg,onSuccess){
 
 async function renderCompteConnecte(root,user){
   const isAdmin=!!user.is_admin;
+  const palierLabel={'gratuit':'Gratuit','essential':'Essential','pro':'Pro','power':'Power','enterprise':'Enterprise'};
+  const palCle=user.palier||'gratuit';
   root.innerHTML=
     '<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="display:flex;justify-content:space-between;align-items:flex-start"><div>'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Profil</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Mon compte</div>'
     +'<div style="font-size:17px;font-weight:700;margin-bottom:3px">'+esc(user.name)+'</div>'
     +'<div style="font-size:13px;color:var(--mut)">'+esc(user.email)+'</div>'
-    +(isAdmin?'<span class="tag ok" style="margin-top:6px;display:inline-block">admin</span>':'')
-    +'</div><button class="ghost" id="deconnexion-btn" style="font-size:12px;padding:6px 12px">Deconnexion</button></div></div>'
+    +'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+    +'<span class="tag '+(palCle!=='gratuit'?'ok':'')+'" style="display:inline-block">'+esc(palierLabel[palCle]||palCle)+'</span>'
+    +(isAdmin?'<span class="tag ok" style="display:inline-block">admin</span>':'')
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
+    +'<button class="ghost" id="chg-pw-btn" style="font-size:12px;padding:6px 12px">Changer le mot de passe</button>'
+    +'<button class="ghost" id="switch-acct-btn" style="font-size:12px;padding:6px 12px">Changer de compte</button>'
+    +'<button class="ghost" id="deconnexion-btn" style="font-size:12px;padding:6px 12px">Deconnexion</button>'
+    +'</div>'
+    +'<form id="chg-pw-form" style="display:none;margin-top:12px;flex-direction:column;gap:8px">'
+    +'<input type="password" id="chg-pw-old" placeholder="Mot de passe actuel" autocomplete="current-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<input type="password" id="chg-pw-new" placeholder="Nouveau mot de passe (6 caracteres min.)" autocomplete="new-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<div style="display:flex;align-items:center;gap:10px"><button type="submit" style="font-size:12px;padding:7px 16px">Valider</button><span id="chg-pw-status" style="font-size:12px"></span></div>'
+    +'</form></div>'
+
+    +'<div id="abonnement-mount"></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Modele actif</div>'
     +'<div id="compte-model-info" style="font-size:14px;color:var(--txt)"></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Envoyer un retour a Jordan</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Envoyer un retour a NEOGEN</div>'
     +'<div class="star-row" id="fb-stars">'+[1,2,3,4,5].map(i=>'<span class="star" data-v="'+i+'">&#9733;</span>').join('')+'</div>'
     +'<div style="margin-top:10px"><textarea id="fb-msg" placeholder="Dis-moi ce qui va ou ne va pas, une idee, un bug..."></textarea></div>'
     +'<div style="display:flex;align-items:center;gap:10px;margin-top:10px">'
@@ -1237,6 +1289,36 @@ async function renderCompteConnecte(root,user){
     loadCompte();
   };
 
+  // --- Changer de compte : deconnecte puis rouvre le formulaire de connexion ---
+  const swBtn=$('#switch-acct-btn');
+  if(swBtn)swBtn.onclick=async()=>{
+    const t=_authToken();
+    if(t)await fetch('/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+t}}).catch(()=>{});
+    localStorage.removeItem('neogen_auth_token');
+    if(typeof _injectUserCss==='function')_injectUserCss();
+    await loadCompte();
+  };
+
+  // --- Changer le mot de passe ---
+  const pwBtn=$('#chg-pw-btn'),pwForm=$('#chg-pw-form');
+  if(pwBtn&&pwForm)pwBtn.onclick=()=>{pwForm.style.display=pwForm.style.display==='none'?'flex':'none';};
+  if(pwForm)pwForm.onsubmit=async(e)=>{
+    e.preventDefault();
+    const st=$('#chg-pw-status'),old=$('#chg-pw-old').value,nw=$('#chg-pw-new').value;
+    st.textContent='...';st.style.color='var(--mut)';
+    try{
+      const r=await fetch('/auth/change-password',{method:'POST',
+        headers:{'Content-Type':'application/json',..._authHdrs()},
+        body:JSON.stringify({ancien:old,nouveau:nw})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok){st.textContent='Mot de passe modifie';st.style.color='var(--ok)';$('#chg-pw-old').value='';$('#chg-pw-new').value='';setTimeout(()=>{pwForm.style.display='none';st.textContent='';},2000);}
+      else{st.textContent=d.detail||'Erreur';st.style.color='#ef4444';}
+    }catch(err){st.textContent='Erreur reseau';st.style.color='#ef4444';}
+  };
+
+  // --- Abonnement Stripe : etat + resiliation ---
+  _loadAbonnement();
+
   let rating=0;
   const stars=Array.from(document.querySelectorAll('#fb-stars .star'));
   function paintStars(n){stars.forEach((x,i)=>x.classList.toggle('on',i<n));}
@@ -1279,6 +1361,50 @@ async function renderCompteConnecte(root,user){
     }catch(e){hist.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
   }
   if(window._breath)_breath.scan();
+}
+
+/* Abonnement Stripe : etat + resiliation (section Compte) */
+async function _loadAbonnement(){
+  const mount=$('#abonnement-mount');if(!mount)return;
+  mount.innerHTML='';
+  let d;
+  try{d=await(await fetch('/premium/abonnement',{headers:_authHdrs()})).json();}catch(e){return;}
+  if(!d||!d.actif||!d.abonnement)return; // gratuit ou pas d'abonnement : rien a afficher
+  const ab=d.abonnement;
+  const fin=ab.fin_periode?new Date(ab.fin_periode*1000).toLocaleDateString('fr-FR'):'';
+  const statutLabel={'active':'Actif','trialing':'Essai en cours','past_due':'Paiement en retard'}[ab.statut]||ab.statut;
+  let corps='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    +'<span style="font-size:14px;font-weight:700">'+esc(statutLabel)+'</span>'
+    +'<span class="tag ok" style="display:inline-block">'+esc((d.palier||'').toUpperCase())+'</span></div>';
+  if(ab.annulation_prevue){
+    corps+='<div style="font-size:12px;color:#f59e0b;margin-bottom:10px">Resiliation programmee — acces conserve jusqu\'au '+esc(fin)+'.</div>'
+      +'<button class="ghost" id="ab-reactiver-btn" style="font-size:12px;padding:7px 14px">Reprendre mon abonnement</button>';
+  }else{
+    corps+='<div style="font-size:12px;color:var(--mut);margin-bottom:10px">Prochain renouvellement le '+esc(fin)+'.</div>'
+      +'<button class="ghost" id="ab-annuler-btn" style="font-size:12px;padding:7px 14px;border-color:rgba(239,68,68,.4);color:#ef4444">Resilier mon abonnement</button>';
+  }
+  corps+='<span id="ab-status" style="font-size:12px;margin-left:10px"></span>';
+  mount.innerHTML='<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Mon abonnement</div>'
+    +corps+'</div>';
+  const annBtn=$('#ab-annuler-btn'),reBtn=$('#ab-reactiver-btn'),abSt=$('#ab-status');
+  if(annBtn)annBtn.onclick=async()=>{
+    if(!confirm('Programmer la resiliation ? Tu gardes l\'acces jusqu\'a la fin de la periode payee.'))return;
+    annBtn.disabled=true;abSt.textContent='...';abSt.style.color='var(--mut)';
+    try{
+      const r=await fetch('/premium/annuler',{method:'POST',headers:_authHdrs()});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok){_loadAbonnement();}else{abSt.textContent=j.detail||'Erreur';abSt.style.color='#ef4444';annBtn.disabled=false;}
+    }catch(e){abSt.textContent='Erreur reseau';abSt.style.color='#ef4444';annBtn.disabled=false;}
+  };
+  if(reBtn)reBtn.onclick=async()=>{
+    reBtn.disabled=true;abSt.textContent='...';abSt.style.color='var(--mut)';
+    try{
+      const r=await fetch('/premium/reactiver',{method:'POST',headers:_authHdrs()});
+      const j=await r.json().catch(()=>({}));
+      if(r.ok){_loadAbonnement();}else{abSt.textContent=j.detail||'Erreur';abSt.style.color='#ef4444';reBtn.disabled=false;}
+    }catch(e){abSt.textContent='Erreur reseau';abSt.style.color='#ef4444';reBtn.disabled=false;}
+  };
 }
 
 /* Compte */
@@ -1355,6 +1481,11 @@ async function forgerMonSkill(btn){
       headers:_llmHdrs(),
       body:JSON.stringify({besoin:besoin.trim(),titre:titre.trim()})
     });
+    if(r.status===402){
+      if(err){err.style.display='';_showUpsell(err,(await r.clone().json().catch(function(){return{};})).detail);}
+      btn.disabled=false;btn.textContent='Forger';
+      return;
+    }
     const d=await r.json();
     if(!r.ok){
       if(err){err.textContent=d.detail||'Erreur ('+r.status+')';err.style.display='';}
@@ -2593,8 +2724,16 @@ async function loadWallet(){
     if(badge)badge.textContent=d.solde+' GEN';
     if(navBadge){navBadge.textContent=d.solde+' GEN';navBadge.style.display='';}
     var palierLabel={'gratuit':'Gratuit','essential':'Essential','pro':'Pro','power':'Power','enterprise':'Enterprise'};
-    if(detail)detail.innerHTML='<span style="color:var(--ok);font-weight:600">'+esc(palierLabel[d.palier]||d.palier)+'</span>'
-      +(d.gen_mensuel>0?' · <span style="color:#f59e0b">+'+d.gen_mensuel+' GEN/mois</span>':'');
+    if(detail){
+      var mensuel=d.gen_mensuel||0;
+      var pct=mensuel>0?Math.max(0,Math.min(100,Math.round(d.solde/mensuel*100))):0;
+      var consomme=mensuel>0?Math.max(0,mensuel-d.solde):0;
+      var barCol=pct<=15?'#ef4444':(pct<=40?'#f59e0b':'linear-gradient(90deg,#f59e0b,#fbbf24)');
+      detail.innerHTML='<span style="color:var(--ok);font-weight:600">'+esc(palierLabel[d.palier]||d.palier)+'</span>'
+        +(mensuel>0?' &middot; <span style="color:#f59e0b">'+mensuel+' GEN/mois</span>':'')
+        +(mensuel>0?'<div style="margin-top:10px"><div style="height:9px;border-radius:6px;background:rgba(100,116,139,.2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+barCol+';border-radius:6px;transition:width .4s"></div></div>'
+          +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-top:5px"><span><b style="color:#f59e0b">'+d.solde+'</b> GEN restants</span><span>'+consomme+' consommes ce mois</span></div></div>':'');
+    }
     if(hist&&d.historique&&d.historique.length){
       hist.innerHTML='<div style="font-size:11px;color:var(--mut);margin-bottom:4px">Dernieres transactions</div>'
         +d.historique.slice(0,5).map(function(tx){
@@ -2739,6 +2878,33 @@ async function _passerPremium(plan,palier,btn){
     if(r.ok&&d.url)window.location.href=d.url;
     else{alert(d.detail||'Paiement indisponible.');btn.disabled=false;btn.textContent=old;}
   }catch(e){alert('Erreur reseau.');btn.disabled=false;btn.textContent=old;}
+}
+
+/* Encart upgrade affiche quand une limite freemium (402) est atteinte.
+   Reutilise showSection('compte') -> renderTarifs/_passerPremium existants. */
+function _showUpsell(cibleEl,detail){
+  if(!cibleEl)return;
+  cibleEl.innerHTML='<div style="margin-top:10px;padding:14px 16px;border:1px solid rgba(0,255,65,.4);'
+    +'background:rgba(0,255,65,.06);border-radius:12px;font-size:13px;line-height:1.55">'
+    +'<b style="color:#00ff41">Limite de ton offre atteinte</b><br>'
+    +'<span style="color:var(--mut)">'+esc(detail||'Cette action requiert un pack superieur.')+'</span><br>'
+    +'<button class="ntr-upsell-btn" style="margin-top:10px;padding:9px 18px;font-size:13px;font-weight:800;'
+    +'background:#00ff41;color:#000;border:none;border-radius:9px;cursor:pointer;letter-spacing:.5px">Voir les packs et passer premium →</button>'
+    +'</div>';
+  var b=cibleEl.querySelector('.ntr-upsell-btn');
+  if(b)b.onclick=function(){
+    showSection('compte');
+    setTimeout(function(){var t=document.getElementById('tarifs-grid');if(t)t.scrollIntoView({behavior:'smooth',block:'center'});},350);
+  };
+}
+
+/* Detecte un refus 402 sur une reponse fetch et affiche l'encart upgrade.
+   Retourne true si c'etait un 402 (l'appelant doit alors s'arreter). */
+async function _maybeUpgrade(resp,cibleEl){
+  if(!resp||resp.status!==402)return false;
+  var d={};try{d=await resp.clone().json();}catch(e){}
+  _showUpsell(cibleEl,d.detail);
+  return true;
 }
 
 function _initTarifToggle(palierActuel){
@@ -4816,8 +4982,9 @@ function _showOnboardingOverlay(startStep,user){
     if(step===1)_obBienvenue(box,function(){step=2;render();});
     else if(step===2)_obPresentation(box,function(){step=3;render();});
     else if(step===3)_obCompte(box,function(u){
-      if(u&&localStorage.getItem('neogen_ob_done')){stopMatrix();overlay.remove();loadCompte();}
-      else{step=4;render();}
+      /* Toujours presenter les packs/essai apres creation du compte.
+         neogen_ob_done n'est pose QUE dans _obPlans (choix pack ou freemium explicite). */
+      step=4;render();
     });
     else if(step===4)_obPlans(box,overlay,stopMatrix);
   }
@@ -5020,7 +5187,7 @@ function _obPlans(box,overlay,stopMatrix){
     +'</div>'
     +'<div style="font-size:28px;font-weight:900;color:#fff;margin-bottom:18px">14,99€<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,.4)">/mois apres essai</span></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;margin-bottom:22px">'
-    +['1 500 GEN/mois','4 providers IA + local','Multi-agents RPA Apprentissage','Vision active Crons','5 Donner vie/mois','15 applis + 7 deploiements','Mode Juge 60 GEN','Plugin Hostinger'].map(function(f){
+    +['1 500 GEN/mois','4 providers IA + local','Multi-agents RPA Apprentissage','Vision active Crons','5 Donner vie/mois','15 applis + 7 deploiements','10 Mode Juge/mois','Integrations tierces illimitees'].map(function(f){
       return'<div style="font-size:12.5px;color:rgba(255,255,255,.72);display:flex;align-items:center;gap:7px"><span style="color:#00ff41;font-size:10px">●</span>'+f+'</div>';
     }).join('')
     +'</div>'
