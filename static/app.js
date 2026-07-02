@@ -1631,16 +1631,16 @@ async function loadAnalyse(){
       models:['claude-opus-4-8','claude-sonnet-5','claude-haiku-4-5-20251001','claude-fable-5'],
       ph:'sk-ant-api03-...'},
     openai:{label:'OpenAI / GPT',check:k=>k.trim().length>=8,
-      models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o1','o3-mini'],
+      models:['gpt-5.5','gpt-5.2','gpt-5-mini','o3','gpt-4.1'],
       ph:'sk-proj-...'},
     gemini:{label:'Gemini',check:k=>k.trim().length>=8,
-      models:['gemini-2.5-pro','gemini-2.0-flash','gemini-1.5-pro','gemini-1.5-flash'],
+      models:['gemini-3.1-pro-preview','gemini-3.5-flash','gemini-3.1-flash-lite','gemini-2.5-pro'],
       ph:'AIzaSy... ou AQ....'},
     deepseek:{label:'DeepSeek',check:k=>k.trim().length>=8,
-      models:['deepseek-chat','deepseek-reasoner','deepseek-coder'],
+      models:['deepseek-v4-flash','deepseek-v4-pro'],
       ph:'API key DeepSeek...'},
     mistral:{label:'Mistral',check:k=>k.trim().length>=8,
-      models:['mistral-large-latest','mistral-small-latest','codestral-latest','open-mistral-nemo'],
+      models:['mistral-large-latest','mistral-small-latest','codestral-latest','ministral-3-8b'],
       ph:'API key Mistral...'},
     moonshot:{label:'Kimi (Moonshot)',check:k=>k.trim().length>=8,
       models:['kimi-k2.7-code','kimi-k2.6','kimi-k2.7-code-highspeed','kimi-k2.5','moonshot-v1-128k'],
@@ -5347,7 +5347,7 @@ function _obCompte(box,onDone,startMode){
       }
       var prov=qr('#ob-prov3').value,key=(qr('#ob-key3').value||'').trim();
       if(prov&&key){
-        var mdls={anthropic:['claude-opus-4-8'],openai:['gpt-4o'],gemini:['gemini-2.5-pro'],deepseek:['deepseek-chat'],mistral:['mistral-large-latest'],local:['llama3.2']};
+        var mdls={anthropic:['claude-opus-4-8'],openai:['gpt-5.2'],gemini:['gemini-3.1-pro-preview'],deepseek:['deepseek-v4-flash'],mistral:['mistral-large-latest'],local:['llama3.2']};
         localStorage.setItem('neogen_key_'+prov,key);
         localStorage.setItem('neogen_active_provider',prov);
         localStorage.setItem('neogen_active_model',(mdls[prov]&&mdls[prov][0])||'');

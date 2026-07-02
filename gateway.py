@@ -36,10 +36,10 @@ from sanitizer import nettoyer
 # ---------------------------------------------------------------------------
 TIERS = {
     "anthropic": {"fort": "claude-opus-4-8", "moyen": "claude-sonnet-5", "leger": "claude-haiku-4-5-20251001"},
-    "openai":    {"fort": "gpt-4.1",         "moyen": "gpt-4o",            "leger": "gpt-4o-mini"},
-    "gemini":    {"fort": "gemini-2.5-pro",  "moyen": "gemini-2.0-flash",  "leger": "gemini-1.5-flash"},
-    "deepseek":  {"fort": "deepseek-reasoner", "moyen": "deepseek-chat",   "leger": "deepseek-chat"},
-    "mistral":   {"fort": "mistral-large-latest", "moyen": "mistral-small-latest", "leger": "open-mistral-nemo"},
+    "openai":    {"fort": "gpt-5.5",         "moyen": "gpt-5.2",           "leger": "gpt-5-mini"},
+    "gemini":    {"fort": "gemini-3.1-pro-preview", "moyen": "gemini-3.5-flash", "leger": "gemini-3.1-flash-lite"},
+    "deepseek":  {"fort": "deepseek-v4-pro", "moyen": "deepseek-v4-flash", "leger": "deepseek-v4-flash"},
+    "mistral":   {"fort": "mistral-large-latest", "moyen": "mistral-small-latest", "leger": "ministral-3-8b"},
     "moonshot":  {"fort": "kimi-k2.7-code", "moyen": "kimi-k2.6", "leger": "kimi-k2.7-code-highspeed"},
     "glm":       {"fort": "glm-5.2",          "moyen": "glm-4.5",           "leger": "glm-4.5-flash"},
     "local":     {"fort": "llama3.2",        "moyen": "llama3.2",          "leger": "qwen2.5"},
@@ -417,8 +417,8 @@ def client(ctx: LLMContext | None = None, tier: str = "fort"):
 # Modeles vision par defaut, par provider (si le modele actif n'est pas multimodal).
 VISION_MODELS = {
     "anthropic": "claude-sonnet-5",   # toute la famille Claude voit
-    "openai":    "gpt-4o",
-    "gemini":    "gemini-2.0-flash",
+    "openai":    "gpt-5.2",
+    "gemini":    "gemini-3.5-flash",
     "local":     "llama3.2-vision",      # Ollama : necessite `ollama pull llama3.2-vision` (ou llava)
 }
 
