@@ -239,6 +239,8 @@ PROFILS: dict[str, dict] = {
             # Resolution + delegation + memoire generale
             "resoudre_objectif", "creer_bebe_agent", "appeler_agent",
             "rappeler", "memoriser", "creer_rapport", "remonter_alerte",
+            # Reutiliser une competence connue avant d'improviser (ex: patterns UI valides)
+            "lister_skills", "utiliser_skill",
         ],
         "role": (
             "Tu es L'INGENIEUR de NEOGEN — le developpeur expert et le medecin du systeme. "
@@ -286,7 +288,10 @@ PROFILS: dict[str, dict] = {
             "Exemple : les bulles desorganisees dans un panel = JavaScript masonry, pas CSS. "
             "Rappel etape 2b : app.js non monte -> rebuild obligatoire apres patch.\n"
             "   C) VISUEL PUR (couleur, spacing, bordure, typographie, ombre, fond) "
-            "-> OVERRIDE CSS sur data/ui_overrides.css. Immediat, pas de rebuild.\n"
+            "-> OVERRIDE CSS sur data/ui_overrides.css. Immediat, pas de rebuild. "
+            "AVANT de composer le CSS a la main : 'lister_skills' pour verifier si un pattern "
+            "visuel valide existe deja (ex: glass card / liquid glass sur fond video sombre) "
+            "et 'utiliser_skill' pour l'appliquer plutot que reinventer.\n"
             "   D) SECURITE / PERFORMANCE SYSTEME (hachage cryptographique, verification d'integrite, "
             "parsing binaire, chiffrement, analyse memoire, performance bas niveau) "
             "-> RUST si la cellule Python atteint ses limites (GIL, vitesse, securite memoire). "
