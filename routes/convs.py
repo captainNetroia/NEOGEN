@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import datetime
 
@@ -15,15 +16,26 @@ router = APIRouter()
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _USERS_DIR = os.path.join(_BASE, "data", "users")
 
+# role/conv_id sont attaquant-controlables (query/body/path param) : liste blanche stricte
+# pour empecher toute traversee de repertoire (".." etc.) dans les chemins construits.
+_ID_SAFE = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def _id_sur(valeur: str, defaut: str = "") -> str:
+    return _ID_SAFE.sub("", valeur or "")[:64] or defaut
+
 
 def _conv_dir(user_id: str, role: str) -> str:
-    d = os.path.join(_USERS_DIR, user_id, "convs", role)
+    d = os.path.join(_USERS_DIR, user_id, "convs", _id_sur(role, "defaut"))
     os.makedirs(d, exist_ok=True)
     return d
 
 
 def _conv_path(user_id: str, role: str, conv_id: str) -> str:
-    return os.path.join(_conv_dir(user_id, role), f"{conv_id}.json")
+    cid = _id_sur(conv_id)
+    if not cid:
+        raise HTTPException(400, "id de conversation invalide")
+    return os.path.join(_conv_dir(user_id, role), f"{cid}.json")
 
 
 def _read(path: str) -> dict:

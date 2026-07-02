@@ -193,8 +193,16 @@ def _persister_cellule(cell, score, verdict_raison, test,
                         pensee_id: str = "", pensee_titre: str = "",
                         user: dict | None = None) -> str:
     """Ecrit le code reel + une entree de registre dans le sac de l'utilisateur (ou le
-    système pour l'owner). Idempotent (re-forge ecrase proprement)."""
-    nom = re.sub(r"[^a-z0-9_]+", "_", (cell.name or "cellule").lower()).strip("_") or "cellule"
+    système pour l'owner). Idempotent SEULEMENT pour la meme idee (re-forge ecrase proprement) ;
+    sinon, jamais d'ecrasement silencieux : la fonction generee porte souvent un nom generique
+    (ex: 'executer'), donc deux idees differentes peuvent collisionner sur le meme nom."""
+    base = pensee_titre or cell.name or "cellule"
+    nom = re.sub(r"[^a-z0-9_]+", "_", base.lower()).strip("_")[:40] or "cellule"
+    reg = _charger_registre(user)
+    existante = reg.get(nom)
+    meme_idee = bool(existante and pensee_id and existante.get("pensee_id") == pensee_id)
+    if existante and not meme_idee:
+        nom = f"{nom}_{uuid.uuid4().hex[:6]}"
     cellules_dir = _cellules_dir(user)
     os.makedirs(cellules_dir, exist_ok=True)
     chemin = os.path.join(cellules_dir, f"{nom}.py")
@@ -204,7 +212,6 @@ def _persister_cellule(cell, score, verdict_raison, test,
     with open(chemin, "w", encoding="utf-8") as f:
         f.write(entete + (cell.code or ""))
 
-    reg = _charger_registre(user)
     reg[nom] = {
         "nom": nom,
         "description": cell.description,
@@ -539,7 +546,7 @@ if __name__ == "__main__":
                 "import socket\n"
                 "def executer(donnees=None):\n"
                 "    return socket.gethostname()\n")
-        def _gen(need, genome, origin="forge"):
+        def _gen(need, genome, origin="forge", api_key=None):
             c = Cell(name="reparer_continuations", description="Repare les backslash de continuation",
                      origin=origin,
                      declared_effects={"deletes_data": False, "asks_confirmation": False,
@@ -586,7 +593,7 @@ if __name__ == "__main__":
 
     # 3. Boucle de reparation : echec a la tentative 1 (syntaxe), succes a la 2.
     _cpt = {"n": 0}
-    def _gen_repare(need, genome, origin="forge"):
+    def _gen_repare(need, genome, origin="forge", api_key=None):
         _cpt["n"] += 1
         c = Cell(name="repare_au_second_essai", description="Repare au 2e essai", origin=origin,
                  declared_effects={"deletes_data": False, "asks_confirmation": False,
@@ -603,7 +610,7 @@ if __name__ == "__main__":
     print(f"  boucle de reparation : echec t1 -> succes t2 -> integree (tentative {st4['tentative']}) OK")
 
     # 4. Syntaxe toujours invalide -> refuse apres MAX tentatives + conscience = echouee.
-    def _gen_casse(need, genome, origin="forge"):
+    def _gen_casse(need, genome, origin="forge", api_key=None):
         c = Cell(name="casse_total", description="x", origin=origin,
                  declared_effects={"deletes_data": False, "asks_confirmation": False,
                                    "network_access": False, "authorized_network": False},
@@ -626,7 +633,7 @@ if __name__ == "__main__":
     _ns._DATA = _tmp
     _ns._USERS_ROOT = os.path.join(_tmp, "users")
     # Cellule au nom UNIQUE (evite la collision avec la cellule systeme du test 1).
-    def _gen_alice(need, genome, origin="forge"):
+    def _gen_alice(need, genome, origin="forge", api_key=None):
         c = Cell(name="skill_alice_only", description="Skill propre a Alice", origin=origin,
                  declared_effects={"deletes_data": False, "asks_confirmation": False,
                                    "network_access": False, "authorized_network": False},

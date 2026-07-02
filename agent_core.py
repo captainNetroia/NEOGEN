@@ -703,6 +703,7 @@ def _est_step_brut(s: str) -> bool:
 
 
 _MSG_STEP_BRUT = "Je n'ai pas pu formuler une reponse structuree. Reformule ta demande."
+_MSG_LIMITE_ETAPES = "J'ai atteint la limite d'etapes. Reformule ou precise ta demande."
 
 
 def _parse_step(txt: str) -> AgentStep:
@@ -901,7 +902,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         _replay(outil)
         messages.append({"role": "user", "content": f"[Resultat {outil}] {obs}"})
 
-    msg = "J'ai atteint la limite d'etapes. Reformule ou precise ta demande."
+    msg = _MSG_LIMITE_ETAPES
     _emit({"type": "reponse", "agent": role, "texte": msg})
     _maj_bandit(succes=False)
     return msg

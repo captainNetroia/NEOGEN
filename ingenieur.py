@@ -90,9 +90,27 @@ def _run(besoin: str, titre: str, pensee_id: str, job_id: str) -> None:
             return
 
         # Verdict final : on a forge/integre quelque chose -> 'termine' ; sinon rapport quand meme.
+        # Le dernier tour de l'agent (ou la limite d'etapes) peut produire un message generique
+        # meme quand du travail reel a eu lieu (ou pas) : ne jamais laisser ce fallback mentir
+        # par omission sur ce qui s'est reellement passe.
+        rapport_final = (rapport or "").strip()
+        _fallbacks = {getattr(_ac, "_MSG_STEP_BRUT", None), getattr(_ac, "_MSG_LIMITE_ETAPES", None)}
+        if rapport_final in _fallbacks or rapport_final in ("", "..."):
+            if etat["forgee"]:
+                rapport_final = (
+                    f"Capacite '{etat['forgee']}' forgee, testee en sandbox et integree "
+                    f"({etat['actions']} action(s)). La synthese finale du raisonnement a echoue "
+                    f"a se formuler proprement, mais le resultat est verifie operationnel."
+                )
+            else:
+                rapport_final = (
+                    f"Interrompu avant d'aboutir : la limite d'etapes du raisonnement a ete "
+                    f"atteinte avant qu'une capacite soit forgee ({etat['actions']} action(s) "
+                    f"tentee(s)). A relancer, eventuellement avec un besoin plus cible."
+                )
         _set_job(job_id, etat="termine", etape="termine", pct=100,
                  nom=etat["forgee"] or "", score=etat["score"],
-                 rapport=(rapport or "")[:1200], mode="ingenieur")
+                 rapport=rapport_final[:1200], mode="ingenieur")
         if pensee_id:
             try:
                 import pensee
