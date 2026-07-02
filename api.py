@@ -40,6 +40,7 @@ async def _lifespan(app):
     """Démarrage : lance cron + Telegram + auto-amélioration + socle compétences.
     Chaque démarrage est protégé (jamais bloquant). Remplace on_event (déprécié, dette F005)."""
     _rob.protege(lambda: __import__("planificateur").demarrer(), operation="start cron", source="startup")
+    _rob.protege(lambda: __import__("credits_gratuit").demarrer(), operation="start credit mensuel gratuit", source="startup")
     _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
     _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
     _rob.protege(lambda: __import__("competences").assurer_socle(), operation="socle competences", source="startup")

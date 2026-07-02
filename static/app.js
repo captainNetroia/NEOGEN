@@ -5063,7 +5063,7 @@ function _showOnboardingOverlay(startStep,user){
       function(){_compteStartMode='register';step=2;render();},      // Commencer (flux normal)
       function(){_compteStartMode='login';step=3;render();}           // Deja inscrit -> login direct
     );
-    else if(step===2)_obPresentation(box,function(){step=3;render();});
+    else if(step===2)_obPresentation(box,function(){step=3;render();},function(){step=1;render();});
     else if(step===3){
       var _cm=_compteStartMode;_compteStartMode='register'; // reset apres usage
       _obCompte(box,function(u){
@@ -5100,6 +5100,29 @@ function _obBienvenue(box,onNext,onLogin){
     +'<span style="font-size:13px;color:rgba(255,255,255,.35)">Deja un compte ?</span> '
     +'<button id="ob-login-link" style="background:none;border:none;cursor:pointer;font-size:13px;'
     +'color:#00ff41;text-decoration:underline;text-underline-offset:3px;padding:0">Connecte-toi</button>'
+    +'</div>'
+    +'<div style="margin-top:26px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)">'
+    +'<div style="font-size:10px;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px">3 facons d\'utiliser NEOGEN</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;text-align:left;max-width:380px;margin:0 auto">'
+    +'<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(0,255,65,.04);border:1px solid rgba(0,255,65,.15)">'
+    +'<span style="font-size:16px">&#9729;</span>'
+    +'<div><div style="font-size:12px;font-weight:700;color:#00ff41">Cloud NetroIA (ici)</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Cle en main, hebergement inclus. Clique "Commencer" ci-dessus.</div></div>'
+    +'</div>'
+    +'<a href="https://github.com/captainNetroia/NEOGEN" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);text-decoration:none">'
+    +'<span style="font-size:16px">&#128187;</span>'
+    +'<div><div style="font-size:12px;font-weight:700;color:#fff">En local, gratuit</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Sur ta machine, avec ta cle IA ou Ollama. <code style="color:rgba(0,255,65,.6)">docker compose up</code></div></div>'
+    +'</a>'
+    +'<a href="https://github.com/captainNetroia/NEOGEN/blob/main/docker-compose.prod.yml" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);text-decoration:none">'
+    +'<span style="font-size:16px">&#128274;</span>'
+    +'<div><div style="font-size:12px;font-weight:700;color:#fff">Sur ton serveur, isole</div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Deploiement durci (socket-proxy + reseaux isoles), ton domaine.</div></div>'
+    +'</a>'
+    +'</div>'
+    +'<div style="margin-top:14px;font-size:10px;color:rgba(255,255,255,.22)">Coeur open source sous '
+    +'<a href="https://github.com/captainNetroia/NEOGEN/blob/main/LICENSE" target="_blank" rel="noopener" style="color:rgba(255,255,255,.4);text-decoration:underline">Business Source License 1.1</a>'
+    +'</div>'
     +'</div>';
   box.appendChild(d);
   var btn=d.querySelector('#ob-start');
@@ -5111,10 +5134,12 @@ function _obBienvenue(box,onNext,onLogin){
 }
 
 /* -- Step 2 - Presentation (interrogatoire de copinage) ---------- */
-function _obPresentation(box,onDone){
+function _obPresentation(box,onDone,onBack){
   var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
   var d=document.createElement('div');
   d.innerHTML=''
+    +'<button id="ob-back2" style="background:none;border:none;cursor:pointer;font-size:12px;'
+    +'color:rgba(255,255,255,.35);padding:0;margin-bottom:18px;display:flex;align-items:center;gap:4px">&larr; Retour</button>'
     +'<div style="text-align:center;margin-bottom:28px">'
     +'<div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:8px">Fais connaissance avec NEOGEN</div>'
     +'<div style="font-size:13px;color:rgba(255,255,255,.45);line-height:1.6">'
@@ -5147,6 +5172,7 @@ function _obPresentation(box,onDone){
     +'border-radius:10px;cursor:pointer">Suivant ></button>';
   box.appendChild(d);
   function qr(s){return d.querySelector(s);}
+  if(onBack)qr('#ob-back2').onclick=onBack;
   qr('#ob-next2').onclick=function(){
     var prenom=(qr('#ob-prenom').value||'').trim();
     if(!prenom){var e=qr('#ob-err2');e.textContent='Dis-moi comment t\'appeler.';e.style.display='';return;}

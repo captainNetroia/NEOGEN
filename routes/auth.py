@@ -62,10 +62,11 @@ def auth_register(data: dict):
     }
     _ajsonl(_USERS, user)
     token = _make_session(uid)
-    # Credit GEN initial du palier gratuit (200 GEN) : sans ca le portefeuille affiche 0.
+    # Credit GEN initial du palier gratuit (200 GEN), puis recredite chaque mois calendaire
+    # (voir credits_gratuit.py) : sans ca le portefeuille affiche 0 des le 2e mois.
     try:
-        import credits as _cred
-        _cred.recharger_mensuel(uid, "gratuit")
+        import credits_gratuit as _cg
+        _cg.crediter_si_necessaire(uid)
     except Exception:
         pass
     # Email de bienvenue (best-effort, non bloquant : un echec ne casse jamais l'inscription)
