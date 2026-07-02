@@ -109,7 +109,7 @@ def _sidebar() -> str:
 
 def _landing() -> str:
     return r"""<!-- LANDING -->
-<div id="landing">
+<div id="landing" style="visibility:hidden">
   <div class="landing-title">
     <img src="/static/Logo-Neogen-transparent.png" alt="NEOGEN" class="neogen-logo">
     <h2>NEO<b>GEN</b></h2>

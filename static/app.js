@@ -5057,10 +5057,16 @@ async function _checkOnboarding(){
   setTimeout(_startTour,600);
 }
 
-/* Overlay obligatoire sur la version PUBLIQUE uniquement (pas sur localhost/127.0.0.1) */
+/* Overlay d'onboarding : MEME comportement en local et en public (coherence). Base
+   uniquement sur l'etat reel (connecte ? profil complet ? onboarding deja fait ?),
+   jamais sur le hostname — sinon le proprietaire ne peut jamais verifier ce flux en local.
+   #landing demarre invisible (voir ui.py) pour eviter le flash de l'accueil avant que
+   l'overlay ne se decide : on ne le revele qu'une fois la decision prise (avec ou sans
+   overlay par-dessus, ca ne change rien puisque l'overlay est plein ecran). */
 document.addEventListener('DOMContentLoaded',function(){
-  var h=window.location.hostname;
-  if(h!=='localhost'&&h!=='127.0.0.1')setTimeout(_checkOnboarding,400);
+  var landingEl=document.getElementById('landing');
+  function reveal(){if(landingEl)landingEl.style.visibility='';}
+  _checkOnboarding().then(reveal).catch(reveal);
 });
 
 /* -- Canvas pluie Matrix ----------------------------------------- */
