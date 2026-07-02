@@ -53,6 +53,10 @@ async def _lifespan(app):
     _rob.protege(lambda: __import__("conscience").auto_reparer(), operation="auto-reparation conscience", source="startup")
     _rob.protege(lambda: __import__("conscience").demarrer_maintenance(6.0), operation="maintenance conscience", source="startup")
     _rob.protege(lambda: __import__("version_guard").check_on_startup(), operation="garde-fou compatibilite", source="startup")
+    # Jobs Ingenieur/forge restes 'en_cours' apres un redemarrage : leur thread est mort, on les
+    # passe en 'interrompu' (relançable) pour ne pas afficher « ACTIF » a vie ni bloquer une relance.
+    _rob.protege(lambda: __import__("forge_evolution").reconcilier_jobs_orphelins(),
+                 operation="reconcilier jobs orphelins", source="startup")
     _rob.journaliser("NEOGEN demarre : services autonomes actifs", "info", source="startup")
     yield
 

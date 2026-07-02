@@ -75,7 +75,11 @@ _ETAPES = {
     "integration": "Intégration au système…",
     "termine":    "Code généré, testé & intégré",
     "refuse":     "Refusé",
+    "interrompu": "Interrompu (redémarrage) — à relancer",
 }
+
+# Etats terminaux : un job dans un de ces etats n'est plus "actif" (aucun thread ne tourne).
+_ETATS_TERMINAUX = {"termine", "refusee", "generee", "interrompu", "en_attente_decision"}
 
 
 # ── Suivi de job (data-driven, lu par le polling UI) ─────────────────────────────
@@ -116,6 +120,36 @@ def statut_job(job_id: str) -> dict:
     """Etat courant d'un job pour le polling UI. {trouve:false} si inconnu."""
     job = _charger_jobs().get(job_id)
     return job if job else {"trouve": False, "job_id": job_id}
+
+
+def reconcilier_jobs_orphelins() -> int:
+    """Au démarrage : tout job resté 'en_cours' est orphelin — son thread daemon est mort avec
+    le process (rebuild, crash, épuisement crédit API pendant un run). Aucun mécanisme ne le
+    reprend, donc il resterait 'actif' à vie dans l'UI (bug : « INGENIEUR ACTIF » figé).
+    On le passe en 'interrompu' (terminal, non-actif, relançable) avec une raison honnête.
+    Idempotent, ne lève jamais. Renvoie le nombre de jobs réconciliés."""
+    n = 0
+    try:
+        jobs = _charger_jobs()
+        modifie = False
+        for jid, job in jobs.items():
+            if job.get("etat") == "en_cours":
+                job["etat"] = "interrompu"
+                job["etape"] = "interrompu"
+                job["etape_label"] = _ETAPES["interrompu"]
+                job["relancable"] = True
+                job["raison"] = ("Interrompu par un redémarrage du système (crédit API épuisé "
+                                 "ou rebuild). Le travail n'a pas abouti — relance-le, "
+                                 "éventuellement avec un autre modèle actif.")
+                modifie = True
+                n += 1
+        if modifie:
+            os.makedirs(_DATA, exist_ok=True)
+            with open(_JOBS, "w", encoding="utf-8") as f:
+                json.dump(jobs, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return n
 
 
 # ── Analyse statique des effets reels (quarantaine honnete) ──────────────────────
