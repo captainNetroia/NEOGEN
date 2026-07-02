@@ -28,7 +28,7 @@ import subprocess
 import time
 
 PORT = 9001
-REPO_DIR = "/root/NEOGEN"
+REPO_DIR = "/opt/neogen"
 COMPOSE_FILE = "docker-compose.prod.yml"
 SECRET = os.environ.get("DEPLOY_WEBHOOK_SECRET", "")
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deploy_webhook.log")
