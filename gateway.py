@@ -35,7 +35,7 @@ from sanitizer import nettoyer
 # (fort = le plus capable, leger = le plus rapide/econome).
 # ---------------------------------------------------------------------------
 TIERS = {
-    "anthropic": {"fort": "claude-opus-4-8", "moyen": "claude-sonnet-4-6", "leger": "claude-haiku-4-5"},
+    "anthropic": {"fort": "claude-opus-4-8", "moyen": "claude-sonnet-5", "leger": "claude-haiku-4-5-20251001"},
     "openai":    {"fort": "gpt-4.1",         "moyen": "gpt-4o",            "leger": "gpt-4o-mini"},
     "gemini":    {"fort": "gemini-2.5-pro",  "moyen": "gemini-2.0-flash",  "leger": "gemini-1.5-flash"},
     "deepseek":  {"fort": "deepseek-reasoner", "moyen": "deepseek-chat",   "leger": "deepseek-chat"},
@@ -416,7 +416,7 @@ def client(ctx: LLMContext | None = None, tier: str = "fort"):
 # ---------------------------------------------------------------------------
 # Modeles vision par defaut, par provider (si le modele actif n'est pas multimodal).
 VISION_MODELS = {
-    "anthropic": "claude-sonnet-4-6",   # toute la famille Claude voit
+    "anthropic": "claude-sonnet-5",   # toute la famille Claude voit
     "openai":    "gpt-4o",
     "gemini":    "gemini-2.0-flash",
     "local":     "llama3.2-vision",      # Ollama : necessite `ollama pull llama3.2-vision` (ou llava)

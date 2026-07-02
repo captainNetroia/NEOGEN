@@ -849,8 +849,23 @@ def _section_evolution() -> str:
     <h2><span class="sec-dot" style="background:#10b981"></span>Evolution</h2>
     <p>Hub du savoir : 5 silos unifies. Le systeme apprend, propose, tu approuves.</p>
   </div>
-  <div class="agent-chat-mount" data-agent="architecte" data-titre="🏗️ L'Architecte" data-sub="Je connais le noyau, les murs et les stores. Dis-moi ce que tu veux faire evoluer : je t'aide a formuler la bonne proposition."></div>
+  <div class="agent-chat-mount" id="evo-architecte-mount" data-agent="architecte" data-titre="🏗️ L'Architecte" data-sub="Je connais le noyau, les murs et les stores. Dis-moi ce que tu veux faire evoluer : je t'aide a formuler la bonne proposition."></div>
 
+  <!-- Vue bridee (non-proprietaire) : le Hub complet reste reserve, mais Evolution reste
+       visible et explique — avec un chemin sur vers la forge personnelle (sac isole). -->
+  <div id="evo-vue-bridee" class="panel glass" style="display:none;margin-bottom:20px;border-color:rgba(16,185,129,.3)">
+    <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:#10b981">Evolution — vue publique</div>
+    <div style="font-size:13px;line-height:1.6;opacity:.8;margin-bottom:14px">
+      Cette section pilote le cerveau commun de NEOGEN (regles, agents, savoir partage entre
+      tous les utilisateurs) — reservee au proprietaire de l'instance pour proteger l'integrite
+      du systeme. Tu peux quand meme forger tes propres competences : elles restent isolees
+      dans ton espace, invisibles et sans effet sur le reste du systeme.
+    </div>
+    <button id="evo-vers-mes-skills" style="font-size:13px;padding:10px 20px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">Aller a Mes skills (Compte)</button>
+  </div>
+
+  <!-- Panneaux proprietaire (Hub complet) : un seul wrapper, cache en bloc pour un non-proprietaire. -->
+  <div id="evo-panneaux-owner">
   <!-- Stats Hub -->
   <div class="panel glass" style="margin-bottom:20px">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -1116,6 +1131,7 @@ def _section_evolution() -> str:
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;opacity:.5;margin:14px 0 8px">Blocs forges</div>
       <div id="frag-liste"><div style="opacity:.4;font-size:12px">Chargement...</div></div>
     </div>
+  </div>
   </div>
 </div>
 """

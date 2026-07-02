@@ -1628,7 +1628,7 @@ async function loadAnalyse(){
      d'un format (ex: nouveau format Gemini "AQ.", anciens "AIza", "sk-ant-", etc.). */
   const PROV={
     anthropic:{label:'Anthropic',check:k=>k.trim().length>=8,
-      models:['claude-fable-5','claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5'],
+      models:['claude-opus-4-8','claude-sonnet-5','claude-haiku-4-5-20251001','claude-fable-5'],
       ph:'sk-ant-api03-...'},
     openai:{label:'OpenAI / GPT',check:k=>k.trim().length>=8,
       models:['gpt-4o','gpt-4o-mini','gpt-4.1','gpt-4.1-mini','o1','o3-mini'],
@@ -3087,8 +3087,7 @@ function _initPreferences(){
 // Lancer au chargement + quand on arrive sur Compte
 document.addEventListener('DOMContentLoaded',_initPreferences);
 _initPreferences();
-// Vérification silencieuse owner au démarrage — masque Evolution si non-propriétaire
-fetch('/savoir/etat').then(function(r){if(r.status===403){var si=document.getElementById('side-evolution');if(si)si.style.display='none';}}).catch(function(){});
+// Evolution reste visible pour tout connecte (vue bridee si non-proprietaire, cf. loadEvolutionSysteme).
 
 // ===== COMPETENCES (skills) auto-creees =====
 function _familleSkill(s){
@@ -3388,11 +3387,7 @@ window.deleteTache=async function(id){
 async function loadHubEtat(){
   try{
     const r=await fetch('/savoir/etat');
-    if(r.status===403){
-      const si=document.getElementById('side-evolution');if(si)si.style.display='none';
-      const lc=document.querySelector('[onclick*="showSection(\'evolution\')"]');if(lc)lc.style.display='none';
-      return;
-    }
+    if(r.status===403)return;   // vue bridee geree par loadEvolutionSysteme, section reste visible
     const d=await r.json();
     const tg=document.getElementById('hub-total-grains');
     const pe=document.getElementById('hub-props-en-attente');
@@ -4106,9 +4101,28 @@ async function _injectUserCss(){
 /* ===== SUPER-CAPACITE — evolution gouvernee ===== */
 let _evoWired=false;
 async function loadEvolutionSysteme(){
+  const bridee=document.getElementById('evo-vue-bridee');
+  const panneaux=document.getElementById('evo-panneaux-owner');
   try{
     const r=await fetch('/savoir/evolution/etat');
-    if(!r.ok)return;
+    const archMount=document.getElementById('evo-architecte-mount');
+    if(!r.ok){
+      // Non-proprietaire : Evolution reste visible mais bridee, chemin sur vers Mes skills.
+      // L'Architecte (agent systeme, profil inexistant hors instance owner) reste cache :
+      // pas de widget qui erreurait a chaque message.
+      if(archMount)archMount.style.display='none';
+      if(bridee)bridee.style.display='';
+      if(panneaux)panneaux.style.display='none';
+      const btn=document.getElementById('evo-vers-mes-skills');
+      if(btn&&!btn._wired){
+        btn._wired=true;
+        btn.onclick=function(){showSection('compte');};
+      }
+      return;
+    }
+    if(archMount)archMount.style.display='';
+    if(bridee)bridee.style.display='none';
+    if(panneaux)panneaux.style.display='';
     const d=await r.json();
     const n=d.noyau||{};
     const corps=document.getElementById('evo-noyau-corps');
@@ -4121,11 +4135,8 @@ async function loadEvolutionSysteme(){
     const gn=document.getElementById('evo-gen-num');if(gn)gn.textContent='v'+(gen.numero||1);
     const gc=document.getElementById('evo-gen-chg');if(gc)gc.textContent=gen.changements_cette_annee||0;
     const badge=document.getElementById('evo-portee-badge');
-    if(badge){
-      const admin=await fetch('/savoir/etat').then(function(x){return x.status!==403;}).catch(function(){return false;});
-      badge.textContent=admin?'ADMIN — capacite complete':'PUBLIC — bride';
-    }
-  }catch(e){}
+    if(badge)badge.textContent='ADMIN — capacite complete';
+  }catch(e){return;}
   loadEvolutionChangelog();
   loadConscience();
   loadSubconscient();
