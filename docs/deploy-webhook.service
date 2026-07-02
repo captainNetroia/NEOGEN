@@ -1,0 +1,14 @@
+[Unit]
+Description=NEOGEN deploy webhook (git pull + docker rebuild sans SSH)
+After=network.target docker.service
+
+[Service]
+Type=simple
+Environment=DEPLOY_WEBHOOK_SECRET=__A_REMPLACER__
+ExecStart=/usr/bin/python3 /root/deploy_webhook.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

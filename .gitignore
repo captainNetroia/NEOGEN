@@ -28,3 +28,4 @@ docs/Neogen-vps.txt
 # Videos tuto : fichiers volumineux (jusqu'a 230 Mo, > limite GitHub 100 Mo)
 # Deployees hors-git via SCP direct vers static/video_tuto/ sur le VPS.
 static/video_tuto/
+docs/deploy_webhook.log
