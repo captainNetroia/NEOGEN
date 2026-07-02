@@ -681,13 +681,15 @@ def marquer_vie_donnee(pensee_id: str) -> dict:
 
 def marquer_forge(pensee_id: str, etat: str) -> dict:
     """Statut honnete d'une pensee passee par 'donner vie' :
-      'generee' -> du vrai code a ete genere, teste et persiste (forge)
-      'actif'   -> changement data-driven REELLEMENT consomme par du code (agent, modele, savoir...)
-      'refusee' -> la forge a rejete (mur / test / generation)
-      'notee'   -> note data-driven SANS consommateur (idee, regle generique) : pas d'effet reel.
+      'generee'    -> du vrai code a ete genere, teste et persiste (forge)
+      'actif'      -> changement data-driven REELLEMENT consomme par du code (agent, modele, savoir...)
+      'refusee'    -> la forge a rejete (mur / test / generation)
+      'notee'      -> note data-driven SANS consommateur (idee, regle generique) : pas d'effet reel.
+      'en_attente' -> l'Ingenieur a une question bloquante (securite/irreversible), attend une
+                      decision de Jordan avant de continuer (voir data/forge_jobs.json).
     Remplace le 'vie_donnee' binaire par un etat precis (fin du faux vert)."""
     import time as _time
-    etat = etat if etat in ("generee", "actif", "refusee", "notee") else "notee"
+    etat = etat if etat in ("generee", "actif", "refusee", "notee", "en_attente") else "notee"
     pensees = _lire()
     trouve = False
     for p in pensees:

@@ -569,6 +569,27 @@ def ingenieur_rebuild_fait(authorization: str | None = Header(default=None)):
     return _id.marquer_rebuild_fait()
 
 
+@router.get("/evolution/ingenieur/decisions")
+def ingenieur_decisions(authorization: str | None = Header(default=None)):
+    """Decisions bloquantes en attente : l'Ingenieur s'est arrete (securite/irreversible) et
+    attend une reponse de Jordan (bouton d'option ou texte libre). Alimente la bulle UI."""
+    _gate_owner(authorization)
+    import ingenieur as _ing
+    return {"decisions": _ing.lister_decisions_en_attente()}
+
+
+@router.post("/evolution/ingenieur/decisions/{job_id}/repondre")
+def ingenieur_repondre_decision(job_id: str, reponse: str = Body(embed=True),
+                                authorization: str | None = Header(default=None)):
+    """Jordan repond a une decision en attente : relance l'Ingenieur avec sa reponse injectee."""
+    _gate_owner(authorization)
+    import ingenieur as _ing
+    r = _ing.repondre_decision(job_id, reponse)
+    if not r.get("ok"):
+        raise HTTPException(status_code=400, detail=r.get("raison", "echec"))
+    return r
+
+
 # ── Conscience du systeme : ce que NEOGEN sait de lui-meme ────────────────────────
 
 @router.get("/conscience")

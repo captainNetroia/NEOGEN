@@ -47,8 +47,24 @@ def _mission(besoin: str, titre: str) -> str:
         "flux pour qu'elle agisse seule ; ou propose_patch si un module existant doit changer) "
         "-> TEST (verifie que ca marche) -> LIVRAISON (rapport clair : ce qui a ete fait, le "
         "verdict du test, les dettes, et si un rebuild/une autorisation est requis). "
-        "Agis avec tes outils, ne te contente pas de decrire."
+        "Agis avec tes outils, ne te contente pas de decrire. Une ambiguite mineure "
+        "d'implementation ne justifie JAMAIS de t'arreter : tranche toi-meme et documente. "
+        "N'utilise demander_decision que si l'ambiguite touche vraiment a la securite, "
+        "la gouvernance ou un choix irreversible."
     )
+
+
+def _decision_depuis_rapport(rapport: str) -> dict | None:
+    """Detecte si le rapport de l'agent EST une demande de decision bloquante (marqueur JSON
+    produit par le tool special demander_decision dans agent_core). None si rapport normal."""
+    import json
+    try:
+        obj = json.loads((rapport or "").strip())
+    except Exception:
+        return None
+    if isinstance(obj, dict) and obj.get("_decision_requise") and obj.get("question"):
+        return obj
+    return None
 
 
 def _run(besoin: str, titre: str, pensee_id: str, job_id: str) -> None:
@@ -87,6 +103,31 @@ def _run(besoin: str, titre: str, pensee_id: str, job_id: str) -> None:
         except Exception as e:
             rapport = f"(repli) l'Ingenieur n'a pas pu orchestrer : {e}"
             _repli_forge(besoin, titre, pensee_id, job_id)
+            return
+
+        # Decision bloquante : l'agent s'est arrete volontairement (securite/irreversible), il
+        # ne faut PAS marquer 'termine' ni ecraser sa question par un rapport generique — la
+        # session s'arrete ici, en attente d'une reponse de Jordan (bulle UI + Telegram).
+        decision = _decision_depuis_rapport(rapport)
+        if decision:
+            _set_job(job_id, etat="en_attente_decision", etape="en_attente_decision",
+                     pct=etat["pct"], mode="ingenieur", besoin=besoin, titre=titre,
+                     pensee_id=pensee_id, question=decision["question"],
+                     options=decision.get("options", []))
+            if pensee_id:
+                try:
+                    import pensee
+                    pensee.marquer_forge(pensee_id, "en_attente")
+                except Exception:
+                    pass
+            try:
+                import passerelle_telegram as _tg
+                _tg.notifier_decision(job_id, titre or besoin[:60],
+                                      decision["question"], decision.get("options", []))
+            except Exception:
+                pass
+            rob.journaliser(f"ingenieur : decision requise pour '{titre or besoin[:50]}'",
+                            "info", source="ingenieur")
             return
 
         # Verdict final : on a forge/integre quelque chose -> 'termine' ; sinon rapport quand meme.
@@ -150,6 +191,40 @@ def lancer_async(besoin: str, titre: str = "", pensee_id: str = "") -> str:
              pensee_id=pensee_id, titre=titre or besoin[:80], mode="ingenieur")
     threading.Thread(target=_run, args=(besoin, titre, pensee_id, job_id), daemon=True).start()
     return job_id
+
+
+def lister_decisions_en_attente() -> list[dict]:
+    """Jobs en attente d'une decision de Jordan (pour la bulle UI + le badge). Plus recent d'abord."""
+    import forge_evolution as _fe
+    jobs = _fe._charger_jobs()
+    attente = [j for j in jobs.values() if j.get("etat") == "en_attente_decision"]
+    return sorted(attente, key=lambda j: j.get("ts", 0), reverse=True)
+
+
+def repondre_decision(job_id: str, reponse: str) -> dict:
+    """Jordan a repondu (bouton d'option ou texte libre) : relance l'Ingenieur avec le besoin
+    d'origine augmente de sa reponse, sans repartir de zero. Ne leve jamais."""
+    import forge_evolution as _fe
+    job = _fe.statut_job(job_id)
+    if not job or job.get("etat") != "en_attente_decision":
+        return {"ok": False, "raison": "aucune decision en attente pour ce job"}
+    reponse = (reponse or "").strip()
+    if not reponse:
+        return {"ok": False, "raison": "reponse vide"}
+    besoin = job.get("besoin", "")
+    titre = job.get("titre", "")
+    pensee_id = job.get("pensee_id", "")
+    question = job.get("question", "")
+    besoin_augmente = (
+        f"{besoin}\n\nJordan a repondu a ta question (\"{question}\") : {reponse}\n"
+        "Utilise cette reponse pour trancher et VA JUSQU'AU BOUT (code + teste + ancre) : "
+        "ne redemande pas, ne re-diagnostique pas depuis zero."
+    )
+    _set_job(job_id, etat="repondu", etape="repondu", reponse_jordan=reponse)
+    nouveau_job_id = lancer_async(besoin_augmente, titre=titre, pensee_id=pensee_id)
+    rob.journaliser(f"ingenieur : decision repondue pour '{titre or besoin[:50]}', relance ({nouveau_job_id})",
+                    "info", source="ingenieur")
+    return {"ok": True, "job_id": nouveau_job_id}
 
 
 # ── Auto-verification offline (dialoguer mocke, aucun reseau) ─────────────────────

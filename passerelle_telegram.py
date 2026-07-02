@@ -37,6 +37,42 @@ def _autorises() -> set:
     return {x.strip() for x in v.split(",") if x.strip()}
 
 
+def _chat_id_proprietaire() -> str:
+    """Destinataire des notifications proactives (decision requise, alertes...).
+    Priorite : NEOGEN_TELEGRAM_OWNER_CHAT_ID explicite, sinon le premier de la liste blanche."""
+    dedie = os.environ.get("NEOGEN_TELEGRAM_OWNER_CHAT_ID", "").strip()
+    if dedie:
+        return dedie
+    autorises = _autorises()
+    return next(iter(autorises), "")
+
+
+def notifier(texte: str) -> bool:
+    """Pousse un message proactif au proprietaire (pas une reponse a un message recu).
+    No-op propre si pas de token ou pas de destinataire configure. Ne leve jamais."""
+    try:
+        token = _token()
+        chat_id = _chat_id_proprietaire()
+        if not token or not chat_id:
+            return False
+        res = _appel(token, "sendMessage", chat_id=chat_id, text=(texte or "")[:4000])
+        return bool(res.get("ok"))
+    except Exception:
+        return False
+
+
+def notifier_decision(job_id: str, titre: str, question: str, options: list) -> bool:
+    """Notifie une decision bloquante en attente (l'Ingenieur s'est arrete pour demander)."""
+    lignes = [f"🔧 NEOGEN — L'Ingenieur attend ta decision sur « {titre} »", "", question, ""]
+    for i, o in enumerate(options or [], 1):
+        lbl = o.get("label", "") if isinstance(o, dict) else str(o)
+        dsc = o.get("description", "") if isinstance(o, dict) else ""
+        lignes.append(f"{i}. {lbl}" + (f" — {dsc}" if dsc else ""))
+    lignes.append("")
+    lignes.append(f"Reponds dans l'app NEOGEN (section Ingenieur, job {job_id[:8]}) — choix ou reponse libre.")
+    return notifier("\n".join(lignes))
+
+
 def _appel(token: str, methode: str, **params):
     import httpx
     try:

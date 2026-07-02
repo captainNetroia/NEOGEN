@@ -223,6 +223,7 @@ PROFILS: dict[str, dict] = {
         "delegue": False,
         "max_etapes": 25,   # un cycle DevSecOps (diagnostic+lecture+forge+test+rapport) > 8 etapes
         "eco_interdit": True,  # le code + le protocole ReAct JSON exigent un modele fort (pas Eco)
+        "permet_decision": True,  # peut arreter son tour pour demander a Jordan (securite/irreversible)
         "outils": [
             # Diagnostic
             "diagnostic_ingenieur", "sante_appli", "coherence_appli", "scanner_tensions",
@@ -582,6 +583,16 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
                  "Pour toute demande TECHNIQUE (coder, reparer, diagnostiquer, rendre une fonction "
                  "operationnelle, donner vie a une idee technique) -> delegue a 'ingenieur'. "
                  "Pour surveiller la sante/coherence -> 'veilleur'.")
+    if profil.get("permet_decision"):
+        desc += ("\n  - demander_decision : SEUL cas ou tu dois t'arreter pour demander a Jordan, "
+                 "c'est une ambiguite qui touche a la securite, la gouvernance, ou un choix "
+                 "irreversible. Toute autre ambiguite mineure (nommage, structure de fichier, "
+                 "detail d'implementation) : tranche toi-meme, documente ton choix, VA JUSQU'AU "
+                 "BOUT (code + teste + ancre). N'utilise cet outil qu'en dernier recours : il "
+                 "arrete ton tour et notifie Jordan, qui repondra plus tard (tu ne continues pas "
+                 "cette session). arguments JSON {\"question\": \"...\", \"options\": "
+                 "[{\"label\":\"...\", \"description\":\"...\"}]} (2-4 options max, Jordan pourra "
+                 "toujours ecrire sa propre reponse libre en plus des options proposees).")
     skills_bloc = ""
     try:
         import competences
@@ -872,6 +883,34 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             _replay("deleguer")
             messages.append({"role": "user", "content": f"[Resultat delegation a {cible}] {obs}"})
             continue
+
+        if outil == "demander_decision" and profil.get("permet_decision"):
+            question = str(params.get("question", "")).strip()
+            options_brut = params.get("options", [])
+            if isinstance(options_brut, str):
+                try:
+                    options_brut = json.loads(options_brut)
+                except Exception:
+                    options_brut = []
+            if not isinstance(options_brut, list):
+                options_brut = []
+            options = []
+            for o in options_brut[:4]:
+                if isinstance(o, dict):
+                    lbl, dsc = str(o.get("label", "")).strip(), str(o.get("description", "")).strip()
+                else:
+                    lbl, dsc = str(o).strip(), ""
+                if lbl:
+                    options.append({"label": lbl[:80], "description": dsc[:200]})
+            if not question:
+                obs = "[demander_decision] question vide : precise 'question' dans arguments JSON."
+                _replay("demander_decision")
+                messages.append({"role": "user", "content": f"[Erreur outil] {obs}"})
+                continue
+            _emit({"type": "decision_requise", "agent": role, "question": question, "options": options})
+            _maj_bandit(succes=True)
+            return json.dumps({"_decision_requise": True, "question": question, "options": options},
+                              ensure_ascii=False)
 
         if outil not in profil.get("outils", []) or outil not in OUTILS:
             obs = f"Outil '{outil}' non autorise pour cet agent. Outils: {', '.join(profil.get('outils', []))}."

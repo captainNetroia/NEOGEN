@@ -4483,7 +4483,69 @@ function _statutMeta(s){return _STATUT_META[s]||_STATUT_META.proposee;}
 
 /* Tableau de bord de L'INGENIEUR : patchs de code proposes, autorisations noyau
    en attente (le mur : Jordan decide), badge rebuild requis. */
+async function loadDecisionsIngenieur(){
+  const wrap=document.getElementById('ing-decisions');
+  if(!wrap)return;
+  try{
+    const r=await fetch('/savoir/evolution/ingenieur/decisions');
+    if(!r.ok){wrap.style.display='none';return;}
+    const d=await r.json();
+    const decisions=d.decisions||[];
+    if(!decisions.length){wrap.style.display='none';wrap.innerHTML='';return;}
+    wrap.style.display='';
+    wrap.innerHTML=decisions.map(function(dec){
+      const opts=(dec.options||[]).map(function(o,i){
+        return '<button class="ing-dec-opt ghost" data-job="'+esc(dec.job_id)+'" data-label="'+esc(o.label||'')+'" '
+          +'style="font-size:12px;padding:8px 14px;text-align:left;display:block;width:100%;margin-bottom:6px;border-color:rgba(16,185,129,.4)">'
+          +'<b>'+esc(o.label||'')+'</b>'+(o.description?'<div style="opacity:.6;font-size:11px;margin-top:2px">'+esc(o.description)+'</div>':'')
+          +'</button>';
+      }).join('');
+      return '<div class="panel glass" style="margin-bottom:12px;border-color:rgba(16,185,129,.35)">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<span style="font-size:16px">🔧</span>'
+        +'<div style="font-size:12px;font-weight:700;color:#10b981">L\'Ingenieur attend ta decision — '+esc(dec.titre||'')+'</div>'
+        +'</div>'
+        +'<div style="font-size:13px;margin-bottom:12px;line-height:1.5">'+esc(dec.question||'')+'</div>'
+        +opts
+        +'<div style="display:flex;gap:8px;margin-top:8px">'
+        +'<input type="text" class="ing-dec-autre" data-job="'+esc(dec.job_id)+'" placeholder="Ou ecris ta propre reponse…" '
+        +'style="flex:1;font-size:12px;padding:8px 10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#e2e8f0">'
+        +'<button class="ing-dec-envoyer ghost" data-job="'+esc(dec.job_id)+'" style="font-size:12px;padding:8px 14px">Envoyer</button>'
+        +'</div>'
+        +'<div class="ing-dec-err" style="display:none;font-size:11px;color:#ef4444;margin-top:6px"></div>'
+        +'</div>';
+    }).join('');
+    async function _envoyerDecision(jobId, reponse, btn){
+      if(!reponse.trim())return;
+      const carte=btn.closest('.panel');
+      const err=carte?carte.querySelector('.ing-dec-err'):null;
+      if(err)err.style.display='none';
+      const anciens=carte?Array.from(carte.querySelectorAll('button')):[];
+      anciens.forEach(function(b){b.disabled=true;});
+      try{
+        const r=await fetch('/savoir/evolution/ingenieur/decisions/'+encodeURIComponent(jobId)+'/repondre',
+          {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reponse:reponse.trim()})});
+        const res=await r.json();
+        if(!r.ok){if(err){err.textContent=res.detail||'Erreur';err.style.display='';}anciens.forEach(function(b){b.disabled=false;});return;}
+        if(carte)carte.remove();
+        if(res.job_id&&typeof _bulleProgression==='function')_bulleProgression(res.job_id,'ingenieur',null);
+        loadDecisionsIngenieur();
+      }catch(e){if(err){err.textContent='Erreur reseau.';err.style.display='';}anciens.forEach(function(b){b.disabled=false;});}
+    }
+    wrap.querySelectorAll('.ing-dec-opt').forEach(function(b){
+      b.onclick=function(){_envoyerDecision(b.dataset.job,b.dataset.label,b);};
+    });
+    wrap.querySelectorAll('.ing-dec-envoyer').forEach(function(b){
+      b.onclick=function(){
+        const inp=wrap.querySelector('.ing-dec-autre[data-job="'+CSS.escape(b.dataset.job)+'"]');
+        _envoyerDecision(b.dataset.job,(inp&&inp.value)||'',b);
+      };
+    });
+  }catch(e){wrap.style.display='none';}
+}
+
 async function loadIngenieur(){
+  loadDecisionsIngenieur();
   const box=document.getElementById('ingenieur-corps');
   if(!box)return;
   try{

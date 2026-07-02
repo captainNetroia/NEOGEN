@@ -627,6 +627,7 @@ def _section_analyse() -> str:
         </div>
         <pre id="ing-diag-out" style="display:none;font-size:11px;line-height:1.5;white-space:pre-wrap;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;max-height:300px;overflow:auto;margin:0"></pre>
       </div>
+      <div id="ing-decisions" style="display:none;margin-bottom:18px"></div>
       <div class="panel glass">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px">
           <span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>
