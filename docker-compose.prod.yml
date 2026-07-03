@@ -48,6 +48,8 @@ services:
       # SECURITE : ne jamais passer a 1 en production publique
       - NEOGEN_OWNER_UNLIMITED=0
       - NEOGEN_ALLOW_DEFAULT_KEY=0
+      # Secret de maintenance (correction de donnees sans SSH) — depuis le .env du VPS ; vide = desactive
+      - NEOGEN_MAINTENANCE_SECRET=${NEOGEN_MAINTENANCE_SECRET:-}
       # Docker pointe sur le proxy (pas le socket direct)
       - DOCKER_HOST=tcp://socket-proxy:2375
     networks:

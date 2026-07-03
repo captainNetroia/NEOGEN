@@ -40,6 +40,9 @@ async def _lifespan(app):
     """Démarrage : lance cron + Telegram + auto-amélioration + socle compétences.
     Chaque démarrage est protégé (jamais bloquant). Remplace on_event (déprécié, dette F005)."""
     _rob.protege(lambda: __import__("planificateur").demarrer(), operation="start cron", source="startup")
+    # Adopter les comptes gratuits deja credites AVANT de lancer le cron : sinon le cron recredite
+    # +200 a tout compte absent du suivi (bug 200->400 qui revient). Idempotent.
+    _rob.protege(lambda: __import__("credits_gratuit").backfill_suivi(), operation="backfill suivi credits gratuit", source="startup")
     _rob.protege(lambda: __import__("credits_gratuit").demarrer(), operation="start credit mensuel gratuit", source="startup")
     _rob.protege(lambda: __import__("passerelle_telegram").demarrer(), operation="start telegram", source="startup")
     _rob.protege(lambda: __import__("auto_amelioration").demarrer(), operation="start auto-amelioration", source="startup")
@@ -96,6 +99,7 @@ from routes.integrations import router as _r_integrations
 from routes.rpa import router as _r_rpa
 from routes.savoir import router as _r_savoir
 from routes.convs import router as _r_convs
+from routes.maintenance import router as _r_maintenance
 
 app.include_router(_r_auth)
 app.include_router(_r_produits)
@@ -106,6 +110,7 @@ app.include_router(_r_integrations)
 app.include_router(_r_rpa)
 app.include_router(_r_savoir)
 app.include_router(_r_convs)
+app.include_router(_r_maintenance)
 
 # ── Chemins data ───────────────────────────────────────────────────────────────
 _BASE = _os.path.dirname(_os.path.abspath(__file__))

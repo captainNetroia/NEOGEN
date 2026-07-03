@@ -5149,7 +5149,7 @@ function _showOnboardingOverlay(startStep,user){
         /* Toujours presenter les packs/essai apres creation du compte.
            neogen_ob_done n'est pose QUE dans _obPlans (choix pack ou freemium explicite). */
         step=4;render();
-      },_cm);
+      },_cm,function(){step=(_cm==='login')?1:2;render();});
     }
     else if(step===4)_obPlans(box,overlay,stopMatrix);
   }
@@ -5277,11 +5277,12 @@ function _obPresentation(box,onDone,onBack){
 }
 
 /* -- Step 3 - Compte + API (optionnel) --------------------------- */
-function _obCompte(box,onDone,startMode){
+function _obCompte(box,onDone,startMode,onBack){
   var mode=startMode||'register';
   var prev={};try{prev=JSON.parse(localStorage.getItem('neogen_ob_profil')||'{}');}catch(e){}
   var fd=document.createElement('div');
   fd.innerHTML=''
+    +'<button id="ob-back3" style="background:none;border:none;cursor:pointer;font-size:12px;color:rgba(255,255,255,.35);padding:0;margin-bottom:16px;display:flex;align-items:center;gap:4px">&larr; Retour</button>'
     +'<div style="text-align:center;margin-bottom:20px">'
     +'<div style="font-size:19px;font-weight:800;color:#fff;margin-bottom:5px">Cree ton compte NEOGEN</div>'
     +'<div style="font-size:13px;color:rgba(255,255,255,.35)">Pour sauvegarder ton profil et acceder a tes agents</div>'
@@ -5321,6 +5322,7 @@ function _obCompte(box,onDone,startMode){
   box.appendChild(fd);
   var qr=function(s){return fd.querySelector(s);};
   var errEl=qr('#ob-err3'),sub=qr('#ob-sub3');
+  var backBtn=qr('#ob-back3');if(backBtn&&onBack)backBtn.onclick=onBack;
   function setTab(m){
     mode=m;
     qr('#ob-tab-l').classList.toggle('active',m==='login');

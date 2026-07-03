@@ -70,6 +70,43 @@ def crediter_si_necessaire(uid: str) -> bool:
         return True
 
 
+def backfill_suivi() -> int:
+    """Adopte les comptes gratuits deja credites (par une ancienne logique, ou avant que ce
+    fichier de suivi existe) : les marque 'deja credite ce mois' SANS les recrediter.
+
+    Bug corrige : le cron mensuel recredite +200 tout compte gratuit absent du suivi -> un
+    compte deja a 200 passe a 400. La cause racine n'est pas le credit initial (une seule fois
+    a l'inscription) mais l'absence d'entree de suivi pour les comptes anciens. On l'appelle au
+    demarrage : tout compte gratuit deja present dans le grand livre des soldes (donc deja
+    credite au moins une fois) mais sans entree de suivi pour le mois courant est adopte.
+
+    Idempotent, ne leve jamais. Retourne le nombre de comptes adoptes."""
+    import robustesse as rob
+    with rob.garde("backfill suivi credits gratuit", source="credits_gratuit"):
+        import credits
+        from routes.deps import _rjsonl, _USERS
+        soldes = credits._lire_soldes()
+        mois = _mois_actuel()
+        n = 0
+        with _LOCK:
+            suivi = _lire()
+            for u in _rjsonl(_USERS):
+                if (u.get("palier") or "gratuit") != "gratuit":
+                    continue
+                uid = u.get("id")
+                # deja credite au moins une fois (present au grand livre) ET pas encore adopte ce mois
+                if uid and uid in soldes and suivi.get(uid) != mois:
+                    suivi[uid] = mois
+                    n += 1
+            if n:
+                _ecrire(suivi)
+        if n:
+            rob.journaliser(f"backfill suivi gratuit : {n} compte(s) adopte(s) (anti double-credit)",
+                            "info", source="credits_gratuit")
+        return n
+    return 0
+
+
 def _cycle() -> None:
     import robustesse as rob
     from routes.deps import _rjsonl, _USERS
