@@ -23,6 +23,15 @@ router = APIRouter(prefix="/maintenance", tags=["maintenance"])
 _QUOTA_GRATUIT = 200  # credit mensuel du palier gratuit
 
 
+def _masquer_email(email: str) -> str:
+    """Masque un email pour le diagnostic (evite la fuite de PII si le secret est faible)."""
+    e = email or "?"
+    if "@" not in e:
+        return e[:2] + "***"
+    loc, dom = e.split("@", 1)
+    return (loc[:3] + "***@" + dom) if loc else "***@" + dom
+
+
 def _gate_secret(secret_recu: str | None) -> None:
     """Refuse si le secret est absent/mauvais. Fail-closed si non configure."""
     attendu = os.environ.get("NEOGEN_MAINTENANCE_SECRET", "").strip()
@@ -67,7 +76,8 @@ def diagnostic(x_maintenance_secret: str | None = Header(default=None)):
         "comptes_gratuits": len(gratuits),
         "sans_entree_suivi": len(orphelins_suivi),  # exposes au recredit erroné du cron
         "au_dessus_du_quota": len(anormaux),
-        "detail": anormaux,
+        "detail": [{"email": _masquer_email(a["email"]), "solde": a["solde"],
+                    "surplus": a["surplus"]} for a in anormaux],
     }
 
 

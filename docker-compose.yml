@@ -27,6 +27,8 @@ services:
       # Sur le public, definir NEOGEN_OWNER_UNLIMITED=0 (et retirer NEOGEN_ALLOW_DEFAULT_KEY).
       - NEOGEN_OWNER_UNLIMITED=${NEOGEN_OWNER_UNLIMITED:-0}
       - NEOGEN_ALLOW_DEFAULT_KEY=${NEOGEN_ALLOW_DEFAULT_KEY:-0}
+      # Email owner : palier enterprise apres login (protection = login) + email reserve a l'inscription
+      - NEOGEN_OWNER_EMAIL=${NEOGEN_OWNER_EMAIL:-}
       # Secret de maintenance (correction de donnees sans SSH) — vide = endpoint desactive (fail-closed)
       - NEOGEN_MAINTENANCE_SECRET=${NEOGEN_MAINTENANCE_SECRET:-}
     volumes:
