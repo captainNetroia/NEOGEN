@@ -32,12 +32,19 @@ body{
 }
 
 /* ── 3. VIDEO BACKGROUND ── */
+/* v3.4 : will-change:transform + transform:translateZ(0) force un layer GPU compositing
+   dedie pour la video - sans ca, chaque frame video re-composite potentiellement TOUT ce
+   qui est au-dessus avec backdrop-filter (nombreux depuis le passage liquid-glass), ce qui
+   cause les saccades reportees par Jordan. Le fichier source lui-meme etait aussi encode a
+   un debit demesure (~24 Mbps pour 12s) -> reencode ~7 Mbps, meme qualite percue, 3-3.5x
+   plus leger a decoder (cf. video-*-backup-original.mp4 conserves comme sauvegarde). */
 #bg-canvas{display:none;}
 #bg-video,#bg-video-light-1,#bg-video-light-2{
   position:fixed;inset:0;z-index:0;
   width:100%;height:100%;object-fit:cover;
   pointer-events:none;opacity:0;
   transition:opacity 1s ease;
+  will-change:transform;transform:translateZ(0);backface-visibility:hidden;
 }
 /* Dark video : contain pour voir le logo entier (fond noir = pas de letterbox visible) */
 #bg-video{object-fit:contain;}
@@ -75,6 +82,7 @@ body.dark #bg-vignette{opacity:1;}
   position:absolute;inset:0;z-index:0;
   width:100%;height:100%;object-fit:cover;
   opacity:.13;pointer-events:none;
+  will-change:transform;transform:translateZ(0);backface-visibility:hidden;
 }
 
 /* ── 4. HEADER ── */
@@ -151,26 +159,36 @@ header h1 b{font-weight:900;}
   transition:transform .45s cubic-bezier(.23,1,.32,1),box-shadow .35s,border-color .35s;overflow:hidden;
 }
 body.dark .layer{
+  /* v3.1 : bordure quasi-neutre (plus de contour vert plein — cf. retour Jordan "gache
+     l'effet glass"). L'identite Matrix reste dans un glow tres discret + la reverberation.
+     v3.5 (perf, mesure reelle cf. skill bento-3d-glass) : AVANT, le @keyframes animait 6
+     couches de box-shadow (profondeur + inset + glow) sur les 9 cartes simultanement -
+     box-shadow force un repaint CPU/rasterizer a chaque frame (pas de compositing GPU comme
+     transform/opacity), ce qui faisait chuter le framerate de la video de fond de 60% sur
+     la landing bento (Intel UHD integre). Ici : les ombres de PROFONDEUR restent fixes
+     (jamais animees), et l'animation ne touche plus qu'UNE seule couche de glow (0 0 22-32px)
+     au lieu de 6 -- ~5x moins de surface a repeindre par frame, cout GPU proche de zero. */
   background:linear-gradient(160deg,rgba(0,26,7,.76) 0%,rgba(0,10,3,.40) 46%,rgba(0,18,5,.64) 100%);
-  border-color:rgba(0,255,65,.22);
+  border-color:rgba(255,255,255,.12);
   box-shadow:
-    inset 0 1.5px 0 rgba(0,255,65,.16),
-    inset 0 0 0 1px rgba(0,255,65,.06),
+    inset 0 1.5px 0 rgba(255,255,255,.14),
+    inset 0 0 0 1px rgba(255,255,255,.05),
     inset 0 -16px 30px rgba(0,0,0,.30),
-    0 0 0 1px rgba(0,255,65,.09),
-    0 0 32px rgba(0,255,65,.07),
+    0 0 22px rgba(0,255,65,.05),
     0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);
   animation:lg-reverb-card 4.5s ease-in-out infinite;
 }
-/* Reverberation douce sur les cartes bento (independante du hover/parallaxe JS existants,
-   n'affecte que box-shadow, jamais transform -- ne peut donc pas interferer avec la
-   parallaxe 3D pilotee par app.js). Dephasage Fibonacci par carte pour un mouvement organique. */
+/* Reverberation douce : anime uniquement le rayon/l'opacite du glow externe (une couche),
+   les ombres de profondeur/reflet restent fixes en dehors du keyframe (cf. note perf ci-dessus).
+   Dephasage Fibonacci par carte pour un mouvement organique, pas synchronise. */
 @keyframes lg-reverb-card{
-  0%,100%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.16),inset 0 0 0 1px rgba(0,255,65,.06),
-    inset 0 -16px 30px rgba(0,0,0,.30),0 0 0 1px rgba(0,255,65,.09),0 0 32px rgba(0,255,65,.07),
+  0%,100%{box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05),
+    inset 0 -16px 30px rgba(0,0,0,.30),0 0 22px rgba(0,255,65,.05),
     0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);}
-  50%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.24),inset 0 0 0 1px rgba(0,255,65,.10),
-    inset 0 -16px 30px rgba(0,0,0,.30),0 0 0 1px rgba(0,255,65,.15),0 0 46px rgba(0,255,65,.12),
+  50%{box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05),
+    inset 0 -16px 30px rgba(0,0,0,.30),0 0 34px rgba(0,255,65,.10),
     0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);}
 }
 body.dark .layer:nth-child(2){animation-delay:-.9s;}
@@ -281,16 +299,17 @@ body.dark .layer-label p{color:#86a086;}
   background:radial-gradient(120% 70% at 50% -12%,rgba(255,255,255,.20),transparent 60%);
 }
 body.dark .glass{
-  /* v2.2 : opacite drastiquement reduite (.70 -> .32) pour laisser le flou du fond REELLEMENT
-     visible a travers (cf. reference GitHub Glass Card : le fond flou se voit clairement).
-     Un fond a 70% opaque annule presque tout l'effet du backdrop-filter en dessous. */
+  /* v3.1 : bordure quasi-neutre (blanc tres translucide, PLUS de contour vert plein qui
+     "fait tache" sur le verre — cf. retour Jordan) ; l'identite Matrix reste dans le glow
+     tres discret + la reverberation, jamais dans un trait de couleur qui encercle la carte
+     (aucune reference verre haut de gamme n'a de bordure coloree pleine). */
   background:rgba(2,14,5,.32);
   backdrop-filter:blur(38px) saturate(220%) brightness(.9);
   -webkit-backdrop-filter:blur(38px) saturate(220%) brightness(.9);
-  border-color:rgba(0,255,65,.22);
-  box-shadow:inset 0 1.5px 0 rgba(0,255,65,.14),inset 0 0 0 .5px rgba(0,255,65,.05),
+  border-color:rgba(255,255,255,.10);
+  box-shadow:inset 0 1.5px 0 rgba(255,255,255,.12),inset 0 0 0 .5px rgba(255,255,255,.04),
     inset 0 -18px 34px rgba(0,0,0,.22),
-    0 0 0 1px rgba(0,255,65,.05),0 0 30px rgba(0,255,65,.05),
+    0 0 24px rgba(0,255,65,.04),
     0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);
   animation:lg-reverb 5.5s ease-in-out infinite;
 }
@@ -299,13 +318,13 @@ body.dark .glass{
    nth-of-type pour eviter que tous les panels pulsent en meme temps (effet "vivant" pas
    "clignotant synchronise"). Respecte prefers-reduced-motion (regle globale existante). */
 @keyframes lg-reverb{
-  0%,100%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.14),inset 0 0 0 .5px rgba(0,255,65,.05),
+  0%,100%{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.12),inset 0 0 0 .5px rgba(255,255,255,.04),
     inset 0 -18px 34px rgba(0,0,0,.22),
-    0 0 0 1px rgba(0,255,65,.05),0 0 30px rgba(0,255,65,.05),
+    0 0 24px rgba(0,255,65,.04),
     0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);}
-  50%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.22),inset 0 0 0 .5px rgba(0,255,65,.09),
+  50%{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.18),inset 0 0 0 .5px rgba(255,255,255,.07),
     inset 0 -18px 34px rgba(0,0,0,.22),
-    0 0 0 1px rgba(0,255,65,.11),0 0 44px rgba(0,255,65,.10),
+    0 0 36px rgba(0,255,65,.08),
     0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);}
 }
 body.dark .panel.glass:nth-of-type(2n){animation-delay:-1.8s;}
@@ -357,26 +376,79 @@ body.dark .row input[type=number]{background:rgba(255,255,255,.07);border-color:
 body.dark #domaines{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);}
 
 /* ── 11. BUTTONS ── */
+/* v3.4 : relief "pilule bombee" (ref Pinterest liquid-glass UI kit, Jordan) — degrade
+   vertical clair->sature, reflet blanc net en haut (::before, pas juste un inset flou),
+   ombre externe coloree marquee. Applique au primaire (rempli) et au ghost (verre
+   translucide, meme relief mais teinte neutre) pour que les 2 familles de bouton
+   se lisent comme le meme systeme. */
 button{
-  background:var(--acc);color:#fff;border:0;border-radius:10px;
-  padding:10px 22px;font-weight:700;cursor:pointer;font-size:15px;
-  transition:opacity .15s,transform .1s,box-shadow .15s;
-  box-shadow:0 2px 10px rgba(0,200,80,.22);
+  position:relative;isolation:isolate;overflow:hidden;
+  background:linear-gradient(180deg,#3fe08a 0%,var(--acc) 45%,var(--acc2) 100%);
+  color:#04150a;border:0;border-radius:999px;
+  padding:11px 26px;font-weight:800;cursor:pointer;font-size:15px;
+  transition:transform .15s,box-shadow .15s;
+  box-shadow:inset 0 -3px 6px rgba(0,0,0,.18),0 8px 22px rgba(0,200,80,.32),0 2px 5px rgba(0,0,0,.18);
 }
-body.dark button{color:#000;}
-button:hover{opacity:.88;box-shadow:0 4px 18px rgba(0,232,105,.30);}
-button:active{transform:scale(.98);}
-button:disabled{opacity:.38;cursor:wait;box-shadow:none;}
+button::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  background:linear-gradient(180deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.10) 42%,rgba(255,255,255,0) 60%);
+}
+button>*{position:relative;z-index:2;}
+body.dark button{color:#04150a;}
+button:hover{transform:translateY(-1px);box-shadow:inset 0 -3px 6px rgba(0,0,0,.18),0 12px 30px rgba(0,232,105,.42),0 2px 5px rgba(0,0,0,.2);}
+button:active{transform:translateY(0) scale(.98);}
+button:disabled{opacity:.38;cursor:wait;box-shadow:none;transform:none;}
 button.ghost{
-  background:rgba(255,255,255,.20);
-  backdrop-filter:blur(10px);
+  background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,.08));
+  backdrop-filter:blur(18px) saturate(180%);
+  -webkit-backdrop-filter:blur(18px) saturate(180%);
   color:var(--acc);
-  border:1px solid rgba(22,198,94,.28);
-  box-shadow:none;
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:inset 0 -3px 6px rgba(0,0,0,.10),0 8px 20px rgba(0,0,0,.14);
+  border-radius:999px;
 }
-button.ghost:hover{background:rgba(255,255,255,.36);box-shadow:none;}
-body.dark button.ghost{background:rgba(0,232,105,.07);border-color:rgba(0,232,105,.24);color:var(--acc);}
-body.dark button.ghost:hover{background:rgba(0,232,105,.13);}
+button.ghost::before{background:linear-gradient(180deg,rgba(255,255,255,.35) 0%,rgba(255,255,255,.06) 42%,rgba(255,255,255,0) 60%);}
+button.ghost:hover{background:linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,.12));transform:translateY(-1px);}
+body.dark button.ghost{background:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03));border-color:rgba(255,255,255,.14);color:var(--acc);
+  box-shadow:inset 0 -3px 6px rgba(0,0,0,.22),0 8px 20px rgba(0,0,0,.3);}
+body.dark button.ghost:hover{background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));}
+
+/* Boutons-icones glass (croix fermer, conversations, etc.) — remplace les styles ad hoc
+   disperses (.agent-chat-clear, .agent-chat-convs-btn, .dm-close...) par UN seul systeme. */
+.icon-btn,.agent-chat-clear,.agent-chat-convs-btn,.deploy-modal .dm-close{
+  position:relative;overflow:hidden;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:999px;flex-shrink:0;
+  background:rgba(255,255,255,.08);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.14);color:var(--mut);
+  font-size:14px;line-height:1;cursor:pointer;padding:0;
+  box-shadow:inset 0 -2px 4px rgba(0,0,0,.10),0 4px 12px rgba(0,0,0,.14);
+  transition:background .18s,color .18s,transform .12s,border-color .18s,box-shadow .18s;
+}
+.icon-btn::before,.agent-chat-clear::before,.agent-chat-convs-btn::before,.deploy-modal .dm-close::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 65%);
+}
+/* Icones SVG inline (ICONS/svgIcon dans app.js) : remplace les emojis texte des boutons/
+   toggles, herite la couleur du parent (currentColor), meme style stroke que les PNG de
+   reference fournis par Jordan mais teinte verte Matrix au lieu du bleu-cyan importe. */
+.ntr-icon{position:relative;z-index:2;}
+.ntr-icon svg{width:100%;height:100%;display:block;}
+button .ntr-icon,.icon-btn .ntr-icon,.agent-chat-clear .ntr-icon,.agent-chat-convs-btn .ntr-icon{color:inherit;}
+.icon-btn:hover,.agent-chat-clear:hover,.agent-chat-convs-btn:hover,.deploy-modal .dm-close:hover{
+  background:rgba(255,255,255,.16);color:var(--txt);border-color:rgba(255,255,255,.22);transform:translateY(-1px);
+}
+.icon-btn:active,.agent-chat-clear:active,.agent-chat-convs-btn:active{transform:scale(.92);}
+/* Variante danger (fermer/effacer) : meme verre, liseré rouge tres discret au hover seulement */
+.agent-chat-clear{color:#ef4444;opacity:.85;}
+.agent-chat-clear:hover{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.30);color:#ef4444;opacity:1;}
+body.dark .icon-btn,body.dark .agent-chat-clear,body.dark .agent-chat-convs-btn,body.dark .deploy-modal .dm-close{
+  background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.10);
+}
+body.dark .icon-btn:hover,body.dark .agent-chat-convs-btn:hover,body.dark .deploy-modal .dm-close:hover{
+  background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18);
+}
+body.dark .agent-chat-clear:hover{background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.28);}
 
 /* ── 12. STATUS + TAGS ── */
 #proposition{margin-top:14px;padding:16px;border-radius:12px;font-size:14px;
@@ -734,7 +806,7 @@ body.dark .imit-item:hover{background:rgba(0,14,4,.72);border-color:rgba(0,232,1
 .deploy-modal-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;}
 .deploy-modal{background:var(--s0);border:1px solid var(--brd1);border-radius:18px;padding:28px 24px;max-width:440px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.55);position:relative;animation:stepIn .3s ease;}
 body:not(.dark) .deploy-modal{background:#fff;}
-.deploy-modal .dm-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--mut);line-height:1;padding:2px 6px;}
+.deploy-modal .dm-close{position:absolute;top:14px;right:16px;font-size:16px;}
 .deploy-modal h3{font-size:17px;font-weight:700;color:var(--txt);margin-bottom:6px;}
 .deploy-modal .dm-desc{font-size:13px;color:var(--mut);margin-bottom:16px;line-height:1.5;}
 .deploy-modal input[type=text]{width:100%;padding:10px 12px;border-radius:9px;font-size:14px;border:1px solid var(--brd1);background:rgba(255,255,255,.80);color:var(--txt);font-family:inherit;margin-bottom:12px;}
@@ -877,10 +949,6 @@ body:not(.dark) .agent-chat-send{color:#fff;}
 .model-advisor{font-size:11px;color:var(--acc);background:rgba(0,232,105,.08);border-left:2px solid var(--acc);border-radius:4px;padding:3px 8px;margin-bottom:4px;line-height:1.5;}
 body:not(.dark) .model-advisor{color:#0c8ea0;background:rgba(14,165,179,.08);border-left-color:#0ea5b7;}
 .model-advisor.warn{color:var(--warn);background:rgba(245,158,11,.08);border-left-color:var(--warn);}
-.agent-chat-clear{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#ef4444;cursor:pointer;font-size:15px;font-weight:700;padding:3px 8px;border-radius:7px;line-height:1;transition:background .18s,box-shadow .18s;}
-.agent-chat-clear:hover{background:rgba(239,68,68,.28);box-shadow:0 0 8px rgba(239,68,68,.4);}
-.agent-chat-convs-btn{background:none;border:none;cursor:pointer;font-size:14px;opacity:.75;padding:2px 6px;transition:opacity .15s;}
-.agent-chat-convs-btn:hover{opacity:1;}
 .eco-locked{opacity:.38!important;pointer-events:none!important;position:relative;}
 .eco-locked::after{content:'🔒';font-size:9px;position:absolute;top:-3px;right:-2px;}
 .agent-convs-panel{background:rgba(10,10,22,.88);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.07);max-height:280px;overflow-y:auto;}
@@ -909,14 +977,24 @@ body:not(.dark) .mkt-mcp-card{background:rgba(15,23,42,.03);border-color:rgba(15
 .ac-md h3{font-size:15px;margin:8px 0 4px;}.ac-md ul{margin:4px 0 4px 18px;}.ac-md li{margin:2px 0;}
 .ac-md code{background:rgba(0,255,65,.08);padding:1px 5px;border-radius:5px;font-size:12px;color:var(--acc);font-family:ui-monospace,monospace;}
 body:not(.dark) .ac-md code{background:rgba(15,23,42,.08);color:var(--txt);}
-.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;margin-left:auto;margin-right:8px;user-select:none;}
-.eco-toggle input{width:30px;height:16px;appearance:none;background:rgba(148,163,184,.4);border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
-.eco-toggle input:checked{background:var(--ok);}
-.eco-toggle input::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;}
-.eco-toggle input:checked::after{left:16px;}
+/* v3.1 : toggle en verre (piste translucide + backdrop-filter), plus un pill flat opaque —
+   le knob glossy (degrade blanc) rappelle une bille de verre, cf. coherence demandee Jordan. */
+.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;margin-left:auto;margin-right:8px;user-select:none;
+  padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.10);transition:background .18s,border-color .18s;}
+.eco-toggle:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.16);}
+.eco-toggle.eco-locked{background:rgba(255,255,255,.03);}
+.eco-toggle input{width:30px;height:16px;appearance:none;border-radius:99px;position:relative;cursor:pointer;flex-shrink:0;
+  background:rgba(255,255,255,.10);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.14);transition:background .2s,border-color .2s;}
+.eco-toggle input:checked{background:rgba(22,163,74,.28);border-color:rgba(22,163,74,.4);}
+.eco-toggle input::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;top:2px;left:2px;
+  background:linear-gradient(160deg,#fff,#d8e8dc);box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .2s;}
+.eco-toggle input:checked::after{left:16px;background:linear-gradient(160deg,#fff,var(--ok));}
 .eco-toggle:has(input:checked){color:var(--ok);}
 /* ÉCLAIR : distinct du toggle Eco (bleu azur lumineux au lieu du vert) pour reperage visuel immediat */
-.eclair-toggle input:checked{background:#00c2ff;box-shadow:0 0 10px rgba(0,194,255,.6);}
+.eclair-toggle input:checked{background:rgba(0,194,255,.22);border-color:rgba(0,194,255,.4);box-shadow:0 0 10px rgba(0,194,255,.25);}
+.eclair-toggle input:checked::after{background:linear-gradient(160deg,#fff,#00c2ff);}
 .eclair-toggle:has(input:checked){color:#00c2ff;text-shadow:0 0 8px rgba(0,194,255,.4);}
 .ac-img-prev{display:none;align-items:center;gap:6px;padding:3px 8px 6px;font-size:11px;color:var(--mut);}
 .ac-img-prev img{max-height:52px;max-width:68px;border-radius:6px;object-fit:contain;border:1px solid var(--brd);}
@@ -928,8 +1006,15 @@ body:not(.dark) .ac-md th{background:rgba(15,23,42,.06);}
 body:not(.dark) .ac-md tr:nth-child(even) td{background:rgba(15,23,42,.025);}
 
 /* ── 33. PLAN CARDS ── */
-.plan-card{border:1.5px solid var(--brd1);border-radius:12px;padding:12px;background:rgba(255,255,255,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
-body.dark .plan-card{background:rgba(0,12,3,.82);}
+/* v3.1 : meme verre que .glass (bordure quasi-neutre + glow de couleur au lieu d'un trait
+   colore plein) — coherence avec le reste des surfaces glass, cf. retour Jordan. */
+.plan-card{border-radius:16px;padding:16px;background:rgba(255,255,255,.10);
+  backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);
+  border:1px solid rgba(255,255,255,.14);transition:box-shadow .2s,border-color .2s;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 12px 32px rgba(0,0,0,.18);}
+body.dark .plan-card{background:rgba(2,14,5,.34);border-color:rgba(255,255,255,.10);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),inset 0 -14px 26px rgba(0,0,0,.20),0 16px 40px rgba(0,0,0,.45);}
+.plan-card.plan-card-actif{border-color:rgba(255,255,255,.22);}
 
 /* ── 34. SKILL CATALOGUE ── */
 .skill-stars{color:#f59e0b;font-size:13px;letter-spacing:1px;margin-right:4px;}
@@ -965,3 +1050,37 @@ body.dark #spf-skill-select,body.dark #spf-cat{background:rgba(255,255,255,.07);
 
 /* ── 38. GOAL INPUT DARK ── */
 body.dark #goal-input{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);color:var(--txt);}
+
+/* ── 38b. SCROLLBARS GLASS (zones a contenu long : log chat, conversations, listes) ── */
+/* Contrairement a .ntr-ob-box (rail totalement masque, contenu court), ces zones ont un
+   usage de defilement frequent -> on garde un indicateur, mais fin/translucide/glass au
+   lieu du rail systeme brut qui jure avec le reste de l'interface. */
+.agent-chat-log,.agent-convs-panel,.imit-list,.deploy-modal .dm-log,.strat-code,.gen-diff{
+  scrollbar-width:thin;scrollbar-color:rgba(0,255,65,.22) transparent;
+}
+.agent-chat-log::-webkit-scrollbar,.agent-convs-panel::-webkit-scrollbar,.imit-list::-webkit-scrollbar,
+.deploy-modal .dm-log::-webkit-scrollbar,.strat-code::-webkit-scrollbar,.gen-diff::-webkit-scrollbar{width:6px;}
+.agent-chat-log::-webkit-scrollbar-track,.agent-convs-panel::-webkit-scrollbar-track,.imit-list::-webkit-scrollbar-track,
+.deploy-modal .dm-log::-webkit-scrollbar-track,.strat-code::-webkit-scrollbar-track,.gen-diff::-webkit-scrollbar-track{background:transparent;}
+.agent-chat-log::-webkit-scrollbar-thumb,.agent-convs-panel::-webkit-scrollbar-thumb,.imit-list::-webkit-scrollbar-thumb,
+.deploy-modal .dm-log::-webkit-scrollbar-thumb,.strat-code::-webkit-scrollbar-thumb,.gen-diff::-webkit-scrollbar-thumb{
+  background:rgba(0,255,65,.18);border-radius:99px;background-clip:padding-box;
+}
+.agent-chat-log::-webkit-scrollbar-thumb:hover,.agent-convs-panel::-webkit-scrollbar-thumb:hover,.imit-list::-webkit-scrollbar-thumb:hover,
+.deploy-modal .dm-log::-webkit-scrollbar-thumb:hover,.strat-code::-webkit-scrollbar-thumb:hover,.gen-diff::-webkit-scrollbar-thumb:hover{
+  background:rgba(0,255,65,.32);background-clip:padding-box;
+}
+
+/* ── 39. ONBOARDING BOX (verre + reverberation, scrollbar totalement invisible) ── */
+/* v3.4 : le hover-reveal (v3.3) restait visuellement en decalage avec le verre - un vrai
+   panneau liquid-glass n'affiche JAMAIS de rail, meme au survol. Scrollbar masquee en
+   permanence sur tous les navigateurs (Firefox: scrollbar-width, WebKit/Blink: largeur 0) ;
+   defilement toujours possible (molette/clavier/trackpad), simplement sans indicateur visuel -
+   le contenu depasse rarement d'un ecran donc l'absence de rail ne nuit pas a l'usage. */
+.ntr-ob-box{
+  scrollbar-width:none;-ms-overflow-style:none;
+  animation:lg-reverb-card 5.5s ease-in-out infinite;
+}
+.ntr-ob-box::-webkit-scrollbar{width:0;height:0;display:none;}
+#ob-back2,#ob-back3{padding:6px 10px!important;border-radius:8px;background:rgba(255,255,255,.05);transition:background .15s;}
+#ob-back2:hover,#ob-back3:hover{background:rgba(255,255,255,.10);}

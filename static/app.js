@@ -30,7 +30,17 @@
   });
   stage.addEventListener('pointerleave', ()=>{ active=false; });
 
-  function frame(){
+  /* Perf : au repos (pas de pointermove), le mouvement est lent (float idle) -> 30fps est
+     visuellement indiscernable de 60fps ici, et divise par 2 la charge GPU (recomposition
+     de 9 cartes backdrop-filter + parallaxe 3D + video de fond simultanes - mesure : la video
+     perdait ~50% de ses frames sur cette page avant cette optimisation). Repasse a pleine
+     cadence des qu'une interaction souris reelle a lieu (active=true), ou la reactivite
+     est prioritaire sur l'economie GPU. */
+  let _lastFrameT=0;
+  function frame(t){
+    const throttle=!active;
+    if(throttle && t-_lastFrameT<33){requestAnimationFrame(frame);return;}
+    _lastFrameT=t;
     if(!active){                                 // derive douce au repos
       idle+=0.012;
       tx=baseY + Math.sin(idle)*5;
@@ -43,7 +53,7 @@
     plane.style.setProperty('--my', my.toFixed(1)+'%');
     requestAnimationFrame(frame);
   }
-  frame();
+  requestAnimationFrame(frame);
 })();
 
 /* ===== SIDEBAR : shimmer souris + stagger float CSS ===== */
@@ -75,9 +85,10 @@ const _breath=(function(){
   }
 
   function scan(){
-    /* panels : agent-chat fixes (interaction saisie), autres panneaux tres subtils */
+    /* panels : apesanteur subtile partout, y compris les panels de chat (demande explicite
+       Jordan) - amplitude reduite sur .agent-chat pour ne pas geiner la lecture/saisie. */
     document.querySelectorAll('.glass.panel,.panel.glass').forEach(function(el){
-      if(el.classList.contains('agent-chat'))return;
+      if(el.classList.contains('agent-chat')){add(el,.9,.06);return;}
       add(el,1.8,.1);
     });
     /* sidebar items : phase Fibonacci -> chaque item a sa propre trajectoire aleatoire */
@@ -90,7 +101,13 @@ const _breath=(function(){
     document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,2,.4));
   }
 
-  function frame(){
+  /* Perf : mouvement tres lent (sinus basse frequence) -> 30fps indiscernable de 60fps,
+     divise par 2 la charge GPU cumulee avec le parallaxe bento + backdrop-filter des
+     cartes (cf. commentaire perf sur le parallaxe dans app.js). */
+  let _lastFrameT=0;
+  function frame(ts){
+    if(ts-_lastFrameT<33){requestAnimationFrame(frame);return;}
+    _lastFrameT=ts;
     t+=.009;
     /* purge les elements detaches du DOM (ex: grid.innerHTML='') */
     if(items.length)items=items.filter(o=>document.contains(o.el));
@@ -105,7 +122,7 @@ const _breath=(function(){
   }
 
   scan();
-  frame();
+  requestAnimationFrame(frame);
   return{scan};
 })();
 
@@ -114,6 +131,18 @@ const $=s=>document.querySelector(s);
 const errMsg=x=>{if(x==null)return'';if(typeof x==='string')return x;if(x.message)return x.message;try{return JSON.stringify(x);}catch(e){return String(x);}};
 const esc=s=>(s||'').replace(/[<>]/g,'');
 const LABELS={creation:'Creation',production:'Production',compte:'Compte',analyse:'Dev & Analyse',evolution:'Evolution',marketing:'Marketing',integrations:'Integrations',don:'Soutenir'};
+
+/* ===== ICONES SVG (remplace les emojis texte des boutons/toggles par des glyphes stroke
+   coherents avec le reste du design system, cf. reference PNG fournie par Jordan). currentColor
+   pour heriter la teinte du bouton parent (vert Matrix par defaut, pas de bleu/cyan importe). */
+const ICONS={
+  eco:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13V6a1 1 0 0 1 1-1h6a7 7 0 0 1 7 7 7 7 0 0 1-7 7Z"/><path d="M11 20v-9"/><path d="M11 11 6 6"/></svg>',
+  eclair:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>',
+  conversations:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/><path d="M7 9h10"/><path d="M7 13h6"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.2a1 1 0 0 0 .87-.5l.66-1.15A1 1 0 0 1 9.6 4h4.8a1 1 0 0 1 .87.5l.66 1.15a1 1 0 0 0 .87.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.2"/></svg>',
+};
+function svgIcon(name,size){size=size||15;return '<span class="ntr-icon ntr-icon-'+name+'" style="display:inline-flex;width:'+size+'px;height:'+size+'px;vertical-align:-3px">'+ICONS[name]+'</span>';}
 
 function showSection(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -2431,10 +2460,10 @@ function buildChat(mount){
     '<div class="agent-chat-head"><span class="agent-chat-dot"></span><b>'+esc(titre)+'</b>'
     +'<span class="agent-chat-sub">'+esc(sub)+'</span>'
     +'<label class="eco-toggle" id="aceco-'+role+'" title="Mode economie : choisit le modele le plus econome selon ta demande (moins de tokens)">'
-    +'<input type="checkbox" id="ececb-'+role+'"><span>&#127793; Eco</span></label>'
-    +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">&#128203;</button>'
-    +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues conversations (détection de dérive incluse)"><input type="checkbox" id="eclrcb-'+role+'"><span>&#9889; ÉCLAIR</span></label>'
-    +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">&#10005;</button></div>'
+    +'<input type="checkbox" id="ececb-'+role+'"><span>'+svgIcon('eco',13)+' Eco</span></label>'
+    +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">'+svgIcon('conversations',15)+'</button>'
+    +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues conversations (détection de dérive incluse)"><input type="checkbox" id="eclrcb-'+role+'"><span>'+svgIcon('eclair',13)+' ÉCLAIR</span></label>'
+    +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">'+svgIcon('close',14)+'</button></div>'
     +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
     +'<div class="agent-chat-input" style="flex-direction:column;align-items:stretch">'
@@ -2443,7 +2472,7 @@ function buildChat(mount){
     +'<div style="display:flex;gap:8px;align-items:flex-end">'
     +'<textarea id="acin-'+role+'" rows="1" placeholder="Parler a '+esc(titre)+'... (Ctrl+V = coller images)"></textarea>'
     +'<input type="file" id="acfile-'+role+'" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.txt,.md,.csv" multiple style="display:none">'
-    +'<button class="ghost" id="acattach-'+role+'" title="Joindre images ou fichier (multi-sélection OK)" style="padding:10px 12px;border-radius:12px;flex-shrink:0">&#128247;</button>'
+    +'<button class="ghost" id="acattach-'+role+'" title="Joindre images ou fichier (multi-sélection OK)" style="padding:10px 12px;border-radius:12px;flex-shrink:0">'+svgIcon('camera',16)+'</button>'
     +'<button class="agent-chat-send" id="acsend-'+role+'">Envoyer</button>'
     +'</div></div>';
   const log=mount.querySelector('#aclog-'+role);
@@ -2852,7 +2881,7 @@ function renderTarifs(palierActuel){
     var btnHtml=actif?'<button class="ghost" disabled style="width:100%;font-size:11px;color:'+p.couleur+';opacity:.85;cursor:default">&#10003; Plan actuel</button>'
       :p.contact?'<button class="ghost tarif-contact-btn" style="width:100%;font-size:11px;color:'+p.couleur+';border-color:'+p.couleur+'">Nous contacter</button>'
       :'<button class="ghost tarif-upgrade-btn" data-palier="'+p.cle+'" style="width:100%;font-size:11px;color:'+p.couleur+'">Choisir '+esc(p.label)+'</button>';
-    return '<div class="plan-card" style="border-color:'+p.couleur+(actif?';box-shadow:0 0 0 2px '+p.couleur:'')+'">'
+    return '<div class="plan-card'+(actif?' plan-card-actif':'')+'" style="box-shadow:inset 0 1px 0 rgba(255,255,255,.10),inset 0 -14px 26px rgba(0,0,0,.20),0 0 28px '+p.couleur+'22,0 16px 40px rgba(0,0,0,.45)">'
       +'<div style="font-size:12px;font-weight:700;color:'+p.couleur+';margin-bottom:4px">'+esc(p.label)+'</div>'
       +prixHtml
       +'<ul style="font-size:11px;color:var(--mut);padding:0 0 0 14px;margin:0 0 10px">'+p.features.map(function(f){return'<li>'+esc(f)+'</li>';}).join('')+'</ul>'
@@ -5103,9 +5132,9 @@ function _showOnboardingOverlay(startStep,user){
   var ex=document.getElementById('ntr-onboarding');if(ex)ex.remove();
   var overlay=document.createElement('div');
   overlay.id='ntr-onboarding';
-  overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(4,8,12,.97);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);overflow:auto;padding:20px 0';
+  overlay.style.cssText='position:fixed;inset:0;z-index:10000;background:#04080c;display:flex;align-items:center;justify-content:center;overflow:auto;padding:20px 0';
   document.body.appendChild(overlay);
-  var stopMatrix=function(){};
+  var stopMatrix=_matrixCanvas(overlay);
   var step=startStep;
   var _compteStartMode='register'; // 'register' ou 'login', mutable depuis _obBienvenue
 
@@ -5114,7 +5143,9 @@ function _showOnboardingOverlay(startStep,user){
     var isPlans=(step===4);
     var box=document.createElement('div');
     box.className='ntr-ob-box';
-    box.style.cssText='position:relative;z-index:1;width:min('+(isPlans?'840px':'500px')+',96vw);max-height:92vh;overflow-y:auto;border-radius:20px;background:rgba(8,12,18,.98);border:1px solid rgba(0,255,65,.15);padding:36px 32px 28px;box-shadow:0 0 80px rgba(0,255,65,.06),0 32px 96px rgba(0,0,0,.95)';
+    box.style.cssText='position:relative;z-index:1;width:min('+(isPlans?'840px':'500px')+',96vw);max-height:92vh;overflow-y:auto;border-radius:24px;'
+      +'background:rgba(2,14,5,.55);backdrop-filter:blur(38px) saturate(220%) brightness(.95);-webkit-backdrop-filter:blur(38px) saturate(220%) brightness(.95);'
+      +'border:1px solid rgba(255,255,255,.12);padding:36px 32px 28px';
     overlay.appendChild(box);
 
     if(step>1){
@@ -5168,10 +5199,11 @@ function _obBienvenue(box,onNext,onLogin){
     +'Bienvenue. NEOGEN est un systeme multi-agents qui pense, cree et evolue avec toi.<br>'
     +'Avant de commencer, laisse-moi apprendre a te connaitre.'
     +'</div>'
-    +'<button id="ob-start" style="padding:15px 50px;font-size:16px;font-weight:800;'
-    +'background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.6);color:#00ff41;'
-    +'border-radius:12px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;'
-    +'transition:all .25s;box-shadow:0 0 20px rgba(0,255,65,.1)">Commencer</button>'
+    +'<button id="ob-start" style="padding:16px 56px;font-size:16px;font-weight:800;'
+    +'background:linear-gradient(160deg,#22e070 0%,#16c65e 55%,#0d9e48 100%);border:0;color:#04150a;'
+    +'border-radius:16px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;'
+    +'transition:transform .18s,box-shadow .18s;'
+    +'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)">Commencer</button>'
     +'<div style="margin-top:22px;font-size:11px;color:rgba(255,255,255,.18)">'
     +'Prend 2 minutes &middot; 7 jours d\'essai gratuits &middot; Annulable a tout moment'
     +'</div>'
@@ -5183,17 +5215,17 @@ function _obBienvenue(box,onNext,onLogin){
     +'<div style="margin-top:26px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)">'
     +'<div style="font-size:10px;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px">3 facons d\'utiliser NEOGEN</div>'
     +'<div style="display:flex;flex-direction:column;gap:8px;text-align:left;max-width:380px;margin:0 auto">'
-    +'<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(0,255,65,.04);border:1px solid rgba(0,255,65,.15)">'
+    +'<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12)">'
     +'<span style="font-size:16px">&#9729;</span>'
     +'<div><div style="font-size:12px;font-weight:700;color:#00ff41">Cloud NetroIA (ici)</div>'
     +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Heberge par NetroIA. Connecte ta cle IA pour demarrer (essai premium 7j). Clique "Commencer" ci-dessus.</div></div>'
     +'</div>'
-    +'<a href="https://github.com/captainNetroia/NEOGEN" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);text-decoration:none">'
+    +'<a href="https://github.com/captainNetroia/NEOGEN" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.10);text-decoration:none">'
     +'<span style="font-size:16px">&#128187;</span>'
     +'<div><div style="font-size:12px;font-weight:700;color:#fff">En local, 100% gratuit</div>'
     +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Sur ta machine, avec Ollama (aucune cle payante) ou ta propre cle. <code style="color:rgba(0,255,65,.6)">docker compose up</code></div></div>'
     +'</a>'
-    +'<details style="border-radius:8px;background:rgba(0,255,65,.03);border:1px solid rgba(0,255,65,.12);padding:0 12px">'
+    +'<details style="border-radius:10px;background:rgba(255,255,255,.05);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.11);padding:0 12px">'
     +'<summary style="cursor:pointer;font-size:11px;color:#00ff41;padding:10px 0;list-style:none">&#128214; Tuto : une IA gratuite avec Ollama (2 min)</summary>'
     +'<div style="font-size:11px;color:rgba(255,255,255,.5);line-height:1.75;padding:2px 0 12px">'
     +'<b style="color:rgba(255,255,255,.75)">1.</b> Installe Ollama : <a href="https://ollama.com/download" target="_blank" rel="noopener" style="color:#00ff41;text-decoration:underline">ollama.com/download</a><br>'
@@ -5202,7 +5234,7 @@ function _obBienvenue(box,onNext,onLogin){
     +'<b style="color:rgba(255,255,255,.75)">4.</b> Dans NEOGEN &rarr; Integrations &rarr; choisis <b>Ollama (local)</b>, URL <code style="color:rgba(0,255,65,.7)">http://host.docker.internal:11434/v1</code>, modele <code style="color:rgba(0,255,65,.7)">qwen2.5</code>.<br>'
     +'<span style="color:rgba(255,255,255,.35)">Astuce : lance Ollama avec <code style="color:rgba(0,255,65,.55)">OLLAMA_HOST=0.0.0.0</code> pour qu\'il soit joignable depuis le conteneur. Zero cle, zero cout.</span>'
     +'</div></details>'
-    +'<a href="https://github.com/captainNetroia/NEOGEN/blob/main/docker-compose.prod.yml" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);text-decoration:none">'
+    +'<a href="https://github.com/captainNetroia/NEOGEN/blob/main/docker-compose.prod.yml" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.10);text-decoration:none">'
     +'<span style="font-size:16px">&#128274;</span>'
     +'<div><div style="font-size:12px;font-weight:700;color:#fff">Sur ton serveur, isole</div>'
     +'<div style="font-size:11px;color:rgba(255,255,255,.4)">Deploiement durci (socket-proxy + reseaux isoles), ton domaine.</div></div>'
@@ -5219,8 +5251,8 @@ function _obBienvenue(box,onNext,onLogin){
     +'</div>';
   box.appendChild(d);
   var btn=d.querySelector('#ob-start');
-  btn.onmouseenter=function(){this.style.background='rgba(0,255,65,.16)';this.style.boxShadow='0 0 40px rgba(0,255,65,.25)';};
-  btn.onmouseleave=function(){this.style.background='rgba(0,255,65,.08)';this.style.boxShadow='0 0 20px rgba(0,255,65,.1)';};
+  btn.onmouseenter=function(){this.style.boxShadow='inset 0 1.5px 0 rgba(255,255,255,.6),inset 0 -3px 8px rgba(0,0,0,.15),0 14px 40px rgba(0,200,80,.45),0 2px 6px rgba(0,0,0,.2)';this.style.transform='translateY(-2px)';};
+  btn.onmouseleave=function(){this.style.boxShadow='inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)';this.style.transform='';};
   btn.onclick=onNext;
   var lnk=d.querySelector('#ob-login-link');
   if(lnk&&onLogin)lnk.onclick=onLogin;
@@ -5260,9 +5292,10 @@ function _obPresentation(box,onDone,onBack){
     +'<textarea id="ob-objectifs" placeholder="Gagner du temps, creer des agents, apprendre..." rows="2" style="resize:none">'+(prev.objectifs||'')+'</textarea></div>'
     +'</div>'
     +'<div id="ob-err2" class="auth-error" style="display:none;margin-top:12px"></div>'
-    +'<button id="ob-next2" style="width:100%;margin-top:18px;padding:13px;font-size:15px;font-weight:700;'
-    +'background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;'
-    +'border-radius:10px;cursor:pointer">Suivant ></button>';
+    +'<button id="ob-next2" style="width:100%;margin-top:18px;padding:14px;font-size:15px;font-weight:800;'
+    +'background:linear-gradient(160deg,#22e070 0%,#16c65e 55%,#0d9e48 100%);border:0;color:#04150a;'
+    +'border-radius:16px;cursor:pointer;transition:transform .18s,box-shadow .18s;'
+    +'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)">Suivant ></button>';
   box.appendChild(d);
   function qr(s){return d.querySelector(s);}
   if(onBack)qr('#ob-back2').onclick=onBack;
@@ -5306,7 +5339,7 @@ function _obCompte(box,onDone,startMode,onBack){
     +'<div class="auth-field" id="ob-pw2-w"><label>Confirmer le mot de passe</label>'
     +'<input type="password" id="ob-pw2" placeholder="..." autocomplete="new-password"></div>'
     +'<div id="ob-err3" class="auth-error" style="display:none"></div>'
-    +'<button id="ob-sub3" style="width:100%;margin-top:6px;background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.5);color:#00ff41;border-radius:8px;font-weight:700;padding:13px;font-size:15px;cursor:pointer">Creer mon compte</button>'
+    +'<button id="ob-sub3" style="width:100%;margin-top:6px;background:linear-gradient(160deg,#22e070 0%,#16c65e 55%,#0d9e48 100%);border:0;color:#04150a;border-radius:16px;font-weight:800;padding:14px;font-size:15px;cursor:pointer;transition:transform .18s,box-shadow .18s;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)">Creer mon compte</button>'
     +'</div>'
     +'<div style="margin-top:18px;border-top:1px solid rgba(255,255,255,.06);padding-top:16px">'
     +'<div style="font-size:12px;color:rgba(255,255,255,.3);margin-bottom:10px;text-align:center">Optionnel — Connecte ton modele IA maintenant</div>'
@@ -5395,7 +5428,9 @@ function _obPlans(box,overlay,stopMatrix){
     +'</div>'
 
     /* Essential hero card */
-    +'<div style="border:1px solid #00ff41;border-radius:16px;padding:26px 28px;margin-bottom:22px;background:rgba(0,255,65,.03);box-shadow:0 0 60px rgba(0,255,65,.07),inset 0 1px 0 rgba(0,255,65,.1)">'
+    +'<div style="border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:26px 28px;margin-bottom:22px;'
+    +'background:rgba(2,14,5,.34);backdrop-filter:blur(32px) saturate(200%);-webkit-backdrop-filter:blur(32px) saturate(200%);'
+    +'box-shadow:inset 0 1.5px 0 rgba(255,255,255,.14),inset 0 -16px 30px rgba(0,0,0,.20),0 0 50px rgba(0,255,65,.06)">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">'
     +'<div style="font-size:20px;font-weight:800;color:#00ff41;letter-spacing:1px">Essential</div>'
     +'<div style="background:rgba(0,255,65,.15);border:1px solid rgba(0,255,65,.5);border-radius:20px;padding:4px 14px;font-size:11px;color:#00ff41;font-weight:800;letter-spacing:1px">7 JOURS GRATUITS</div>'
@@ -5406,7 +5441,7 @@ function _obPlans(box,overlay,stopMatrix){
       return'<div style="font-size:12.5px;color:rgba(255,255,255,.72);display:flex;align-items:center;gap:7px"><span style="color:#00ff41;font-size:10px">●</span>'+f+'</div>';
     }).join('')
     +'</div>'
-    +'<button id="ob-essential" style="width:100%;padding:15px;font-size:15px;font-weight:900;background:#00ff41;color:#000;border:none;border-radius:11px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;box-shadow:0 4px 20px rgba(0,255,65,.3)">'
+    +'<button id="ob-essential" style="width:100%;padding:16px;font-size:15px;font-weight:900;background:linear-gradient(160deg,#22e070 0%,#16c65e 55%,#0d9e48 100%);color:#04150a;border:0;border-radius:16px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:transform .18s,box-shadow .18s;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)">'
     +'Demarrer mon essai gratuit →'
     +'</button>'
     +'<div style="text-align:center;margin-top:10px;font-size:11px;color:rgba(255,255,255,.28)">'
@@ -5420,17 +5455,17 @@ function _obPlans(box,overlay,stopMatrix){
       {n:'Pro',p:'29,99€',pal:'pro',feats:['4 500 GEN/mois','6 providers IA + local','Crons illimites','15 Donner vie/mois · 50 applis','Webhook & API','⚡ ECLAIR -30 a -50% tokens']},
       {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','50 Donner vie/mois · 200 applis','100 deploiements geres','Webhook & API','⚡ ECLAIR -30 a -50% tokens']}
     ].map(function(pk){
-      return'<div style="border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:18px;background:rgba(255,255,255,.015)">'
+      return'<div style="border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:18px;background:rgba(255,255,255,.05);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">'
         +'<div style="font-size:15px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:3px">'+pk.n+'</div>'
         +'<div style="font-size:22px;font-weight:800;color:#fff;margin-bottom:14px">'+pk.p+'<span style="font-size:11px;font-weight:400;color:rgba(255,255,255,.35)">/mois</span></div>'
         +pk.feats.map(function(f){return'<div style="font-size:11.5px;color:rgba(255,255,255,.48);margin-bottom:5px;display:flex;align-items:center;gap:5px"><span style="color:rgba(0,255,65,.4);font-size:9px">●</span>'+f+'</div>';}).join('')
-        +'<button data-pal="'+pk.pal+'" class="ob-plan-btn" style="width:100%;margin-top:14px;padding:9px;font-size:13px;font-weight:600;background:transparent;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);border-radius:9px;cursor:pointer;transition:all .2s">Choisir '+pk.n+'</button>'
+        +'<button data-pal="'+pk.pal+'" class="ob-plan-btn" style="width:100%;margin-top:14px;padding:9px;font-size:13px;font-weight:600;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.16);color:rgba(255,255,255,.7);border-radius:12px;cursor:pointer;transition:all .2s">Choisir '+pk.n+'</button>'
         +'</div>';
     }).join('')
     +'</div>'
 
     /* Enterprise */
-    +'<div style="border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px">'
+    +'<div style="border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:rgba(255,255,255,.03);backdrop-filter:blur(14px)">'
     +'<div><div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.6)">Enterprise</div>'
     +'<div style="font-size:11.5px;color:rgba(255,255,255,.28);margin-top:2px">Infrastructure isolee · SLA 99,9% · Support dedie · Contrat personnalise</div></div>'
     +'<div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.4);white-space:nowrap">Sur mesure</div>'
@@ -5445,13 +5480,13 @@ function _obPlans(box,overlay,stopMatrix){
   box.appendChild(d);
 
   d.querySelectorAll('.ob-plan-btn').forEach(function(btn){
-    btn.onmouseenter=function(){this.style.borderColor='rgba(0,255,65,.3)';this.style.color='rgba(255,255,255,.9)';};
-    btn.onmouseleave=function(){this.style.borderColor='rgba(255,255,255,.15)';this.style.color='rgba(255,255,255,.6)';};
+    btn.onmouseenter=function(){this.style.background='rgba(255,255,255,.12)';this.style.borderColor='rgba(255,255,255,.28)';this.style.color='rgba(255,255,255,.9)';};
+    btn.onmouseleave=function(){this.style.background='rgba(255,255,255,.06)';this.style.borderColor='rgba(255,255,255,.16)';this.style.color='rgba(255,255,255,.7)';};
   });
 
   var essBtn=d.querySelector('#ob-essential');
-  essBtn.onmouseenter=function(){this.style.transform='translateY(-1px)';this.style.boxShadow='0 8px 30px rgba(0,255,65,.5)';};
-  essBtn.onmouseleave=function(){this.style.transform='';this.style.boxShadow='0 4px 20px rgba(0,255,65,.3)';};
+  essBtn.onmouseenter=function(){this.style.transform='translateY(-2px)';this.style.boxShadow='inset 0 1.5px 0 rgba(255,255,255,.6),inset 0 -3px 8px rgba(0,0,0,.15),0 14px 40px rgba(0,200,80,.45),0 2px 6px rgba(0,0,0,.2)';};
+  essBtn.onmouseleave=function(){this.style.transform='';this.style.boxShadow='inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -3px 8px rgba(0,0,0,.15),0 10px 32px rgba(0,200,80,.35),0 2px 6px rgba(0,0,0,.2)';};
   essBtn.onclick=async function(){
     this.disabled=true;this.textContent='Redirection vers Stripe...';
     try{

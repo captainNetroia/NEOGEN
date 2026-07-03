@@ -30,3 +30,6 @@ tests/
 Thumbs.db
 .vscode/
 .idea/
+
+# Sauvegardes video (avant reencodage perf) : jamais servies, inutiles dans l'image
+static/*-backup-original.mp4

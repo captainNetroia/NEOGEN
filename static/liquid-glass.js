@@ -107,8 +107,8 @@
         filter.appendChild(feImage);
         filter.appendChild(feDisp);
         defs.appendChild(filter);
-        el.style.backdropFilter = 'url(#' + filterId + ') blur(3px) saturate(150%)';
-        el.style.webkitBackdropFilter = 'url(#' + filterId + ') blur(3px) saturate(150%)';
+        el.style.backdropFilter = 'url(#' + filterId + ') blur(3px)';
+        el.style.webkitBackdropFilter = 'url(#' + filterId + ') blur(3px)';
       }
       filter.setAttribute('width', w); filter.setAttribute('height', h);
       feImage.setAttribute('width', w); feImage.setAttribute('height', h);
@@ -126,6 +126,39 @@
     if (window.ResizeObserver) {
       new ResizeObserver(onResize).observe(el);
     }
+
+    /* Perf (mesure reelle, cf. skill bento-3d-glass v3.5) : le feDisplacementMap SVG force
+       le navigateur a recomposer tout ce qu'il y a DERRIERE l'element (dont la video de fond)
+       a CHAQUE frame. Teste isole : 9 cartes .layer avec le filtre actif simultanement =
+       60% des frames video perdues sur la landing bento (GPU integre Intel UHD) ; filtre
+       desactive = 4%. La distorsion N'EST DONC PLUS permanente sur .layer : reste un blur()
+       simple et leger au repos (cout GPU quasi nul, look verre depoli deja correct), et la
+       VRAIE distorsion (feDisplacementMap) ne s'active qu'au survol/proximite -- une seule
+       carte a la fois est distordue, jamais les 9 en meme temps, donc le cout reste bas
+       meme si l'utilisateur survole activement. */
+    const filterOn = el.style.backdropFilter;
+    const filterOff = 'blur(3px)';
+    if (opts.hoverOnly) {
+      el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
+      el.addEventListener('pointerenter', function () {
+        el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
+      });
+      el.addEventListener('pointerleave', function () {
+        el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
+      });
+    } else if (window.IntersectionObserver) {
+      /* .panel.glass (moins nombreux simultanement) : distorsion permanente tant que visible,
+         coupee hors-viewport (listes longues, scroll). */
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
+          } else {
+            el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
+          }
+        });
+      }, { rootMargin: '100px' }).observe(el);
+    }
   }
 
   /* Applique automatiquement sur toutes les cartes bento + panels glass presents/futurs.
@@ -134,7 +167,7 @@
      serait inutile et le rendu visuel n'y gagnerait rien). */
   function scanAndApply() {
     document.querySelectorAll('.layer:not([data-liquid-glass])').forEach(function (el) {
-      applyLiquidGlass(el, { edgeRadius: 0.6 });
+      applyLiquidGlass(el, { edgeRadius: 0.6, hoverOnly: true });
     });
     document.querySelectorAll('.panel.glass:not([data-liquid-glass]), .glass.panel:not([data-liquid-glass])').forEach(function (el) {
       applyLiquidGlass(el, { edgeRadius: 0.35 });
