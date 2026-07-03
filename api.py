@@ -106,6 +106,7 @@ from routes.rpa import router as _r_rpa
 from routes.savoir import router as _r_savoir
 from routes.convs import router as _r_convs
 from routes.maintenance import router as _r_maintenance
+from routes.legal import router as _r_legal
 
 app.include_router(_r_auth)
 app.include_router(_r_produits)
@@ -117,6 +118,7 @@ app.include_router(_r_rpa)
 app.include_router(_r_savoir)
 app.include_router(_r_convs)
 app.include_router(_r_maintenance)
+app.include_router(_r_legal)
 
 # ── Chemins data ───────────────────────────────────────────────────────────────
 _BASE = _os.path.dirname(_os.path.abspath(__file__))

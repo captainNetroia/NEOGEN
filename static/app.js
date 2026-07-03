@@ -5211,6 +5211,11 @@ function _obBienvenue(box,onNext,onLogin){
     +'<div style="margin-top:14px;font-size:10px;color:rgba(255,255,255,.22)">Coeur open source sous '
     +'<a href="https://github.com/captainNetroia/NEOGEN/blob/main/LICENSE" target="_blank" rel="noopener" style="color:rgba(255,255,255,.4);text-decoration:underline">Business Source License 1.1</a>'
     +'</div>'
+    +'<div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.28);display:flex;gap:14px;justify-content:center;flex-wrap:wrap">'
+    +'<a href="/legal/mentions-legales" style="color:rgba(255,255,255,.4);text-decoration:none">Mentions legales</a>'
+    +'<a href="/legal/cgu" style="color:rgba(255,255,255,.4);text-decoration:none">CGU</a>'
+    +'<a href="/legal/confidentialite" style="color:rgba(255,255,255,.4);text-decoration:none">Confidentialite</a>'
+    +'</div>'
     +'</div>';
   box.appendChild(d);
   var btn=d.querySelector('#ob-start');
