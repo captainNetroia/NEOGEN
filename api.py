@@ -64,11 +64,17 @@ async def _lifespan(app):
     yield
 
 
+# Doc API (/docs, /redoc, /openapi.json) : exposee UNIQUEMENT sur l'instance perso (owner).
+# En public, la fermer reduit la surface d'attaque (schema complet de l'API cache).
+_est_instance_perso = _os.environ.get("NEOGEN_OWNER_UNLIMITED", "").strip().lower() in ("1", "true", "yes", "on")
 app = FastAPI(
     title="NEOGEN",
     description="Une intention parlee devient une application gouvernee, generee et executee en conteneur durci.",
     version="5.0",
     lifespan=_lifespan,
+    docs_url="/docs" if _est_instance_perso else None,
+    redoc_url="/redoc" if _est_instance_perso else None,
+    openapi_url="/openapi.json" if _est_instance_perso else None,
 )
 
 # CORS resserre : par defaut localhost uniquement. En prod, definir NEOGEN_CORS_ORIGINS.

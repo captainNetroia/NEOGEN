@@ -9,6 +9,17 @@ from .deps import _auth, _est_admin, _exiger_byok
 
 router = APIRouter()
 
+
+def _gate_connecte(authorization: str | None) -> None:
+    """Refuse une action d'ecriture a un anonyme (anti-injection de prompt via skills/taches/memoire).
+    L'owner (instance perso) passe toujours ; sinon un compte connecte est exige."""
+    import quotas
+    if quotas._owner_unlimited():
+        return
+    if not _auth(authorization):
+        raise HTTPException(status_code=401, detail="Connecte-toi a ton compte pour cette action.")
+
+
 _registry_cache: dict = {"ts": 0.0, "data": None}
 _REGISTRY_TTL = 3600.0
 _REGISTRY_URL = (
@@ -89,14 +100,16 @@ def lister_skills():
 
 
 @router.post("/skills")
-def creer_skill(body: SkillBody):
+def creer_skill(body: SkillBody, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import competences
     s = competences.creer(body.nom, body.description, body.instructions, body.outils)
     return {"ok": True, "skill": s}
 
 
 @router.delete("/skills/{nom}")
-def supprimer_skill(nom: str):
+def supprimer_skill(nom: str, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import competences
     return {"ok": competences.supprimer(nom)}
 
@@ -131,7 +144,8 @@ def skills_registry():
 
 
 @router.post("/skills/import")
-def importer_skills(body: ImportSkillBody):
+def importer_skills(body: ImportSkillBody, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import competences
     result = competences.importer_depuis_registry(body.skills)
     return {"ok": True, **result}
@@ -204,7 +218,8 @@ def lister_taches():
 
 
 @router.post("/taches")
-def creer_tache(body: TacheBody):
+def creer_tache(body: TacheBody, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import planificateur
     return {"ok": True, "tache": planificateur.creer(
         body.nom, body.agent, body.message, body.intervalle_minutes,
@@ -212,13 +227,15 @@ def creer_tache(body: TacheBody):
 
 
 @router.post("/taches/{tache_id}/toggle")
-def toggle_tache(tache_id: str, body: TacheToggleBody):
+def toggle_tache(tache_id: str, body: TacheToggleBody, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import planificateur
     return {"ok": planificateur.basculer(tache_id, body.actif)}
 
 
 @router.delete("/taches/{tache_id}")
-def supprimer_tache(tache_id: str):
+def supprimer_tache(tache_id: str, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import planificateur
     return {"ok": planificateur.supprimer(tache_id)}
 
@@ -232,13 +249,15 @@ def lister_memoire():
 
 
 @router.post("/memoire")
-def creer_memoire(body: MemoireBody):
+def creer_memoire(body: MemoireBody, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import memoire_agent
     return {"ok": True, "memoire": memoire_agent.memoriser(body.contenu, body.type)}
 
 
 @router.delete("/memoire/{mem_id}")
-def supprimer_memoire(mem_id: str):
+def supprimer_memoire(mem_id: str, authorization: str = Header(None)):
+    _gate_connecte(authorization)
     import memoire_agent
     return {"ok": memoire_agent.supprimer(mem_id)}
 
