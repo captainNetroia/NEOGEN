@@ -16,8 +16,18 @@ Conception : Jordan VINCENT (NetroIA) avec Claude. 2026-06-19.
 
 def _head() -> str:
     import pathlib as _pl
+    import os as _os
     _css = _pl.Path(__file__).parent / "static" / "app.css"
     _vc = int(_css.stat().st_mtime) if _css.exists() else 0
+    _est_instance_perso = _os.environ.get("NEOGEN_OWNER_UNLIMITED", "").strip().lower() in ("1", "true", "yes", "on")
+    # Statut Docker : utile en dev local (verifier que le moteur tourne), sans interet pour
+    # un visiteur du site public - et source de confusion la ou le socket-proxy de securite
+    # bloque volontairement certaines routes (INFO=0), affichant a tort "indisponible" alors
+    # que l'appli fonctionne normalement (fallback isolation process).
+    _docker_status_html = (
+        '<div id="docker-status"><span class="dot off"></span>chargement...</div>'
+        if _est_instance_perso else ''
+    )
     return f"""<!doctype html>
 <html lang="fr">
 <head>
@@ -44,7 +54,7 @@ def _head() -> str:
 
 <header>
   <h1 onclick="showLanding()">NEO<b>GEN</b></h1>
-  <div id="docker-status"><span class="dot off"></span>chargement...</div>
+  {_docker_status_html}
 </header>
 
 <div id="breadcrumb" class="breadcrumb" onclick="showLanding()">

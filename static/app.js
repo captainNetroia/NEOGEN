@@ -178,9 +178,11 @@ function showLanding(){
 }
 
 async function health(){
+  const el=$('#docker-status');
+  if(!el)return; /* absent en instance publique (cf. ui.py::_head) - rien a faire */
   try{
     const h=await(await fetch('/health')).json();
-    $('#docker-status').innerHTML='<span class="dot '+(h.docker?'on':'off')+'"></span>'+(h.docker?'Docker actif ('+h.docker_info+')':'Docker indisponible');
+    el.innerHTML='<span class="dot '+(h.docker?'on':'off')+'"></span>'+(h.docker?'Docker actif ('+h.docker_info+')':'Docker indisponible');
   }catch(e){}
 }
 
