@@ -160,7 +160,26 @@ body.dark .layer{
     0 0 0 1px rgba(0,255,65,.09),
     0 0 32px rgba(0,255,65,.07),
     0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);
+  animation:lg-reverb-card 4.5s ease-in-out infinite;
 }
+/* Reverberation douce sur les cartes bento (independante du hover/parallaxe JS existants,
+   n'affecte que box-shadow, jamais transform -- ne peut donc pas interferer avec la
+   parallaxe 3D pilotee par app.js). Dephasage Fibonacci par carte pour un mouvement organique. */
+@keyframes lg-reverb-card{
+  0%,100%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.16),inset 0 0 0 1px rgba(0,255,65,.06),
+    inset 0 -16px 30px rgba(0,0,0,.30),0 0 0 1px rgba(0,255,65,.09),0 0 32px rgba(0,255,65,.07),
+    0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);}
+  50%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.24),inset 0 0 0 1px rgba(0,255,65,.10),
+    inset 0 -16px 30px rgba(0,0,0,.30),0 0 0 1px rgba(0,255,65,.15),0 0 46px rgba(0,255,65,.12),
+    0 24px 48px rgba(0,0,0,.58),0 7px 16px rgba(0,0,0,.42);}
+}
+body.dark .layer:nth-child(2){animation-delay:-.9s;}
+body.dark .layer:nth-child(3){animation-delay:-1.8s;}
+body.dark .layer:nth-child(4){animation-delay:-2.7s;}
+body.dark .layer:nth-child(5){animation-delay:-3.6s;}
+body.dark .layer:nth-child(6){animation-delay:-.5s;}
+body.dark .layer:nth-child(7){animation-delay:-1.4s;}
+body.dark .layer:nth-child(8){animation-delay:-2.3s;}
 
 /* Grain de verre : bruit tres leger, casse la platitude du gradient simule */
 .layer::before{
@@ -262,14 +281,35 @@ body.dark .layer-label p{color:#86a086;}
   background:radial-gradient(120% 70% at 50% -12%,rgba(255,255,255,.20),transparent 60%);
 }
 body.dark .glass{
-  background:rgba(0,11,3,.70);
-  backdrop-filter:blur(32px) saturate(180%);
-  -webkit-backdrop-filter:blur(32px) saturate(180%);
-  border-color:rgba(0,255,65,.17);
-  box-shadow:inset 0 1.5px 0 rgba(0,255,65,.09),inset 0 0 0 .5px rgba(0,255,65,.035),
-    inset 0 -18px 34px rgba(0,0,0,.30),
-    0 22px 52px rgba(0,0,0,.48),0 6px 14px rgba(0,0,0,.30);
+  /* v2.2 : opacite drastiquement reduite (.70 -> .32) pour laisser le flou du fond REELLEMENT
+     visible a travers (cf. reference GitHub Glass Card : le fond flou se voit clairement).
+     Un fond a 70% opaque annule presque tout l'effet du backdrop-filter en dessous. */
+  background:rgba(2,14,5,.32);
+  backdrop-filter:blur(38px) saturate(220%) brightness(.9);
+  -webkit-backdrop-filter:blur(38px) saturate(220%) brightness(.9);
+  border-color:rgba(0,255,65,.22);
+  box-shadow:inset 0 1.5px 0 rgba(0,255,65,.14),inset 0 0 0 .5px rgba(0,255,65,.05),
+    inset 0 -18px 34px rgba(0,0,0,.22),
+    0 0 0 1px rgba(0,255,65,.05),0 0 30px rgba(0,255,65,.05),
+    0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);
+  animation:lg-reverb 5.5s ease-in-out infinite;
 }
+/* Reverberation : le glow du bord respire doucement, comme la lumiere qui rebondit sur un
+   vrai bord de verre courbe (cf. reference Apple "Liquid Glass" WWDC25). Dephasage par
+   nth-of-type pour eviter que tous les panels pulsent en meme temps (effet "vivant" pas
+   "clignotant synchronise"). Respecte prefers-reduced-motion (regle globale existante). */
+@keyframes lg-reverb{
+  0%,100%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.14),inset 0 0 0 .5px rgba(0,255,65,.05),
+    inset 0 -18px 34px rgba(0,0,0,.22),
+    0 0 0 1px rgba(0,255,65,.05),0 0 30px rgba(0,255,65,.05),
+    0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);}
+  50%{box-shadow:inset 0 1.5px 0 rgba(0,255,65,.22),inset 0 0 0 .5px rgba(0,255,65,.09),
+    inset 0 -18px 34px rgba(0,0,0,.22),
+    0 0 0 1px rgba(0,255,65,.11),0 0 44px rgba(0,255,65,.10),
+    0 22px 52px rgba(0,0,0,.55),0 6px 14px rgba(0,0,0,.35);}
+}
+body.dark .panel.glass:nth-of-type(2n){animation-delay:-1.8s;}
+body.dark .panel.glass:nth-of-type(3n){animation-delay:-3.4s;}
 body.dark .glass::before{
   background:radial-gradient(120% 70% at 50% -12%,rgba(0,255,65,.06),transparent 60%);
 }

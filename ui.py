@@ -839,7 +839,10 @@ def _foot() -> str:
     import pathlib as _pl
     _js = _pl.Path(__file__).parent / "static" / "app.js"
     _v = int(_js.stat().st_mtime) if _js.exists() else 0
-    return f'<script src="/static/app.js?v={_v}"></script>\n</body>\n</html>\n'
+    _lg = _pl.Path(__file__).parent / "static" / "liquid-glass.js"
+    _vlg = int(_lg.stat().st_mtime) if _lg.exists() else 0
+    return (f'<script src="/static/liquid-glass.js?v={_vlg}"></script>\n'
+            f'<script src="/static/app.js?v={_v}"></script>\n</body>\n</html>\n')
 
 
 def _section_evolution() -> str:
