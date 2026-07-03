@@ -49,12 +49,15 @@ def auth_register(data: dict):
     name = data.get("name", "").strip()
     if not email or "@" not in email:
         raise HTTPException(400, "Email invalide")
-    # Anti-squat : les emails owner/admin sont reserves. Sur le public, empeche un inconnu de
-    # s'inscrire avec l'email du proprietaire pour heriter du palier owner/admin.
-    _reserves = {_os.environ.get("NEOGEN_OWNER_EMAIL", "").strip().lower(),
-                 _os.environ.get("NEOGEN_ADMIN_EMAIL", "").strip().lower()} - {""}
-    if email in _reserves:
-        raise HTTPException(403, "Cet email est reserve. Contacte l'administrateur.")
+    # Anti-squat : sur l'instance PUBLIQUE, un email owner/admin ne peut pas etre pris par un
+    # inconnu (sinon il heriterait du palier owner). Sur l'instance PERSO (owner_unlimited), le
+    # proprietaire cree librement son compte owner sur SA machine.
+    import quotas as _q
+    if not _q._owner_unlimited():
+        _reserves = {_os.environ.get("NEOGEN_OWNER_EMAIL", "").strip().lower(),
+                     _os.environ.get("NEOGEN_ADMIN_EMAIL", "").strip().lower()} - {""}
+        if email in _reserves:
+            raise HTTPException(403, "Cet email est reserve. Contacte l'administrateur.")
     if len(pw) < 6:
         raise HTTPException(400, "Mot de passe trop court (6 caracteres minimum)")
     if _user_by_email(email):
