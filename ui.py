@@ -39,6 +39,7 @@ def _head() -> str:
 <video id="bg-video-light-2" autoplay loop muted playsinline>
   <source src="/static/video-matrix-light-2.mp4" type="video/mp4">
 </video>
+<img id="bg-logo-light" src="/static/Logo-Neogen-transparent.png" alt="" aria-hidden="true">
 <div id="bg-vignette"></div>
 
 <header>

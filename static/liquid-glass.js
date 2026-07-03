@@ -44,7 +44,11 @@
       maxScale = Math.max(maxScale, Math.abs(dx), Math.abs(dy));
       raw.push(dx, dy);
     }
-    maxScale = Math.max(maxScale * 0.55, 1);
+    /* v3.7 : intensite de distorsion remontee (0.55 -> 0.85) - a 0.55 l'effet etait trop
+       subtil pour se voir sur un fond a faible contraste (theme clair), meme si visible sur
+       le Matrix rain vert/noir a fort contraste du dark. Remonter l'intensite aide les 2
+       themes sans en degrader aucun (verifie visuellement apres coup). */
+    maxScale = Math.max(maxScale * 0.85, 1);
     let idx = 0;
     for (let i = 0; i < data.length; i += 4) {
       const r = raw[idx++] / maxScale + 0.5;
@@ -69,29 +73,45 @@
     return _svgRoot;
   }
 
+  /* v3.8 (reecriture complete, fix bug critique) : l'ancienne version lisait
+     `el.style.backdropFilter` juste apres l'appel synchrone a build() pour capturer
+     "filterOn" - mais si build() echouait au premier appel (element cache, w/h=0) et
+     retentait via requestAnimationFrame (async), cette lecture se faisait AVANT que le
+     filtre n'existe reellement : filterOn valait alors '' pour toujours, capture dans la
+     closure hoverOnly/IntersectionObserver, et le panel restait bloque sur le blur() simple
+     a vie meme apres que le retry ait fini par reussir. Ici, filterOn est calcule a partir
+     du filterId (deterministe : 'lg-filter-'+n), jamais lu depuis le style — donc valide
+     que build() ait reussi du premier coup ou au 50e retry. */
   function applyLiquidGlass(el, opts) {
     if (!el || el.dataset.liquidGlass) return;
     el.dataset.liquidGlass = '1';
     opts = opts || {};
     const edgeRadius = opts.edgeRadius != null ? opts.edgeRadius : 0.55;
+    const filterId = 'lg-filter-' + (_uid++);
+    const filterOn = 'url(#' + filterId + ') blur(3px)';
+    const filterOff = 'blur(3px)';
+    let _built = false;
+    let _retryCount = 0;
 
     function build() {
       const r = el.getBoundingClientRect();
       const w = Math.max(40, Math.round(r.width));
       const h = Math.max(40, Math.round(r.height));
-      if (!w || !h) return;
+      if (!r.width || !r.height) {
+        /* element cache (section display:none) au moment de ce build -> pas de taille
+           valide, on reessaie tant que ca n'a pas fonctionne (limite ~200 frames). */
+        if (_retryCount++ < 200) requestAnimationFrame(build);
+        return;
+      }
+      _retryCount = 0;
       const { url, scale } = _buildDisplacementDataURL(w, h, edgeRadius);
-
       const defs = _svgDefs().querySelector('defs');
-      let filterId = el.dataset.liquidGlassFilterId;
-      let filter, feImage, feDisp;
-      if (filterId) {
-        filter = defs.querySelector('#' + filterId);
+      let filter = defs.querySelector('#' + filterId);
+      let feImage, feDisp;
+      if (filter) {
         feImage = filter.querySelector('feImage');
         feDisp = filter.querySelector('feDisplacementMap');
       } else {
-        filterId = 'lg-filter-' + (_uid++);
-        el.dataset.liquidGlassFilterId = filterId;
         filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
         filter.setAttribute('id', filterId);
         filter.setAttribute('filterUnits', 'userSpaceOnUse');
@@ -107,13 +127,40 @@
         filter.appendChild(feImage);
         filter.appendChild(feDisp);
         defs.appendChild(filter);
-        el.style.backdropFilter = 'url(#' + filterId + ') blur(3px)';
-        el.style.webkitBackdropFilter = 'url(#' + filterId + ') blur(3px)';
       }
       filter.setAttribute('width', w); filter.setAttribute('height', h);
       feImage.setAttribute('width', w); feImage.setAttribute('height', h);
       feImage.setAttributeNS('http://www.w3.org/1999/xlink', 'href', url);
       feDisp.setAttribute('scale', scale.toFixed(1));
+
+      if (!_built) {
+        _built = true;
+        el.dataset.lgFilterOn = filterOn;
+        /* Perf (mesure reelle, cf. skill bento-3d-glass v3.5) : le feDisplacementMap SVG
+           force le navigateur a recomposer tout ce qu'il y a DERRIERE l'element a CHAQUE
+           frame. 9 cartes .layer avec le filtre actif simultanement = 60% des frames video
+           perdues (GPU integre) ; filtre desactive = 4%. D'ou hoverOnly sur .layer/.plan-card
+           (une seule carte distordue a la fois, jamais toutes en meme temps). */
+        if (opts.hoverOnly) {
+          el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
+          el.addEventListener('pointerenter', function () {
+            el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
+          });
+          el.addEventListener('pointerleave', function () {
+            el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
+          });
+        } else {
+          el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
+          if (window.IntersectionObserver) {
+            new IntersectionObserver(function (entries) {
+              entries.forEach(function (entry) {
+                el.style.backdropFilter = entry.isIntersecting ? filterOn : filterOff;
+                el.style.webkitBackdropFilter = entry.isIntersecting ? filterOn : filterOff;
+              });
+            }, { rootMargin: '100px' }).observe(el);
+          }
+        }
+      }
     }
 
     build();
@@ -126,40 +173,14 @@
     if (window.ResizeObserver) {
       new ResizeObserver(onResize).observe(el);
     }
-
-    /* Perf (mesure reelle, cf. skill bento-3d-glass v3.5) : le feDisplacementMap SVG force
-       le navigateur a recomposer tout ce qu'il y a DERRIERE l'element (dont la video de fond)
-       a CHAQUE frame. Teste isole : 9 cartes .layer avec le filtre actif simultanement =
-       60% des frames video perdues sur la landing bento (GPU integre Intel UHD) ; filtre
-       desactive = 4%. La distorsion N'EST DONC PLUS permanente sur .layer : reste un blur()
-       simple et leger au repos (cout GPU quasi nul, look verre depoli deja correct), et la
-       VRAIE distorsion (feDisplacementMap) ne s'active qu'au survol/proximite -- une seule
-       carte a la fois est distordue, jamais les 9 en meme temps, donc le cout reste bas
-       meme si l'utilisateur survole activement. */
-    const filterOn = el.style.backdropFilter;
-    const filterOff = 'blur(3px)';
-    if (opts.hoverOnly) {
-      el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
-      el.addEventListener('pointerenter', function () {
-        el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
-      });
-      el.addEventListener('pointerleave', function () {
-        el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
-      });
-    } else if (window.IntersectionObserver) {
-      /* .panel.glass (moins nombreux simultanement) : distorsion permanente tant que visible,
-         coupee hors-viewport (listes longues, scroll). */
-      new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            el.style.backdropFilter = filterOn; el.style.webkitBackdropFilter = filterOn;
-          } else {
-            el.style.backdropFilter = filterOff; el.style.webkitBackdropFilter = filterOff;
-          }
-        });
-      }, { rootMargin: '100px' }).observe(el);
-    }
   }
+
+  /* Re-scan les panels non encore traites (section qui vient de s'activer peut contenir
+     des elements ajoutes pendant qu'elle etait cachee, pas vus par le MutationObserver
+     global si le fragment a ete injecte cote serveur au chargement initial). Le vrai fix
+     du bug "filtre jamais applique" est dans applyLiquidGlass (filterOn deterministe,
+     plus jamais lu depuis un style pas encore pose) ; ceci reste utile en filet de securite. */
+  window.refreshLiquidGlass = scanAndApply;
 
   /* Applique automatiquement sur toutes les cartes bento + panels glass presents/futurs.
      Cible large volontairement restreinte : uniquement .layer et .panel.glass (pas les
@@ -169,8 +190,20 @@
     document.querySelectorAll('.layer:not([data-liquid-glass])').forEach(function (el) {
       applyLiquidGlass(el, { edgeRadius: 0.6, hoverOnly: true });
     });
-    document.querySelectorAll('.panel.glass:not([data-liquid-glass]), .glass.panel:not([data-liquid-glass])').forEach(function (el) {
+    /* v3.8 : selecteur elargi a TOUT .glass (pas seulement .panel.glass) - des elements comme
+       .glass.integ-category (categories d'integrations) n'avaient ni .panel ni le scan, donc
+       jamais aucun filtre pose du tout (juste le blur() de la regle CSS de base, ce qui est
+       insuffisant seul, cf. lecon v3). */
+    document.querySelectorAll('.glass:not([data-liquid-glass])').forEach(function (el) {
       applyLiquidGlass(el, { edgeRadius: 0.35 });
+    });
+    /* v3.7 : .plan-card (tarifs) avait seulement un blur() simple, jamais la vraie distorsion
+       feDisplacementMap - c'est pour ca que le mode clair paraissait "plat" (le blur seul ne
+       PEUT PAS produire de relief visible, peu importe l'opacite du fond derriere - cf. lecon
+       deja documentee en v3 : "le blur seul donnait un rendu plat/opaque"). hoverOnly comme
+       .layer (plusieurs cartes simultanees, cf. fix perf v3.5). */
+    document.querySelectorAll('.plan-card:not([data-liquid-glass])').forEach(function (el) {
+      applyLiquidGlass(el, { edgeRadius: 0.4, hoverOnly: true });
     });
   }
 

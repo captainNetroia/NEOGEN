@@ -162,6 +162,10 @@ function showSection(name){
   if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
   /* scan post-section : enregistre les panels rendus dynamiquement (fragments, chats) */
   setTimeout(()=>_breath.scan(),150);
+  /* re-verifie la distorsion glass des panels de la section qui vient de s'activer - un
+     panel injecte pendant que sa section etait encore inactive peut rester bloque sur le
+     blur() simple sans ceci (cf. skill bento-3d-glass v3.8). */
+  setTimeout(()=>{ if(typeof window.refreshLiquidGlass==='function') window.refreshLiquidGlass(); },200);
 }
 function showLanding(){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));

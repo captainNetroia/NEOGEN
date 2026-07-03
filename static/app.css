@@ -50,17 +50,42 @@ body{
 #bg-video{object-fit:contain;}
 body.dark #bg-video{opacity:.22;}
 
-/* Mode clair : permutation douce entre les 2 vidéos (cycle 22s) */
+/* v3.7 : logo statique en fond clair, equivalent du logo visible dans video-logo-matrix.mp4
+   en dark. Sans lui, le fond clair (colonnes de chiffres fines, video-matrix-light*.mp4)
+   n'offrait aucune grande zone de contraste a courber -> la distorsion glass (feDisplacementMap)
+   restait quasi invisible sur les cartes meme a intensite egale au dark (verifie visuellement
+   cote a cote, le dark restait nettement plus spectaculaire). Le logo transparent existant
+   (Logo-Neogen-transparent.png) offre les memes larges zones vertes/blanches que le logo du
+   dark, en position identique (centre, grande taille). */
+/* v3.9 (fix reel) : a 560px centre-viewport et opacite .16, le logo ne couvrait qu'une petite
+   zone au milieu de l'ecran - tout panel en haut de page (juste sous le header) ou en bas
+   (fin de scroll) n'avait STRICTEMENT RIEN a distordre derriere lui, peu importe l'opacite
+   du panel lui-meme (verifie : meme a background-color transparent total sur le panel, le
+   rendu restait blanc plat car il n'y avait tout simplement pas de texture derriere a cet
+   endroit). Logo agrandi pour couvrir une bien plus large portion de l'ecran + opacite montee
+   nettement, pour qu'un panel transparent ait TOUJOURS quelque chose de consequent a montrer/
+   distordre, ou qu'il se trouve sur la page. */
+#bg-logo-light{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(640px,60vw);height:auto;z-index:0;pointer-events:none;
+  opacity:0;transition:opacity 1s ease;
+}
+body:not(.dark) #bg-logo-light{opacity:.14;}
+
+/* Mode clair : permutation douce entre les 2 vidéos (cycle 22s).
+   v3.9 : Jordan a demande explicitement "enleve l'opacite de la video" = la rendre bien
+   plus visible (retirer la limitation), pas la supprimer. Montee a .55 (etait .22 puis .34),
+   nettement plus presente, plus proche du niveau de presence du Matrix rain en dark. */
 body:not(.dark) #bg-video-light-1{animation:lv1 22s ease-in-out infinite;}
 body:not(.dark) #bg-video-light-2{animation:lv2 22s ease-in-out infinite;}
 @keyframes lv1{
   0%,3%{opacity:0;}
-  7%,44%{opacity:.15;}
+  7%,44%{opacity:.55;}
   50%,100%{opacity:0;}
 }
 @keyframes lv2{
   0%,50%{opacity:0;}
-  56%,93%{opacity:.15;}
+  56%,93%{opacity:.55;}
   97%,100%{opacity:0;}
 }
 
@@ -147,17 +172,43 @@ header h1 b{font-weight:900;}
 .layer{
   position:relative;border-radius:26px;cursor:pointer;
   transform-style:preserve-3d;transform:translateZ(var(--z,0px));
-  background:linear-gradient(160deg,rgba(255,255,255,.16) 0%,rgba(236,255,242,.06) 46%,rgba(255,255,255,.11) 100%);
-  border:1px solid rgba(22,198,94,.30);
+  /* v3.6 : theme clair aligne sur le meme langage liquid glass que le dark (v3.1/v3.5) —
+     bordure quasi-neutre (plus de contour vert plein), reverberation active, meme structure
+     de box-shadow (profondeur fixe + 1 couche de glow animee). Avant cette version, le clair
+     etait reste sur le style pre-v3 (bordure verte pleine, aucune animation) pendant que le
+     dark recevait toutes les retouches -- incoherence relevee par Jordan. */
+  /* v3.9 : Jordan a demande explicitement d'enlever l'opaque blanc - descendu encore
+     (.38/.22/.32 -> .16/.08/.14), quasi transparent, la lisibilite du texte vient du
+     contraste de la police (var(--txt) fonce) pas d'un fond clair epais. */
+  background:linear-gradient(160deg,rgba(255,255,255,.16) 0%,rgba(240,255,244,.08) 46%,rgba(255,255,255,.14) 100%);
+  border:1px solid rgba(15,23,42,.10);
   box-shadow:
-    inset 0 1.5px 0 rgba(255,255,255,.60),
-    inset 0 0 0 1px rgba(255,255,255,.07),
-    0 0 0 1px rgba(22,198,94,.10),
-    0 0 26px rgba(22,198,94,.06),
+    inset 0 1.5px 0 rgba(255,255,255,.70),
+    inset 0 0 0 1px rgba(255,255,255,.10),
+    inset 0 -14px 26px rgba(15,23,42,.04),
+    0 0 20px rgba(22,198,94,.07),
     0 22px 48px rgba(15,23,42,.11),0 6px 16px rgba(15,23,42,.06);
   display:flex;align-items:center;gap:14px;padding:0 22px;
   transition:transform .45s cubic-bezier(.23,1,.32,1),box-shadow .35s,border-color .35s;overflow:hidden;
+  animation:lg-reverb-card-light 4.5s ease-in-out infinite;
 }
+@keyframes lg-reverb-card-light{
+  0%,100%{box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,.70),inset 0 0 0 1px rgba(255,255,255,.10),
+    inset 0 -14px 26px rgba(15,23,42,.04),0 0 20px rgba(22,198,94,.07),
+    0 22px 48px rgba(15,23,42,.11),0 6px 16px rgba(15,23,42,.06);}
+  50%{box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,.70),inset 0 0 0 1px rgba(255,255,255,.10),
+    inset 0 -14px 26px rgba(15,23,42,.04),0 0 30px rgba(22,198,94,.13),
+    0 22px 48px rgba(15,23,42,.11),0 6px 16px rgba(15,23,42,.06);}
+}
+.layer:nth-child(2){animation-delay:-.9s;}
+.layer:nth-child(3){animation-delay:-1.8s;}
+.layer:nth-child(4){animation-delay:-2.7s;}
+.layer:nth-child(5){animation-delay:-3.6s;}
+.layer:nth-child(6){animation-delay:-.5s;}
+.layer:nth-child(7){animation-delay:-1.4s;}
+.layer:nth-child(8){animation-delay:-2.3s;}
 body.dark .layer{
   /* v3.1 : bordure quasi-neutre (plus de contour vert plein — cf. retour Jordan "gache
      l'effet glass"). L'identite Matrix reste dans un glow tres discret + la reverberation.
@@ -285,19 +336,36 @@ body.dark .layer-label p{color:#86a086;}
    visuelle GitHub Glass Card / liquid-glass-react, adapte palette Matrix. */
 .glass{
   position:relative;isolation:isolate;
-  background:rgba(255,255,255,.16);
+  /* v3.9 : Jordan a demande explicitement d'enlever l'opaque blanc - descendu a .10 (quasi
+     nul), la transparence vient presque entierement du blur+distorsion, pas d'une couche
+     de couleur. */
+  background:rgba(255,255,255,.10);
   backdrop-filter:blur(36px) saturate(220%);
   -webkit-backdrop-filter:blur(36px) saturate(220%);
-  border:1px solid rgba(255,255,255,.74);
+  border:1px solid rgba(255,255,255,.45);
   box-shadow:inset 0 2px 0 rgba(255,255,255,.92),inset 0 0 0 .5px rgba(255,255,255,.42),
     inset 0 -18px 34px rgba(255,255,255,.06),
+    0 0 20px rgba(22,198,94,.05),
     0 26px 60px rgba(80,40,180,.09),0 6px 16px rgba(0,0,0,.06);
   border-radius:18px;overflow:hidden;
+  animation:lg-reverb-light 5.5s ease-in-out infinite;
 }
 .glass::before{
   content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
   background:radial-gradient(120% 70% at 50% -12%,rgba(255,255,255,.20),transparent 60%);
 }
+/* v3.6 : reverberation en clair, alignee sur le meme principe que le dark (lg-reverb) —
+   glow doux base sur l'accent vert qui respire, jamais de bordure coloree pleine. */
+@keyframes lg-reverb-light{
+  0%,100%{box-shadow:inset 0 2px 0 rgba(255,255,255,.92),inset 0 0 0 .5px rgba(255,255,255,.42),
+    inset 0 -18px 34px rgba(255,255,255,.06),0 0 20px rgba(22,198,94,.05),
+    0 26px 60px rgba(80,40,180,.09),0 6px 16px rgba(0,0,0,.06);}
+  50%{box-shadow:inset 0 2px 0 rgba(255,255,255,.92),inset 0 0 0 .5px rgba(255,255,255,.42),
+    inset 0 -18px 34px rgba(255,255,255,.06),0 0 30px rgba(22,198,94,.10),
+    0 26px 60px rgba(80,40,180,.09),0 6px 16px rgba(0,0,0,.06);}
+}
+.panel.glass:nth-of-type(2n){animation-delay:-1.8s;}
+.panel.glass:nth-of-type(3n){animation-delay:-3.4s;}
 body.dark .glass{
   /* v3.1 : bordure quasi-neutre (blanc tres translucide, PLUS de contour vert plein qui
      "fait tache" sur le verre — cf. retour Jordan) ; l'identite Matrix reste dans le glow
