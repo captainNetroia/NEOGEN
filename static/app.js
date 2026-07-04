@@ -1,4 +1,12 @@
-﻿/* ===== VIDEO BACKGROUND (Matrix loop) ===== */
+﻿/* Flags de re-cablage pour les sections dont le HTML est genere dynamiquement (render*()).
+   Declares ici (tout en haut du fichier) car renderEvolution() etc. peuvent etre appelees
+   tres tot au chargement (routeHash() lit #evolution dans l'URL avant que le reste du
+   script line ~4000+ n'ait declare ces variables) — sinon TDZ "Cannot access before init". */
+let _hubUiWired=false;
+let _evoWired=false;
+let _penseeWired=false;
+
+/* ===== VIDEO BACKGROUND (Matrix loop) ===== */
 (function(){
   ['bg-video','bg-video-light-1','bg-video-light-2','cascade-video'].forEach(id=>{
     const v=document.getElementById(id);
@@ -144,6 +152,701 @@ const ICONS={
 };
 function svgIcon(name,size){size=size||15;return '<span class="ntr-icon ntr-icon-'+name+'" style="display:inline-flex;width:'+size+'px;height:'+size+'px;vertical-align:-3px">'+ICONS[name]+'</span>';}
 
+let _cerveauRendu=false;
+function renderCerveau(){
+  const root=document.getElementById('section-cerveau');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:#a855f7"></span>'+t('cerveau.titre')+'</h2>'
+    +'<p>'+t('cerveau.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="agent-chat-mount" data-agent="cerveau" data-titre="🧠 '+t('cerveau.titre')+'" data-sub="'+t('cerveau.agent_sub')+'"></div>'
+
+    +'<div class="panel glass" style="margin-top:18px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">'+t('cerveau.skills_titre')+'</div>'
+    +'<div style="display:flex;gap:6px">'
+    +'<button class="ghost" id="skills-library-btn" style="font-size:12px;padding:4px 10px">'+t('cerveau.skills_bibliotheque')+'</button>'
+    +'<button class="ghost" id="skills-refresh" style="font-size:12px;padding:4px 10px">'+t('cerveau.rafraichir')+'</button>'
+    +'</div></div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">'+t('cerveau.skills_desc')+'</div>'
+    +'<div id="skills-list"><div style="color:var(--mut);font-size:13px">'+t('cerveau.chargement')+'</div></div>'
+    +'</div>'
+
+    +'<div id="skills-lib-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">'
+    +'<div class="glass panel" style="width:min(680px,96vw);max-height:88vh;overflow-y:auto;padding:22px 24px;position:relative">'
+    +'<button onclick="document.getElementById(\'skills-lib-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;font-size:16px;cursor:pointer;color:rgba(255,255,255,.85);padding:2px 8px;font-weight:700">&times; '+t('cerveau.fermer')+'</button>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--mut)">'+t('cerveau.bibliotheque_communautaire')+'</div>'
+    +'<button class="ghost" style="font-size:12px;padding:4px 12px;color:var(--acc)" onclick="openPublishSkillForm()">'+t('cerveau.proposer_skill')+'</button>'
+    +'</div>'
+    +'<input type="text" id="skills-lib-search" class="skill-lib-search" placeholder="'+t('cerveau.rechercher_skill')+'" oninput="_renderSkillsLibList(this.value)">'
+    +'<div class="skill-lib-filter" id="skills-lib-filters"></div>'
+    +'<div id="skills-lib-list"><div style="color:var(--mut);font-size:13px">'+t('cerveau.chargement')+'</div></div>'
+    +'<div id="skills-publish-form" style="display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:var(--mut);margin-bottom:10px;text-transform:uppercase;letter-spacing:.7px">'+t('cerveau.proposer_skill_titre')+'</div>'
+    +'<select id="spf-skill-select" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px">'
+    +'<option value="">'+t('cerveau.choisir_skill_local')+'</option>'
+    +'</select>'
+    +'<input type="text" id="spf-desc" placeholder="'+t('cerveau.description_publique')+'" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px;outline:none">'
+    +'<select id="spf-cat" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:8px">'
+    +'<option value="General">General</option><option value="Analyse">Analyse</option><option value="Production">Production</option>'
+    +'<option value="RPA">RPA</option><option value="Recherche">Recherche</option><option value="Communication">Communication</option>'
+    +'<option value="E-commerce">E-commerce</option><option value="Juridique">Juridique</option>'
+    +'</select>'
+    +'<input type="text" id="spf-tags" placeholder="'+t('cerveau.tags_placeholder')+'" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:rgba(255,255,255,.6);color:var(--txt);margin-bottom:10px;outline:none">'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="ghost" style="font-size:12px;flex:1" onclick="submitPublishSkill()">'+t('cerveau.proposer')+'</button>'
+    +'<button class="ghost" style="font-size:12px;color:var(--mut)" onclick="document.getElementById(\'skills-publish-form\').style.display=\'none\'">'+t('cerveau.annuler')+'</button>'
+    +'</div>'
+    +'<div id="spf-status" style="font-size:12px;margin-top:8px;color:var(--mut)"></div>'
+    +'</div></div></div>'
+
+    +'<div class="panel glass" style="margin-top:18px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">'+t('cerveau.bebeagents_titre')+'</div>'
+    +'<button class="ghost" id="bebeagents-refresh" style="font-size:12px;padding:4px 10px">'+t('cerveau.rafraichir')+'</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">'+t('cerveau.bebeagents_desc')+'</div>'
+    +'<div id="bebeagents-list"><div style="color:var(--mut);font-size:13px">'+t('cerveau.chargement')+'</div></div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-top:18px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">'+t('cerveau.memoire_titre')+'</div>'
+    +'<button class="ghost" id="mem-refresh" style="font-size:12px;padding:4px 10px">'+t('cerveau.rafraichir')+'</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">'+t('cerveau.memoire_desc')+'</div>'
+    +'<div id="mem-list"><div style="color:var(--mut);font-size:13px">'+t('cerveau.chargement')+'</div></div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-top:18px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut)">'+t('cerveau.taches_titre')+'</div>'
+    +'<button class="ghost" id="tache-add-btn" style="font-size:12px;padding:4px 10px">'+t('cerveau.nouvelle_tache')+'</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:10px">'+t('cerveau.taches_desc')+'</div>'
+    +'<div id="tache-form" class="hidden" style="margin-bottom:12px;display:flex;flex-direction:column;gap:7px">'
+    +'<input type="text" id="tache-nom" placeholder="'+t('cerveau.tache_nom_placeholder')+'">'
+    +'<select id="tache-agent"><option value="cerveau">Le Cerveau</option><option value="genealogiste">Le Genealogiste</option><option value="secretaire">Le Secretaire</option></select>'
+    +'<textarea id="tache-msg" rows="2" placeholder="'+t('cerveau.tache_msg_placeholder')+'"></textarea>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<span style="font-size:12px;color:var(--mut)">'+t('cerveau.modele')+'</span>'
+    +'<select id="tache-provider" style="font-size:12px"><option value="local">Local (gratuit)</option><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="mistral">Mistral</option><option value="moonshot">Kimi (Moonshot)</option></select>'
+    +'<span style="font-size:12px;color:var(--mut)">'+t('cerveau.toutes_les')+'</span>'
+    +'<input type="number" id="tache-interval" value="60" min="5" style="width:70px"><span style="font-size:12px;color:var(--mut)">'+t('cerveau.min')+'</span>'
+    +'<button id="tache-save" style="margin-left:auto;font-size:13px;padding:6px 14px">'+t('cerveau.creer')+'</button>'
+    +'</div></div>'
+    +'<div id="tache-list"><div style="color:var(--mut);font-size:13px">'+t('cerveau.chargement')+'</div></div>'
+    +'</div>';
+
+  if(typeof _initSkillsUi==='function')_initSkillsUi();
+  if(typeof _initMemoireUi==='function')_initMemoireUi();
+  if(typeof _initBebeAgentsUi==='function')_initBebeAgentsUi();
+  if(typeof _initTachesUi==='function')_initTachesUi();
+  _cerveauRendu=true;
+}
+
+let _integrationsRendu=false;
+function renderIntegrations(){
+  const root=document.getElementById('section-integrations');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:var(--c-integration)"></span>'+t('integ.titre')+'</h2>'
+    +'<p>'+t('integ.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="agent-chat-mount" data-agent="connecteur" data-titre="🔌 '+t('integ.titre')+'" data-sub="'+t('integ.agent_sub')+'"></div>'
+
+    +'<div class="panel glass" style="margin-bottom:20px">'
+    +'<div class="integ-section-label">'+t('integ.modele_ia')+'</div>'
+    +'<div id="integ-active-bar" style="margin-bottom:12px;font-size:13px;color:var(--mut)">'
+    +t('integ.actif')+' : <span id="integ-active-label" style="color:var(--txt);font-weight:600">'+t('integ.aucun')+'</span>'
+    +'</div>'
+    +'<div class="prov-tabs" id="prov-tabs">'
+    +'<span class="prov-tab active" data-prov="anthropic">Anthropic</span>'
+    +'<span class="prov-tab" data-prov="openai">OpenAI / GPT</span>'
+    +'<span class="prov-tab" data-prov="gemini">Gemini</span>'
+    +'<span class="prov-tab" data-prov="deepseek">DeepSeek</span>'
+    +'<span class="prov-tab" data-prov="mistral">Mistral</span>'
+    +'<span class="prov-tab" data-prov="moonshot">Kimi</span>'
+    +'<span class="prov-tab" data-prov="glm">GLM-5.2</span>'
+    +'<span class="prov-tab" data-prov="local">Local</span>'
+    +'</div>'
+    +'<div class="integ-model-row">'
+    +'<select id="integ-model-select"></select>'
+    +'<div class="integ-key-wrap">'
+    +'<input type="password" id="integ-api-key">'
+    +'<span class="integ-model-dot" id="integ-model-dot"></span>'
+    +'</div>'
+    +'<button id="integ-save-btn">'+t('integ.verifier_activer')+'</button>'
+    +'</div>'
+    +'<div id="integ-status"></div>'
+    +'</div>'
+
+    +'<div id="integ-grid-dynamic" class="integ-grid"></div>'
+
+    +'<div class="panel glass rpa-panel" style="margin-top:20px">'
+    +'<div class="integ-section-label">'+t('integ.agent_local_rpa')+'</div>'
+    +'<div class="rpa-status-bar" id="rpa-status-bar">'
+    +'<span class="rpa-status-dot disconnected" id="rpa-dot"></span>'
+    +'<span>'
+    +'<span class="rpa-status-label" id="rpa-label">'+t('integ.agent_deconnecte')+'</span><br>'
+    +'<span class="rpa-status-sub" id="rpa-sub">'+t('integ.lancer_agent_local')+'</span>'
+    +'</span>'
+    +'<span class="rpa-queue-badge" id="rpa-queue-badge" style="display:none">'+t('integ.file_n',{n:0})+'</span>'
+    +'</div>'
+
+    +'<div class="integ-section-label" style="margin-top:14px">'+t('integ.prise_de_controle')+'</div>'
+    +'<div style="display:flex;align-items:center;gap:12px;padding:6px 0 4px;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="font-size:13px;color:var(--txt)">'+t('integ.agent_agit_sans_demander')+'</div>'
+    +'<div style="font-size:11px;color:var(--mut);margin-top:2px">'+t('integ.mode_controle_desc')+'</div>'
+    +'</div>'
+    +'<button id="btn-remote-control" class="ghost" style="white-space:nowrap;min-width:130px">'+t('integ.prendre_controle')+'</button>'
+    +'</div>'
+    +'<div id="remote-control-status" style="font-size:12px;min-height:16px;color:var(--mut)"></div>'
+
+    +'<div class="integ-section-label" style="margin-top:14px">'+t('integ.mode_objectif')+'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:8px">'+t('integ.mode_objectif_desc')+'</div>'
+    +'<div style="display:flex;gap:8px;align-items:flex-start">'
+    +'<textarea id="goal-input" rows="2" placeholder="'+t('integ.objectif_placeholder')+'" style="flex:1;resize:vertical;min-height:52px;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--brd);background:var(--surface);color:var(--txt)"></textarea>'
+    +'<button id="btn-goal-launch" class="ghost" style="align-self:flex-end;white-space:nowrap">'+t('integ.lancer')+'</button>'
+    +'</div>'
+    +'<div id="goal-log" style="margin-top:10px;font-size:12px;color:var(--mut);min-height:20px;white-space:pre-line;max-height:180px;overflow-y:auto"></div>'
+
+    +'<div class="integ-section-label" style="margin-top:14px">'+t('integ.apprentissage_continu')+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px">'
+    +'<div style="font-size:13px;color:var(--txt)">'+t('integ.apprentissage_continu_desc')
+    +'<span style="display:block;font-size:11px;color:var(--mut);margin-top:2px">'+t('integ.apprentissage_continu_sub')+'</span>'
+    +'</div>'
+    +'<label class="dark-toggle"><input type="checkbox" id="cont-learn-cb"></label>'
+    +'</div>'
+    +'<div id="cont-learn-status" style="font-size:12px;color:var(--mut);min-height:16px"></div>'
+
+    +'<div class="integ-section-label" style="margin-top:14px">'+t('integ.enregistrement_manuel')+'</div>'
+    +'<div class="imit-controls">'
+    +'<button id="btn-imit-start" class="ghost">'+t('integ.enregistrer')+'</button>'
+    +'<button id="btn-imit-stop" class="ghost" style="display:none"><span class="imit-rec-dot"></span>'+t('integ.stopper')+'</button>'
+    +'<button id="btn-rpa-clear" class="ghost" title="'+t('integ.arret_urgence')+'" style="margin-left:auto;color:var(--ko);border-color:rgba(220,38,38,.35)">'+t('integ.arret_urgence')+'</button>'
+    +'</div>'
+    +'<div class="imit-list" id="imit-list">'
+    +'<div style="color:var(--mut);font-size:13px;padding:10px 0">'+t('integ.aucun_enregistrement')+'</div>'
+    +'</div>'
+    +'</div>';
+
+  if(typeof _initIntegModeleUi==='function')_initIntegModeleUi();
+  if(typeof _initIntegGrid==='function')_initIntegGrid();
+  if(typeof _initContinuUi==='function')_initContinuUi();
+  if(typeof _initImitationBtns==='function')_initImitationBtns();
+  if(typeof _initRemoteControlUi==='function')_initRemoteControlUi();
+  if(typeof _initGoalUi==='function')_initGoalUi();
+  if(typeof loadImitationList==='function')loadImitationList();
+  pollRpaStatus();
+  _integrationsRendu=true;
+}
+
+let _productionRendu=false;
+function renderProduction(){
+  const root=document.getElementById('section-production');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:var(--c-production)"></span>'+t('production.titre')+'</h2>'
+    +'<p>'+t('production.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="agent-chat-mount" data-agent="genealogiste" data-titre="🧬 '+t('production.titre')+'" data-sub="'+t('production.agent_sub')+'"></div>'
+    +'<div id="produit-filtres" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<button onclick="filtrerProduits(\'actifs\')" class="filtre-btn-prod" data-filtre="actifs" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:#a855f7;cursor:pointer">'+t('production.actives')+'</button>'
+    +'<button onclick="filtrerProduits(\'tous\')" class="filtre-btn-prod" data-filtre="tous" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('production.toutes')+'</button>'
+    +'<button onclick="filtrerProduits(\'archivees\')" class="filtre-btn-prod" data-filtre="archivees" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('production.archivees')+'</button>'
+    +'</div>'
+    +'<div id="produit-grid" class="produit-grid"></div>'
+    +'<pre id="code-view" class="hidden"></pre>';
+  _productionRendu=true;
+}
+
+let _analyseRendu=false;
+function renderAnalyse(){
+  const root=document.getElementById('section-analyse');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:var(--c-analyse)"></span>'+t('analyse.titre')+'</h2>'
+    +'<p>'+t('analyse.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="prov-tabs" style="margin-bottom:18px">'
+    +'<span class="prov-tab active" data-anlz-tab="analyse" onclick="anlzTab(\'analyse\')">'+t('analyse.onglet_analyse')+'</span>'
+    +'<span class="prov-tab" data-anlz-tab="ingenieur" onclick="anlzTab(\'ingenieur\')">'+t('analyse.onglet_ingenieur')+'</span>'
+    +'</div>'
+    +'<div data-anlz-pane="analyse">'
+    +'<div class="agent-chat-mount" data-agent="analyste" data-titre="📊 '+t('analyse.onglet_analyse')+'" data-sub="'+t('analyse.analyste_sub')+'"></div>'
+    +'<div class="stat-grid" id="analyse-stats"></div>'
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('analyse.auto_amelioration_titre')+'</div>'
+    +'<div id="analyse-auto"><div style="color:var(--mut);font-size:13px">'+t('analyse.chargement')+'</div></div>'
+    +'</div>'
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('analyse.capacites_utilisees')+'</div>'
+    +'<div id="analyse-caps"></div>'
+    +'</div>'
+    +'<div class="panel glass">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('analyse.repartition_tentatives')+'</div>'
+    +'<div id="analyse-tentatives"></div>'
+    +'</div>'
+    +'</div>'
+    +'<div data-anlz-pane="ingenieur" style="display:none">'
+    +'<div id="section-ingenieur">'
+    +'<div class="agent-chat-mount" data-agent="ingenieur" data-titre="🛠️ '+t('analyse.onglet_ingenieur')+'" data-sub="'+t('analyse.ingenieur_sub')+'"></div>'
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<input id="ing-tache-input" placeholder="'+t('analyse.confier_tache_placeholder')+'"'
+    +' style="flex:1;min-width:240px;font-size:13px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(16,185,129,.3);border-radius:10px;color:#e2e8f0">'
+    +'<button id="ing-tache-btn" style="font-size:13px;padding:10px 18px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">'+t('analyse.confier')+'</button>'
+    +'<button id="ing-diag-btn" class="ghost" style="font-size:13px;padding:10px 16px">'+t('analyse.diagnostic_instantane')+'</button>'
+    +'</div>'
+    +'<pre id="ing-diag-out" style="display:none;font-size:11px;line-height:1.5;white-space:pre-wrap;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;max-height:300px;overflow:auto;margin:0"></pre>'
+    +'</div>'
+    +'<div id="ing-decisions" style="display:none;margin-bottom:18px"></div>'
+    +'<div class="panel glass">'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px">'
+    +'<span style="width:9px;height:9px;border-radius:50%;background:#10b981;box-shadow:0 0 10px #10b981"></span>'
+    +t('analyse.interventions')
+    +'</div>'
+    +'<div style="font-size:11px;opacity:.55;margin-bottom:12px">'+t('analyse.interventions_desc')+'</div>'
+    +'<div id="ingenieur-corps" style="font-size:12px">'+t('analyse.chargement')+'</div>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+  _analyseRendu=true;
+}
+
+let _donRendu=false;
+function renderDon(){
+  const root=document.getElementById('section-don');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:var(--c-don)"></span>'+t('don.titre')+'</h2>'
+    +'<p>'+t('don.sous_titre')+'</p>'
+    +'</div>'
+    +'<div style="max-width:560px;margin:0 auto">'
+    +'<div class="panel glass" style="text-align:center;padding:36px 32px;margin-bottom:16px">'
+    +'<div class="ph-icon" style="font-size:52px;margin-bottom:18px">♡</div>'
+    +'<h3 style="font-size:19px;font-weight:700;margin-bottom:10px;color:var(--txt)">'+t('don.projet_ouvert')+'</h3>'
+    +'<p style="color:var(--mut);font-size:14px;line-height:1.75;margin-bottom:28px">'+t('don.description')+'</p>'
+    +'<button id="btn-don-stripe" onclick="ouvrirModalDon()"'
+    +' style="display:flex;align-items:center;justify-content:center;gap:10px;'
+    +'padding:13px 24px;border-radius:12px;cursor:pointer;width:100%;'
+    +'background:rgba(219,39,119,.12);'
+    +'border:1px solid rgba(219,39,119,.35);'
+    +'color:var(--c-don);font-size:14px;font-weight:600;'
+    +'transition:background .15s"'
+    +' onmouseover="this.style.background=\'rgba(219,39,119,.2)\'"'
+    +' onmouseout="this.style.background=\'rgba(219,39,119,.12)\'">'
+    +t('don.soutenir')
+    +'</button>'
+    +'</div>'
+    +'<div class="panel glass" style="padding:20px 24px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">'+t('don.ou_va_soutien')+'</div>'
+    +'<div class="hist-item"><span style="font-size:16px">⚡</span><span class="hist-intention">'+t('don.calcul_gpu')+'</span></div>'
+    +'<div class="hist-item"><span style="font-size:16px">⊕</span><span class="hist-intention">'+t('don.developpement_phases')+'</span></div>'
+    +'<div class="hist-item"><span style="font-size:16px">◈</span><span class="hist-intention">'+t('don.hebergement')+'</span></div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div id="modal-don" style="display:none;position:fixed;inset:0;z-index:9999;'
+    +'background:rgba(15,23,42,.55);backdrop-filter:blur(6px);'
+    +'align-items:center;justify-content:center">'
+    +'<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:380px;width:92%;'
+    +'box-shadow:0 24px 64px rgba(0,0,0,.22);position:relative">'
+    +'<button onclick="fermerModalDon()" style="position:absolute;top:14px;right:16px;'
+    +'background:none;border:none;font-size:20px;cursor:pointer;color:var(--mut);'
+    +'line-height:1;padding:2px 6px">✕</button>'
+    +'<div style="text-align:center;margin-bottom:22px">'
+    +'<div style="font-size:40px;margin-bottom:8px">♡</div>'
+    +'<h3 style="font-size:17px;font-weight:700;color:var(--txt)">'+t('don.choisir_montant')+'</h3>'
+    +'<p style="font-size:13px;color:var(--mut);margin-top:5px;line-height:1.5">'+t('don.don_libre')+'</p>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">'
+    +'<button class="don-preset" onclick="selectMontant(1,this)">1 €</button>'
+    +'<button class="don-preset" onclick="selectMontant(10,this)">10 €</button>'
+    +'<button class="don-preset" onclick="selectMontant(20,this)">20 €</button>'
+    +'<button class="don-preset" onclick="selectMontant(50,this)">50 €</button>'
+    +'<button class="don-preset" onclick="selectMontant(100,this)">100 €</button>'
+    +'<button class="don-preset" onclick="selectMontant(\'custom\',this)">'+t('don.autre')+'</button>'
+    +'</div>'
+    +'<div id="don-custom-wrap" style="display:none;margin-bottom:12px">'
+    +'<input id="don-custom-input" type="number" min="1" max="9999" placeholder="'+t('don.montant_eur_placeholder')+'"'
+    +' style="width:100%;padding:9px 12px;border-radius:9px;font-size:15px;text-align:center;'
+    +'border:1px solid rgba(219,39,119,.35);outline:none;color:var(--txt)"'
+    +' oninput="donCustomVal=parseInt(this.value)||0;updateDonDisplay()">'
+    +'</div>'
+    +'<div id="don-display" style="font-size:13px;color:var(--c-don);text-align:center;'
+    +'margin-bottom:16px;min-height:20px;font-weight:600"></div>'
+    +'<button id="btn-don-confirmer" onclick="confirmerDon()"'
+    +' style="width:100%;padding:12px;border-radius:11px;font-size:14px;font-weight:600;'
+    +'background:rgba(219,39,119,.12);border:1px solid rgba(219,39,119,.4);'
+    +'color:var(--c-don);cursor:pointer;transition:background .15s"'
+    +' onmouseover="this.style.background=\'rgba(219,39,119,.22)\'"'
+    +' onmouseout="this.style.background=\'rgba(219,39,119,.12)\'">'
+    +t('don.continuer_paiement')
+    +'</button>'
+    +'<div id="don-modal-st" style="font-size:12px;color:var(--mut);text-align:center;margin-top:10px;min-height:16px"></div>'
+    +'</div>'
+    +'</div>';
+
+  if(typeof _initModalDonBackdrop==='function')_initModalDonBackdrop();
+  _donRendu=true;
+}
+
+let _evolutionRendu=false;
+function renderEvolution(){
+  const root=document.getElementById('section-evolution');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:#10b981"></span>'+t('evo.titre')+'</h2>'
+    +'<p>'+t('evo.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="agent-chat-mount" id="evo-architecte-mount" data-agent="architecte" data-titre="🏗️ '+t('evo.titre')+'" data-sub="'+t('evo.architecte_sub')+'"></div>'
+
+    +'<div id="evo-vue-bridee" class="panel glass" style="display:none;margin-bottom:20px;border-color:rgba(16,185,129,.3)">'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:8px;color:#10b981">'+t('evo.vue_publique')+'</div>'
+    +'<div style="font-size:13px;line-height:1.6;opacity:.8;margin-bottom:14px">'+t('evo.vue_bridee_desc')+'</div>'
+    +'<button id="evo-vers-mes-skills" style="font-size:13px;padding:10px 20px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">'+t('evo.aller_mes_skills')+'</button>'
+    +'</div>'
+
+    +'<div id="evo-panneaux-owner">'
+    +'<div class="panel glass" style="margin-bottom:20px">'
+    +'<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<h3 style="margin:0;font-size:15px">'+t('evo.etat_hub')+'</h3>'
+    +'<button id="btn-hub-refresh" class="ghost" style="font-size:12px;padding:6px 14px">'+t('evo.rafraichir')+'</button>'
+    +'</div>'
+    +'<div id="hub-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px">'
+    +'<div class="hub-stat-card" style="text-align:center;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">'
+    +'<div style="font-size:22px;font-weight:700;color:#10b981" id="hub-total-grains">--</div>'
+    +'<div style="font-size:11px;opacity:.6;margin-top:2px">'+t('evo.grains_total')+'</div>'
+    +'</div>'
+    +'<div class="hub-stat-card" style="text-align:center;padding:12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">'
+    +'<div style="font-size:22px;font-weight:700;color:#f59e0b" id="hub-props-en-attente">--</div>'
+    +'<div style="font-size:11px;opacity:.6;margin-top:2px">'+t('evo.propositions')+'</div>'
+    +'</div>'
+    +'<div id="hub-silos-grid" style="display:contents"></div>'
+    +'</div>'
+    +'<div id="hub-refresh-status" style="margin-top:10px;font-size:12px;opacity:.5;display:none"></div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-bottom:20px">'
+    +'<h3 style="font-size:14px;margin-bottom:12px">'+t('evo.recherche_semantique')+'</h3>'
+    +'<div class="row" style="gap:10px;align-items:center">'
+    +'<input id="hub-search-input" type="text" placeholder="'+t('evo.recherche_placeholder')+'" style="flex:1;padding:9px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:13px">'
+    +'<select id="hub-search-domaine" style="padding:9px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<option value="">'+t('evo.tous_silos')+'</option>'
+    +'<option value="skill">Skills</option><option value="memoire">Memoire</option><option value="erreur">Erreurs</option>'
+    +'<option value="amelioration">Amelioration</option><option value="ledger">Ledger</option><option value="telemetrie">Telemetrie</option>'
+    +'</select>'
+    +'<button id="btn-hub-search" style="padding:9px 18px">'+t('evo.chercher')+'</button>'
+    +'</div>'
+    +'<div id="hub-search-results" style="margin-top:14px"></div>'
+    +'</div>'
+
+    +'<div class="panel glass">'
+    +'<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<h3 style="margin:0;font-size:15px">'+t('evo.propositions_evolution')+'</h3>'
+    +'<span id="hub-props-count" style="font-size:12px;opacity:.5">'+t('evo.chargement')+'</span>'
+    +'</div>'
+    +'<div id="hub-props-list">'
+    +'<div style="text-align:center;padding:30px;opacity:.4;font-size:13px">'+t('evo.cliquer_rafraichir')+'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-top:20px">'
+    +'<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<h3 style="margin:0;font-size:15px">'+t('evo.la_pensee')+' <span style="font-size:11px;opacity:.5;font-weight:400">'+t('evo.intelligence_collective')+'</span></h3>'
+    +'<span id="pensee-count" style="font-size:12px;opacity:.5">'+t('evo.chargement')+'</span>'
+    +'</div>'
+    +'<p style="font-size:12px;opacity:.55;margin:0 0 14px;line-height:1.5">'+t('evo.pensee_desc')+'</p>'
+    +'<div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
+    +'<label style="font-size:12px;opacity:.7">'+t('evo.modele')+'</label>'
+    +'<select id="pensee-mode" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<option value="eco">'+t('evo.eco_local')+'</option><option value="fort">'+t('evo.fort_provider')+'</option><option value="mixte">'+t('evo.mixte')+'</option>'
+    +'</select>'
+    +'<label style="font-size:12px;opacity:.7;margin-left:6px">'+t('evo.intervalle')+'</label>'
+    +'<select id="pensee-intervalle" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<option value="30">30 min</option><option value="60">1 h</option><option value="120">2 h</option><option value="240">4 h</option><option value="480">8 h</option>'
+    +'</select>'
+    +'<label style="font-size:12px;opacity:.7;display:flex;align-items:center;gap:6px;margin-left:6px;cursor:pointer">'
+    +'<input type="checkbox" id="pensee-actif" style="cursor:pointer"> '+t('evo.active')
+    +'</label>'
+    +'<label class="eco-toggle eclair-toggle" id="pensee-eclair-toggle" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues sessions" style="margin-left:6px">'
+    +'<input type="checkbox" id="pensee-eclrcb"><span>&#9889; ÉCLAIR</span>'
+    +'</label>'
+    +'<button id="btn-pensee-cycle" class="ghost" style="font-size:12px;padding:7px 14px;margin-left:auto">'+t('evo.provoquer_pensee')+'</button>'
+    +'</div>'
+    +'<div class="row" style="gap:10px;align-items:center;margin-bottom:10px">'
+    +'<input id="pensee-sujet" type="text" placeholder="'+t('evo.sujet_placeholder')+'" style="flex:1;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<button id="btn-pensee-discuter" style="padding:8px 16px;font-size:12px">'+t('evo.discuter')+'</button>'
+    +'</div>'
+    +'<div id="pensee-config-status" style="font-size:12px;opacity:.5;margin-bottom:10px;display:none"></div>'
+    +'<div id="pensee-filtres" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px">'
+    +'<button onclick="filtrerPensees(\'tous\')" class="filtre-btn" data-filtre="tous" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.5);color:#a855f7;cursor:pointer">'+t('evo.toutes')+'</button>'
+    +'<button onclick="filtrerPensees(\'neuves\')" class="filtre-btn" data-filtre="neuves" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.neuves')+'</button>'
+    +'<button onclick="filtrerPensees(\'pris-en-vie\')" class="filtre-btn" data-filtre="pris-en-vie" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.en_vie')+'</button>'
+    +'<button onclick="filtrerPensees(\'generee\')" class="filtre-btn" data-filtre="generee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.forgees')+'</button>'
+    +'<button onclick="filtrerPensees(\'bulle\')" class="filtre-btn" data-filtre="bulle" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.bulles')+'</button>'
+    +'<button onclick="filtrerPensees(\'refusee\')" class="filtre-btn" data-filtre="refusee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.refusees')+'</button>'
+    +'<button onclick="filtrerPensees(\'archivee\')" class="filtre-btn" data-filtre="archivee" style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#9ca3af;cursor:pointer">'+t('evo.archivees')+'</button>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
+    +'<div id="pensee-filtres-type" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
+    +'<span style="font-size:10px;opacity:.35;margin-right:2px">'+t('evo.type_label')+'</span>'
+    +'<button onclick="filtrerPenseesType(\'tous\')" class="filtre-btn-type" data-type="tous" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#a855f7;cursor:pointer">'+t('evo.tous')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'sujet\')" class="filtre-btn-type" data-type="sujet" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.sujets')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'idee\')" class="filtre-btn-type" data-type="idee" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.idees')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'suggestion\')" class="filtre-btn-type" data-type="suggestion" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.suggestions')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'reflexion\')" class="filtre-btn-type" data-type="reflexion" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.reflexions')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'reve\')" class="filtre-btn-type" data-type="reve" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.reves')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'obsession\')" class="filtre-btn-type" data-type="obsession" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.obsessions')+'</button>'
+    +'<button onclick="filtrerPenseesType(\'desir\')" class="filtre-btn-type" data-type="desir" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.desirs')+'</button>'
+    +'</div>'
+    +'<div id="pensee-tri" style="display:flex;gap:4px;align-items:center;margin-left:auto">'
+    +'<span style="font-size:10px;opacity:.35;margin-right:2px">'+t('evo.tri_label')+'</span>'
+    +'<button onclick="trierPensees(\'type\')" class="filtre-btn-tri" data-tri="type" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#a855f7;cursor:pointer">'+t('evo.tri_type')+'</button>'
+    +'<button onclick="trierPensees(\'recent\')" class="filtre-btn-tri" data-tri="recent" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.tri_recent')+'</button>'
+    +'<button onclick="trierPensees(\'ancien\')" class="filtre-btn-tri" data-tri="ancien" style="font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.tri_ancien')+'</button>'
+    +'</div>'
+    +'</div>'
+    +'<div id="pensee-list">'
+    +'<div style="text-align:center;padding:24px;opacity:.4;font-size:13px">'+t('evo.aucune_pensee')+'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-top:20px">'
+    +'<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">'
+    +'<h3 style="margin:0;font-size:15px">'+t('evo.super_capacite')+' <span style="font-size:11px;opacity:.5;font-weight:400">'+t('evo.evolution_gouvernee')+'</span></h3>'
+    +'<span id="evo-portee-badge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:rgba(16,185,129,.12);color:#10b981">--</span>'
+    +'</div>'
+    +'<p style="font-size:12px;opacity:.55;margin:0 0 14px;line-height:1.5">'+t('evo.super_capacite_desc')+'</p>'
+    +'<div id="evo-noyau" style="padding:12px;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:10px;margin-bottom:14px;font-size:12px">'
+    +'<div style="font-weight:600;color:#ef4444;margin-bottom:6px">'+t('evo.noyau_grave')+'</div>'
+    +'<div id="evo-noyau-corps" style="opacity:.7;line-height:1.6">'+t('evo.chargement')+'</div>'
+    +'</div>'
+    +'<div class="row" style="gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">'
+    +'<div style="text-align:center;padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">'
+    +'<div style="font-size:20px;font-weight:700;color:#10b981" id="evo-gen-num">--</div>'
+    +'<div style="font-size:10px;opacity:.5">'+t('evo.generation_annee')+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;padding:10px 16px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08)">'
+    +'<div style="font-size:20px;font-weight:700;color:#3b82f6" id="evo-gen-chg">--</div>'
+    +'<div style="font-size:10px;opacity:.5">'+t('evo.changements_annee')+'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div style="padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;margin-bottom:14px">'
+    +'<div style="font-size:13px;font-weight:600;margin-bottom:10px">'+t('evo.proposer_evolution')+'</div>'
+    +'<div class="row" style="gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'
+    +'<select id="evo-type" style="padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<option value="regle">'+t('evo.regle')+'</option><option value="idee">'+t('evo.idee')+'</option><option value="skill">'+t('evo.skill_fonction')+'</option>'
+    +'<option value="savoir">'+t('evo.savoir')+'</option><option value="agent">'+t('evo.bebe_agent')+'</option><option value="modele">'+t('evo.modele_ia')+'</option>'
+    +'</select>'
+    +'<input id="evo-titre" type="text" placeholder="'+t('evo.titre_court')+'" style="flex:1;min-width:160px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'</div>'
+    +'<textarea id="evo-payload" placeholder=\'payload JSON, ex : {"cle":"style_reponse","valeur":"direct"}\' style="width:100%;min-height:60px;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px;font-family:monospace;margin-bottom:8px"></textarea>'
+    +'<div class="row" style="gap:10px;align-items:center">'
+    +'<input id="evo-raison" type="text" placeholder="'+t('evo.pourquoi_changement')+'" style="flex:1;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#fff;font-size:12px">'
+    +'<button id="btn-evo-proposer" style="padding:8px 18px;font-size:12px">'+t('evo.proposer')+'</button>'
+    +'</div>'
+    +'<div id="evo-proposer-status" style="font-size:12px;opacity:.6;margin-top:8px;display:none"></div>'
+    +'</div>'
+    +'<div class="row" style="align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">'
+    +'<div style="font-size:13px;font-weight:600">'+t('evo.changements_generation')+'</div>'
+    +'<div id="changelog-filtres" style="display:flex;gap:5px;flex-wrap:wrap">'
+    +'<button onclick="filtrerChangelog(\'tous\')" class="filtre-btn-cl" data-cl="tous" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#10b981;cursor:pointer">'+t('evo.tous')+'</button>'
+    +'<button onclick="filtrerChangelog(\'interface\')" class="filtre-btn-cl" data-cl="interface" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.interface')+'</button>'
+    +'<button onclick="filtrerChangelog(\'regle\')" class="filtre-btn-cl" data-cl="regle" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.regle')+'</button>'
+    +'<button onclick="filtrerChangelog(\'loi\')" class="filtre-btn-cl" data-cl="loi" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.loi')+'</button>'
+    +'<button onclick="filtrerChangelog(\'idee\')" class="filtre-btn-cl" data-cl="idee" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.idee')+'</button>'
+    +'<button onclick="filtrerChangelog(\'agent\')" class="filtre-btn-cl" data-cl="agent" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.agent')+'</button>'
+    +'<button onclick="filtrerChangelog(\'modele\')" class="filtre-btn-cl" data-cl="modele" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.modele_ia')+'</button>'
+    +'<button onclick="filtrerChangelog(\'cellule\')" class="filtre-btn-cl" data-cl="cellule" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.cellule')+'</button>'
+    +'<button onclick="filtrerChangelog(\'skill\')" class="filtre-btn-cl" data-cl="skill" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.skill')+'</button>'
+    +'<button onclick="filtrerChangelog(\'savoir\')" class="filtre-btn-cl" data-cl="savoir" style="font-size:11px;padding:3px 8px;border-radius:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9ca3af;cursor:pointer">'+t('evo.savoir')+'</button>'
+    +'</div>'
+    +'</div>'
+    +'<div id="evo-changelog">'
+    +'<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">'+t('evo.aucun_changement_annee')+'</div>'
+    +'</div>'
+
+    +'<div id="conscience-panel" style="margin:22px 0 8px;border:1px solid rgba(0,232,105,.18);border-radius:14px;padding:16px;background:rgba(0,20,8,.35)">'
+    +'<div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">'
+    +'<span style="width:9px;height:9px;border-radius:50%;background:#00e869;box-shadow:0 0 10px #00e869"></span>'
+    +t('evo.conscience_systeme')
+    +'</div>'
+    +'<span style="font-size:11px;opacity:.55;font-weight:400">'+t('evo.conscience_sub')+'</span>'
+    +'<button id="btn-conscience-autorep" onclick="autoReparerConscience(this)" style="margin-left:auto;font-size:12px;padding:6px 14px;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.35);color:#fb923c">'+t('evo.auto_reparer')+'</button>'
+    +'<button id="btn-conscience-diag" onclick="diagnostiquerConscience(this)" style="font-size:12px;padding:6px 14px">'+t('evo.diagnostiquer')+'</button>'
+    +'</div>'
+    +'<div id="conscience-jauge" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px"></div>'
+    +'<div style="margin:6px 0 14px;padding:12px;border:1px dashed rgba(0,232,105,.28);border-radius:12px;background:rgba(0,16,6,.3)">'
+    +'<div style="font-size:12px;font-weight:700;margin-bottom:7px">'+t('evo.atteindre_objectif')+' <span style="font-size:10px;opacity:.5;font-weight:400">'+t('evo.atteindre_objectif_sub')+'</span></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<input type="text" id="obj-input" placeholder="'+t('evo.objectif_placeholder')+'" style="flex:1;min-width:240px;font-size:12px;padding:7px 11px;background:rgba(0,0,0,.25);border:1px solid rgba(0,232,105,.25);color:#e8ffe8;border-radius:8px">'
+    +'<button id="obj-btn" onclick="resoudreObjectif(this)" style="font-size:12px;padding:7px 16px">'+t('evo.resoudre')+'</button>'
+    +'</div>'
+    +'<div id="obj-resultat" style="margin-top:10px;display:none"></div>'
+    +'</div>'
+    +'<div id="conscience-capacites">'
+    +'<div style="text-align:center;padding:18px;opacity:.4;font-size:12px">'+t('evo.clique_diagnostiquer')+'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div id="subconscient-panel" style="margin:18px 0 8px;border:1px solid rgba(245,158,11,.22);border-radius:14px;padding:16px;background:rgba(20,10,0,.35)">'
+    +'<div class="row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px">'
+    +'<span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;box-shadow:0 0 10px #f59e0b"></span>'
+    +t('evo.subconscient')
+    +'</div>'
+    +'<span style="font-size:11px;opacity:.55;font-weight:400">'+t('evo.subconscient_sub')+'</span>'
+    +'<button id="btn-rever" onclick="faireRever(this)" style="margin-left:auto;font-size:12px;padding:6px 14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#f59e0b">'+t('evo.faire_rever')+'</button>'
+    +'</div>'
+    +'<div id="subconscient-etat" style="font-size:11px;opacity:.55;margin-bottom:8px">'+t('evo.chargement')+'</div>'
+    +'<div id="subconscient-reves" style="display:flex;flex-direction:column;gap:6px"></div>'
+    +'</div>'
+
+    +'<div style="font-size:13px;font-weight:600;margin:18px 0 8px">'+t('evo.cellules_forgees')+' <span style="font-size:11px;opacity:.5;font-weight:400">'+t('evo.cellules_forgees_sub')+'</span></div>'
+    +'<div id="evo-cellules">'
+    +'<div style="text-align:center;padding:20px;opacity:.4;font-size:12px">'+t('evo.aucune_cellule')+'</div>'
+    +'</div>'
+
+    +'<div class="row" style="align-items:center;margin:18px 0 8px;gap:10px">'
+    +'<div style="font-size:13px;font-weight:600">'+t('evo.interface')+' <span style="font-size:11px;opacity:.5;font-weight:400">'+t('evo.interface_sub')+'</span></div>'
+    +'<button class="ghost" id="btn-ui-reset" style="font-size:11px;padding:4px 12px;margin-left:auto">'+t('evo.reinitialiser_interface')+'</button>'
+    +'</div>'
+
+    +'<div id="forge-frag-panel" style="margin-top:22px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">'
+    +'<div style="font-size:13px;font-weight:700;margin-bottom:4px">'+t('evo.forge_blocs')+' <span style="font-size:11px;opacity:.5;font-weight:400">'+t('evo.forge_blocs_sub')+'</span></div>'
+    +'<div style="font-size:11px;opacity:.5;margin-bottom:12px">'+t('evo.forge_blocs_desc')+'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">'
+    +'<select id="frag-zone" style="font-size:12px;padding:6px 10px"></select>'
+    +'<input type="text" id="frag-idee" placeholder="'+t('evo.frag_idee_placeholder')+'" style="flex:1;min-width:220px;font-size:12px;padding:6px 10px">'
+    +'<button id="frag-apercu-btn" style="font-size:12px;padding:6px 14px">'+t('evo.generer_apercu')+'</button>'
+    +'</div>'
+    +'<div id="frag-apercu-zone" style="display:none;margin:10px 0;padding:12px;background:rgba(168,85,247,.06);border:1px dashed rgba(168,85,247,.3);border-radius:10px">'
+    +'<div style="font-size:11px;font-weight:700;color:#a855f7;margin-bottom:6px">'+t('evo.apercu')+' <span id="frag-apercu-titre" style="opacity:.7;font-weight:400"></span></div>'
+    +'<div id="frag-apercu-render" style="margin:8px 0;padding:8px;background:rgba(0,0,0,.2);border-radius:8px"></div>'
+    +'<div id="frag-apercu-expl" style="font-size:11px;opacity:.6;margin-bottom:10px"></div>'
+    +'<button id="frag-appliquer-btn" style="font-size:12px;padding:6px 14px">'+t('evo.appliquer_runtime')+'</button>'
+    +'<button id="frag-graver-btn" style="font-size:12px;padding:6px 14px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#10b981">'+t('evo.graver')+'</button>'
+    +'<button class="ghost" id="frag-annuler-btn" style="font-size:12px;padding:6px 14px">'+t('evo.annuler')+'</button>'
+    +'<div style="font-size:10px;opacity:.45;margin-top:6px;line-height:1.4">'+t('evo.runtime_permanent_desc')+'</div>'
+    +'</div>'
+    +'<div id="frag-status" style="font-size:12px;min-height:16px;margin:6px 0"></div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;opacity:.5;margin:14px 0 8px">'+t('evo.blocs_forges')+'</div>'
+    +'<div id="frag-liste"><div style="opacity:.4;font-size:12px">'+t('evo.chargement')+'</div></div>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+
+  /* Reinitialiser les flags de cablage : le DOM vient d'etre recree, tout doit se re-cabler. */
+  _hubUiWired=false;
+  _evoWired=false;
+  _penseeWired=false;
+  _evolutionRendu=true;
+}
+
+let _marketingRendu=false;
+function renderMarketing(){
+  const root=document.getElementById('section-marketing');
+  if(!root)return;
+  root.innerHTML=
+    '<div class="sec-header">'
+    +'<h2><span class="sec-dot" style="background:var(--c-marketing)"></span>'+t('mkt.titre')+'</h2>'
+    +'<p>'+t('mkt.sous_titre')+'</p>'
+    +'</div>'
+    +'<div class="agent-chat-mount" data-agent="marketeur" data-titre="🪁 Mercure" data-sub="'+t('mkt.mercure_sub')+'"></div>'
+
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('mkt.reseaux_sociaux')+'</div>'
+    +'<div class="mkt-platform-grid">'
+    +'<div class="mkt-platform-card" style="--pc:#e1306c"><span>📸</span><b>Instagram</b><span class="mkt-tag">Stories · Reels · Posts</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#1877f2"><span>📘</span><b>Facebook / Meta</b><span class="mkt-tag">Ads · Pages · Groupes</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#0a66c2"><span>💼</span><b>LinkedIn</b><span class="mkt-tag">B2B · Articles · Ads</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#1da1f2"><span>🐦</span><b>X / Twitter</b><span class="mkt-tag">Threads · Tendances</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ff0050"><span>🎵</span><b>TikTok</b><span class="mkt-tag">UGC · Tendances · Ads</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ff0000"><span>▶️</span><b>YouTube</b><span class="mkt-tag">Shorts · Videos · SEO</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#e60023"><span>📌</span><b>Pinterest</b><span class="mkt-tag">Visuels · Trafic</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#25d366"><span>💬</span><b>WhatsApp / SMS</b><span class="mkt-tag">Broadcast · CRM</span></div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('mkt.creation_image_video')+'</div>'
+    +'<div class="mkt-platform-grid">'
+    +'<div class="mkt-platform-card mkt-available" style="--pc:#f97316" title="MCP disponible dans NEOGEN"><span>✨</span><b>Magnific</b><span class="mkt-tag">MCP actif · Images &amp; Videos IA</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#a855f7"><span>🎨</span><b>Midjourney</b><span class="mkt-tag">Illustrations · Concepts</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#10b981"><span>🖼️</span><b>DALL-E / GPT-4o</b><span class="mkt-tag">Images OpenAI</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ef4444"><span>🎬</span><b>Runway</b><span class="mkt-tag">Video IA Gen-3</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#3b82f6"><span>🎥</span><b>Pika Labs</b><span class="mkt-tag">Video courte IA</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#f59e0b"><span>🖌️</span><b>Canva</b><span class="mkt-tag">Design templates</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ec4899"><span>🎭</span><b>HeyGen</b><span class="mkt-tag">Avatar video IA</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#6366f1"><span>🔊</span><b>ElevenLabs</b><span class="mkt-tag">Voix IA · Podcasts</span></div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('mkt.mcp_recommandes')+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<div class="mkt-mcp-card mkt-available">'
+    +'<span style="font-size:20px">✨</span>'
+    +'<div><div style="font-weight:600;font-size:14px">Magnific MCP <span class="mkt-badge-ok">'+t('mkt.disponible')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_magnific_desc')+'</div></div>'
+    +'</div>'
+    +'<div class="mkt-mcp-card mkt-available">'
+    +'<span style="font-size:20px">📓</span>'
+    +'<div><div style="font-weight:600;font-size:14px">NotebookLM MCP <span class="mkt-badge-ok">'+t('mkt.disponible')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_notebooklm_desc')+'</div></div>'
+    +'</div>'
+    +'<div class="mkt-mcp-card">'
+    +'<span style="font-size:20px">⚡</span>'
+    +'<div><div style="font-weight:600;font-size:14px">n8n Workflows <span class="mkt-badge">'+t('mkt.recommande')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_n8n_desc')+'</div></div>'
+    +'</div>'
+    +'<div class="mkt-mcp-card">'
+    +'<span style="font-size:20px">📊</span>'
+    +'<div><div style="font-weight:600;font-size:14px">Meta Business MCP <span class="mkt-badge">'+t('mkt.a_installer')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_meta_desc')+'</div></div>'
+    +'</div>'
+    +'<div class="mkt-mcp-card">'
+    +'<span style="font-size:20px">🔍</span>'
+    +'<div><div style="font-weight:600;font-size:14px">Google Analytics MCP <span class="mkt-badge">'+t('mkt.a_installer')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_ga_desc')+'</div></div>'
+    +'</div>'
+    +'<div class="mkt-mcp-card">'
+    +'<span style="font-size:20px">📧</span>'
+    +'<div><div style="font-weight:600;font-size:14px">Brevo / Mailchimp MCP <span class="mkt-badge">'+t('mkt.a_installer')+'</span></div>'
+    +'<div style="font-size:12px;opacity:.65;margin-top:2px">'+t('mkt.mcp_brevo_desc')+'</div></div>'
+    +'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="panel glass">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('mkt.outils_essentiels')+'</div>'
+    +'<div class="mkt-platform-grid">'
+    +'<div class="mkt-platform-card" style="--pc:#f97316"><span>📈</span><b>Google Analytics 4</b><span class="mkt-tag">Trafic · Conversions</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#4285f4"><span>🔍</span><b>Google Ads</b><span class="mkt-tag">SEA · Display</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#007bff"><span>📧</span><b>Brevo</b><span class="mkt-tag">Email · SMS · Automation</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ffe01b"><span>📨</span><b>Mailchimp</b><span class="mkt-tag">Email Marketing</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#ff6550"><span>📐</span><b>Semrush</b><span class="mkt-tag">SEO · Mots-cles</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#10b981"><span>🔗</span><b>Buffer</b><span class="mkt-tag">Planificateur social</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#6366f1"><span>📅</span><b>Hootsuite</b><span class="mkt-tag">Gestion reseaux</span></div>'
+    +'<div class="mkt-platform-card" style="--pc:#a855f7"><span>🎯</span><b>Meta Pixel</b><span class="mkt-tag">Retargeting · ROI</span></div>'
+    +'</div>'
+    +'</div>';
+  _marketingRendu=true;
+}
+
 function showSection(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   $('#landing').style.display='none';
@@ -154,12 +857,14 @@ function showSection(name){
   document.querySelectorAll('.side-item').forEach(el=>el.classList.remove('active'));
   const si=$('#side-'+name);if(si)si.classList.add('active');
   history.replaceState(null,'','#'+name);
-  if(name==='production')loadProduits();
+  if(name==='production'){renderProduction();loadProduits();}
   if(name==='compte')loadCompte();
-  if(name==='analyse'){loadAnalyse();if(typeof loadIngenieur==='function')loadIngenieur();}
-  if(name==='marketing')loadMarketing();
-  if(name==='cerveau'){loadMemoire();loadSkills();}
-  if(name==='evolution'){loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
+  if(name==='analyse'){renderAnalyse();loadAnalyse();if(typeof loadIngenieur==='function')loadIngenieur();}
+  if(name==='marketing'){renderMarketing();loadMarketing();}
+  if(name==='cerveau')renderCerveau();
+  if(name==='integrations')renderIntegrations();
+  if(name==='don')renderDon();
+  if(name==='evolution'){renderEvolution();loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
   /* scan post-section : enregistre les panels rendus dynamiquement (fragments, chats) */
   setTimeout(()=>_breath.scan(),150);
   /* re-verifie la distorsion glass des panels de la section qui vient de s'activer - un
@@ -845,9 +1550,14 @@ function ouvrirModalDon(){
 function fermerModalDon(){
   const m=document.getElementById('modal-don');if(m)m.style.display='none';
 }
-document.getElementById('modal-don').addEventListener('click',function(e){
-  if(e.target===this)fermerModalDon();
-});
+function _initModalDonBackdrop(){
+  const m=document.getElementById('modal-don');
+  if(m&&!m._wired){
+    m._wired=true;
+    m.addEventListener('click',function(e){if(e.target===m)fermerModalDon();});
+  }
+}
+_initModalDonBackdrop();
 function selectMontant(v,el){
   document.querySelectorAll('.don-preset').forEach(b=>b.classList.remove('sel'));
   if(el)el.classList.add('sel');
@@ -861,7 +1571,7 @@ function selectMontant(v,el){
   } else {
     donMontant=v;donCustomVal=0;
     if(cw)cw.style.display='none';
-    if(dd)dd.textContent=v+' EUR selectionne';
+    if(dd)dd.textContent=t('don.eur_selectionne',{montant:v});
   }
 }
 function updateDonDisplay(){
@@ -871,10 +1581,10 @@ function updateDonDisplay(){
 async function confirmerDon(){
   const montant=donMontant||donCustomVal;
   const st=document.getElementById('don-modal-st');
-  if(!montant||montant<1){if(st)st.textContent='Selectionner un montant.';return;}
+  if(!montant||montant<1){if(st)st.textContent=t('don.selectionner_montant');return;}
   const btn=document.getElementById('btn-don-confirmer');
   if(btn)btn.disabled=true;
-  if(st)st.textContent='Preparation...';
+  if(st)st.textContent=t('don.preparation');
   try{
     const r=await fetch('/don/checkout',{method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -1204,7 +1914,7 @@ async function renderCompteConnecte(root,user){
   const palCle=user.palier||'gratuit';
   root.innerHTML=
     '<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Mon compte</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">'+t('compte.mon_compte')+'</div>'
     +'<div style="font-size:17px;font-weight:700;margin-bottom:3px">'+esc(user.name)+'</div>'
     +'<div style="font-size:13px;color:var(--mut)">'+esc(user.email)+'</div>'
     +'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
@@ -1212,28 +1922,28 @@ async function renderCompteConnecte(root,user){
     +(isAdmin?'<span class="tag ok" style="display:inline-block">admin</span>':'')
     +'</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">'
-    +'<button class="ghost" id="chg-pw-btn" style="font-size:12px;padding:6px 12px">Changer le mot de passe</button>'
-    +'<button class="ghost" id="switch-acct-btn" style="font-size:12px;padding:6px 12px">Changer de compte</button>'
-    +'<button class="ghost" id="deconnexion-btn" style="font-size:12px;padding:6px 12px">Deconnexion</button>'
+    +'<button class="ghost" id="chg-pw-btn" style="font-size:12px;padding:6px 12px">'+t('compte.changer_mdp')+'</button>'
+    +'<button class="ghost" id="switch-acct-btn" style="font-size:12px;padding:6px 12px">'+t('compte.changer_compte')+'</button>'
+    +'<button class="ghost" id="deconnexion-btn" style="font-size:12px;padding:6px 12px">'+t('compte.deconnexion')+'</button>'
     +'</div>'
     +'<form id="chg-pw-form" style="display:none;margin-top:12px;flex-direction:column;gap:8px">'
-    +'<input type="password" id="chg-pw-old" placeholder="Mot de passe actuel" autocomplete="current-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
-    +'<input type="password" id="chg-pw-new" placeholder="Nouveau mot de passe (6 caracteres min.)" autocomplete="new-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
-    +'<div style="display:flex;align-items:center;gap:10px"><button type="submit" style="font-size:12px;padding:7px 16px">Valider</button><span id="chg-pw-status" style="font-size:12px"></span></div>'
+    +'<input type="password" id="chg-pw-old" placeholder="'+t('compte.mdp_actuel')+'" autocomplete="current-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<input type="password" id="chg-pw-new" placeholder="'+t('compte.nouveau_mdp')+'" autocomplete="new-password" style="width:100%;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<div style="display:flex;align-items:center;gap:10px"><button type="submit" style="font-size:12px;padding:7px 16px">'+t('compte.valider')+'</button><span id="chg-pw-status" style="font-size:12px"></span></div>'
     +'</form></div>'
 
     +'<div id="abonnement-mount"></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Modele actif</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">'+t('compte.modele_actif')+'</div>'
     +'<div id="compte-model-info" style="font-size:14px;color:var(--txt)"></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Envoyer un retour a NEOGEN</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">'+t('compte.envoyer_retour')+'</div>'
     +'<div class="star-row" id="fb-stars">'+[1,2,3,4,5].map(i=>'<span class="star" data-v="'+i+'">&#9733;</span>').join('')+'</div>'
-    +'<div style="margin-top:10px"><textarea id="fb-msg" placeholder="Dis-moi ce qui va ou ne va pas, une idee, un bug..."></textarea></div>'
+    +'<div style="margin-top:10px"><textarea id="fb-msg" placeholder="'+t('compte.retour_placeholder')+'"></textarea></div>'
     +'<div style="display:flex;align-items:center;gap:10px;margin-top:10px">'
-    +'<button id="fb-submit-btn">Envoyer</button><span id="fb-status"></span></div></div>'
+    +'<button id="fb-submit-btn">'+t('compte.envoyer')+'</button><span id="fb-status"></span></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('compte.preferences')+'</div>'
@@ -1264,8 +1974,8 @@ async function renderCompteConnecte(root,user){
     +'</div></div>'
 
     +'<div class="panel glass">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">Historique de production</div>'
-    +'<div id="compte-historique"><div style="color:var(--mut);font-size:13px">Chargement...</div></div></div>';
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">'+t('compte.historique_production')+'</div>'
+    +'<div id="compte-historique"><div style="color:var(--mut);font-size:13px">'+t('compte.chargement')+'</div></div></div>';
 
   const mInfo=$('#compte-model-info');
   if(mInfo){
@@ -1369,9 +2079,9 @@ async function renderCompteConnecte(root,user){
         headers:{'Content-Type':'application/json',..._authHdrs()},
         body:JSON.stringify({ancien:old,nouveau:nw})});
       const d=await r.json().catch(()=>({}));
-      if(r.ok){st.textContent='Mot de passe modifie';st.style.color='var(--ok)';$('#chg-pw-old').value='';$('#chg-pw-new').value='';setTimeout(()=>{pwForm.style.display='none';st.textContent='';},2000);}
-      else{st.textContent=d.detail||'Erreur';st.style.color='#ef4444';}
-    }catch(err){st.textContent='Erreur reseau';st.style.color='#ef4444';}
+      if(r.ok){st.textContent=t('compte.mdp_modifie');st.style.color='var(--ok)';$('#chg-pw-old').value='';$('#chg-pw-new').value='';setTimeout(()=>{pwForm.style.display='none';st.textContent='';},2000);}
+      else{st.textContent=d.detail||t('compte.mdp_erreur');st.style.color='#ef4444';}
+    }catch(err){st.textContent=t('compte.mdp_erreur_reseau');st.style.color='#ef4444';}
   };
 
   // --- Abonnement Stripe : etat + resiliation ---
@@ -1680,7 +2390,7 @@ async function loadAnalyse(){
 }
 
 /* Integrations — multi-provider + switch actif + custom */
-(function(){
+function _initIntegModeleUi(){
   /* check = pre-filtre permissif uniquement (longueur). La VRAIE validation se fait
      par un appel reel via /llm/verifier -> ne jamais bloquer une cle valide a cause
      d'un format (ex: nouveau format Gemini "AQ.", anciens "AIza", "sk-ant-", etc.). */
@@ -1733,7 +2443,7 @@ async function loadAnalyse(){
       activeLabel.textContent=PROV[p].label+' / '+m+(ver?'':' (non verifie)');
       activeLabel.style.color=ver?'var(--ok)':'#d97706';
     } else {
-      activeLabel.textContent='aucun';
+      activeLabel.textContent=t('integ.aucun');
       activeLabel.style.color='var(--txt)';
     }
   }
@@ -1756,7 +2466,7 @@ async function loadAnalyse(){
     const saved=localStorage.getItem('neogen_model_'+prov);
     if(saved)modelSel.value=saved;
     const hasKey=!!localStorage.getItem('neogen_key_'+prov);
-    keyIn.placeholder=hasKey?'cle enregistree (••••'+localStorage.getItem('neogen_key_'+prov).slice(-4)+')':p.ph;
+    keyIn.placeholder=hasKey?t('integ.cle_enregistree',{suffixe:localStorage.getItem('neogen_key_'+prov).slice(-4)}):p.ph;
     keyIn.value='';
     setDot(hasKey?'ok':'');
   }
@@ -1799,20 +2509,20 @@ async function loadAnalyse(){
     if(curProv!=='local' && localStorage.getItem('neogen_premium')!=='1'){
       var dejaPayes=['anthropic','openai','gemini','deepseek','mistral','moonshot','glm'].filter(function(pr){return pr!==curProv && localStorage.getItem('neogen_key_'+pr);});
       if(dejaPayes.length>=1){
-        st.innerHTML='<span class="tag warn">premium requis</span> Gratuit : 1 modele paye ('+esc(dejaPayes[0])+' deja enregistre) + Ollama local. Passe premium pour plusieurs modeles.';
+        st.innerHTML='<span class="tag warn">'+t('integ.premium_requis')+'</span> '+t('integ.gratuit_1_modele',{provider:esc(dejaPayes[0])});
         setDot('ko');return;
       }
     }
     if(curProv!=='local'){
-      if(!k){st.innerHTML='<span class="tag ko">API absente</span> Entre ta cle API pour '+p.label+'.';setDot('ko');localStorage.removeItem('neogen_verified_'+curProv);updateTabDots();return;}
-      if(!p.check(k)){st.innerHTML='<span class="tag ko">format invalide</span> Verifie la cle pour '+p.label+'.';setDot('ko');return;}
+      if(!k){st.innerHTML='<span class="tag ko">'+t('integ.api_absente')+'</span> '+t('integ.entre_cle',{provider:p.label});setDot('ko');localStorage.removeItem('neogen_verified_'+curProv);updateTabDots();return;}
+      if(!p.check(k)){st.innerHTML='<span class="tag ko">'+t('integ.format_invalide')+'</span> '+t('integ.verifie_cle',{provider:p.label});setDot('ko');return;}
     }
-    saveBtn.disabled=true;st.innerHTML='<span class="tag">verification...</span> Test de '+p.label+' / '+m;setDot('');
+    saveBtn.disabled=true;st.innerHTML='<span class="tag">'+t('integ.verification')+'</span> '+t('integ.test_de',{provider:p.label,modele:m});setDot('');
     const res=await _verifierCle(curProv,m,k);
     saveBtn.disabled=false;
     if(!res||!res.ok){
       localStorage.removeItem('neogen_verified_'+curProv);setDot('ko');updateTabDots();
-      st.innerHTML='<span class="tag ko">activation impossible</span> '+esc((res&&res.erreur)||'la cle ne repond pas');
+      st.innerHTML='<span class="tag ko">'+t('integ.activation_impossible')+'</span> '+esc((res&&res.erreur)||t('integ.cle_ne_repond_pas'));
       return;
     }
     localStorage.setItem('neogen_provider',curProv);
@@ -1822,10 +2532,10 @@ async function loadAnalyse(){
     localStorage.setItem('neogen_active_provider',curProv);
     localStorage.setItem('neogen_active_model',m);
     localStorage.setItem('neogen_model',m);
-    keyIn.value='';if(k)keyIn.placeholder='cle validee (••••'+k.slice(-4)+')';
+    keyIn.value='';if(k)keyIn.placeholder=t('integ.cle_validee',{suffixe:k.slice(-4)});
     setDot('ok');
     updateActiveLabel();updateTabDots();
-    st.innerHTML='<span class="tag ok">actif — cle validee</span> '+p.label+' / '+m;
+    st.innerHTML='<span class="tag ok">'+t('integ.actif_cle_validee')+'</span> '+p.label+' / '+m;
   };
 
   /* Custom integrations — delegue au systeme global _loadCustom */
@@ -1859,7 +2569,8 @@ async function loadAnalyse(){
   /* Init */
   switchProv(curProv);
   updateActiveLabel();
-})();
+}
+/* appel initial deplace dans renderIntegrations() (showSection('integrations')) */
 
 health();
 
@@ -2014,14 +2725,14 @@ function renderIntegGrid(serverStatus){
   order.forEach(cat=>{
     const card=document.createElement('div');card.className='glass integ-category';
     if(cat==='Personnalisee'){
-      card.innerHTML='<div class="integ-cat-title">Personnalisee</div>'
+      card.innerHTML='<div class="integ-cat-title">'+t('integ.personnalisee')+'</div>'
         +'<div id="integ-custom-list"></div>'
-        +'<div class="integ-add-btn" onclick="toggleAddIntegForm()">+ Ajouter</div>'
+        +'<div class="integ-add-btn" onclick="toggleAddIntegForm()">'+t('integ.ajouter')+'</div>'
         +'<div id="integ-add-form" class="hidden">'
-        +'<input type="text" id="integ-custom-name" placeholder="Nom (ex: Airtable)">'
-        +'<input type="text" id="integ-custom-endpoint" placeholder="Endpoint ou URL de l\'API">'
-        +'<input type="password" id="integ-custom-key" placeholder="Cle API (optionnel)">'
-        +'<button onclick="saveCustomInteg()" style="width:100%;margin-top:2px">Ajouter</button></div>';
+        +'<input type="text" id="integ-custom-name" placeholder="'+t('integ.nom_placeholder')+'">'
+        +'<input type="text" id="integ-custom-endpoint" placeholder="'+t('integ.endpoint_placeholder')+'">'
+        +'<input type="password" id="integ-custom-key" placeholder="'+t('integ.cle_optionnelle')+'">'
+        +'<button onclick="saveCustomInteg()" style="width:100%;margin-top:2px">'+t('integ.ajouter_court')+'</button></div>';
       grid.appendChild(card);_loadCustom();return;
     }
     const items=cats[cat]||[];if(!items.length)return;
@@ -2032,7 +2743,7 @@ function renderIntegGrid(serverStatus){
           +'<span class="integ-icon">'+esc(def.icon)+'</span>'
           +'<span class="integ-name">'+esc(def.name)+'</span>'
           +'<span class="integ-status-dot"></span>'
-          +'<span class="badge soon">bientot</span></div>';
+          +'<span class="badge soon">'+t('integ.bientot')+'</span></div>';
       } else {
         html+=_renderActivatable(k,def);
       }
@@ -2066,25 +2777,25 @@ window.toggleIntegPanel=function(name){
   const fromServer=(_iGet(name)||{}).source==='server';
   if(active){
     let c='<div class="iam-desc">'+esc(def.desc||'')+'</div>';
-    if(fromServer)c+='<p style="font-size:11px;color:var(--mut);margin-bottom:10px">Integration detectee automatiquement via credentials serveur.</p>';
-    if(def.type!=='server')c+='<button class="btn-iam-deact" onclick="desactiverInteg(\''+name+'\')">Desactiver</button>';
+    if(fromServer)c+='<p style="font-size:11px;color:var(--mut);margin-bottom:10px">'+t('integ.detectee_auto')+'</p>';
+    if(def.type!=='server')c+='<button class="btn-iam-deact" onclick="desactiverInteg(\''+name+'\')">'+t('integ.desactiver')+'</button>';
     form.innerHTML=c;
   } else if(def.type==='key'){
     form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
-      +'<input type="password" id="iam-inp-'+name+'" placeholder="'+esc(def.keyPh||'Cle API...')+'" autocomplete="off">'
-      +'<button onclick="confirmerInteg(\''+name+'\')">Connecter</button>';
+      +'<input type="password" id="iam-inp-'+name+'" placeholder="'+esc(def.keyPh||t('integ.cle_api'))+'" autocomplete="off">'
+      +'<button onclick="confirmerInteg(\''+name+'\')">'+t('integ.connecter')+'</button>';
   } else if(def.type==='url'){
     form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
       +'<input type="text" id="iam-inp-'+name+'" placeholder="'+esc(def.urlPh||'URL...')+'">'
-      +'<button onclick="confirmerInteg(\''+name+'\')">Connecter</button>';
+      +'<button onclick="confirmerInteg(\''+name+'\')">'+t('integ.connecter')+'</button>';
   } else if(def.type==='oauth'){
     form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
-      +'<p style="font-size:12px;color:var(--mut);margin-bottom:8px">Ouvre '+esc(def.name)+' dans un nouvel onglet, connecte-toi, puis confirme.</p>'
-      +'<button onclick="window.open(\''+esc(def.oauthUrl||'')+'\',\'_blank\')" class="ghost" style="margin-bottom:5px">Ouvrir '+esc(def.name)+' ↗</button>'
-      +'<button onclick="confirmerInteg(\''+name+'\')">Connexion confirmee</button>';
+      +'<p style="font-size:12px;color:var(--mut);margin-bottom:8px">'+t('integ.ouvre_nouvel_onglet',{nom:esc(def.name)})+'</p>'
+      +'<button onclick="window.open(\''+esc(def.oauthUrl||'')+'\',\'_blank\')" class="ghost" style="margin-bottom:5px">'+t('integ.ouvrir_nom',{nom:esc(def.name)})+' ↗</button>'
+      +'<button onclick="confirmerInteg(\''+name+'\')">'+t('integ.connexion_confirmee')+'</button>';
   } else if(def.type==='server'){
     form.innerHTML='<div class="iam-desc">'+esc(def.desc)+'</div>'
-      +'<p style="font-size:11px;color:var(--mut)">Active automatiquement via les credentials serveur.</p>';
+      +'<p style="font-size:11px;color:var(--mut)">'+t('integ.actif_via_credentials_serveur')+'</p>';
   }
 };
 
@@ -2093,8 +2804,8 @@ window.confirmerInteg=async function(name){
   // Garde freemium : max 3 integrations tierces actives en gratuit.
   if(localStorage.getItem('neogen_premium')!=='1' && !_iActive(name) && integActives().length>=3){
     var st0=document.getElementById('iam-statut-'+name);
-    var msg='<span class="tag warn">premium requis</span> Limite gratuite : 3 integrations. Passe premium (Compte) pour plus.';
-    if(st0){st0.innerHTML=msg;}else{alert('Limite gratuite : 3 integrations actives. Passe premium pour en activer plus.');}
+    var msg='<span class="tag warn">'+t('integ.premium_requis')+'</span> '+t('integ.limite_gratuite_3');
+    if(st0){st0.innerHTML=msg;}else{alert(t('integ.limite_gratuite_alert'));}
     return;
   }
   const inp=document.getElementById('iam-inp-'+name);
@@ -2103,28 +2814,28 @@ window.confirmerInteg=async function(name){
   // Zone de statut
   let statut=document.getElementById('iam-statut-'+name);
   if(!statut&&form){statut=document.createElement('div');statut.id='iam-statut-'+name;statut.style.cssText='font-size:12px;margin-top:8px';form.appendChild(statut);}
-  if(statut)statut.innerHTML='<span style="color:var(--mut)">Verification en cours...</span>';
+  if(statut)statut.innerHTML='<span style="color:var(--mut)">'+t('integ.verification_en_cours')+'</span>';
   // Verification reelle cote serveur
   let res={ok:false,erreur:'erreur'};
   try{
     res=await(await fetch('/integrations/verifier',{method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:def.type,name:name,value:val})})).json();
-  }catch(e){res={ok:false,erreur:'serveur injoignable'};}
+  }catch(e){res={ok:false,erreur:t('integ.serveur_injoignable')};}
   if(res.ok){
     _iSet(name,{active:true,key:val,source:'user',verifie:true});
     _syncIntegServeur(name,val,def.type);
-    if(statut)statut.innerHTML='<span class="tag ok">verifie et actif</span>';
+    if(statut)statut.innerHTML='<span class="tag ok">'+t('integ.verifie_et_actif')+'</span>';
     renderIntegGrid();updateOutilsActifs();
   } else if(res.manuel){
     // Non verifiable automatiquement (ex oauth) : actif mais marque "non verifie"
     _iSet(name,{active:true,key:val,source:'user',verifie:false});
     _syncIntegServeur(name,val,def.type);
-    if(statut)statut.innerHTML='<span class="tag warn">actif (non verifie)</span> <span style="color:var(--mut);font-size:11px">'+esc(res.erreur||'')+'</span>';
+    if(statut)statut.innerHTML='<span class="tag warn">'+t('integ.actif_non_verifie')+'</span> <span style="color:var(--mut);font-size:11px">'+esc(res.erreur||'')+'</span>';
     renderIntegGrid();updateOutilsActifs();
   } else {
     // Echec : NE PAS activer, rouge + raison
-    if(statut)statut.innerHTML='<span class="tag ko">activation impossible</span> <span style="color:var(--ko);font-size:11px">'+esc(res.erreur||'')+'</span>';
+    if(statut)statut.innerHTML='<span class="tag ko">'+t('integ.activation_impossible')+'</span> <span style="color:var(--ko);font-size:11px">'+esc(res.erreur||'')+'</span>';
   }
 };
 
@@ -2144,7 +2855,7 @@ function updateOutilsActifs(){
   const actives=integActives();
   if(!actives.length){banner.classList.add('hidden');return;}
   banner.classList.remove('hidden');
-  banner.innerHTML='<b style="margin-right:6px">Outils actifs :</b>'
+  banner.innerHTML='<b style="margin-right:6px">'+t('integ.outils_actifs')+'</b>'
     +actives.map(k=>'<span class="outil-chip">'+esc((INTEG_DEFS[k]&&INTEG_DEFS[k].icon||'')+' '+(INTEG_DEFS[k]&&INTEG_DEFS[k].name||k))+'</span>').join('');
 }
 
@@ -2159,11 +2870,12 @@ function _loadCustom(){
 }
 
 // Init : detecte credentials serveur + render
-(async function(){
+async function _initIntegGrid(){
   let srv={openlegi:false,stripe:false};
   try{srv=await(await fetch('/integrations/status')).json();}catch(e){}
   renderIntegGrid(srv);
-})();
+}
+/* appel initial deplace dans renderIntegrations() (showSection('integrations')) */
 
 /* Hash routing : on load + bouton back navigateur */
 const SECTIONS=['cerveau','creation','production','compte','analyse','evolution','marketing','integrations','don'];
@@ -2179,21 +2891,22 @@ let _rpaInterval=null;
 var _rpaConnected=false;
 async function pollRpaStatus(){
   if(!_authToken())return; /* pas connecte : /rpa/status exige un compte, evite le 401 qui rouvrirait le login */
+  const dot=$('#rpa-dot'), lbl=$('#rpa-label'), sub=$('#rpa-sub'), qb=$('#rpa-queue-badge');
+  if(!dot||!lbl||!sub||!qb)return; /* section integrations pas encore rendue */
   try{
     const r=await(await fetch('/rpa/status',{headers:_authHdrs()})).json();
-    const dot=$('#rpa-dot'), lbl=$('#rpa-label'), sub=$('#rpa-sub'), qb=$('#rpa-queue-badge');
     const wasConnected=_rpaConnected;
     _rpaConnected=!!r.connected;
     if(r.connected){
       dot.className='rpa-status-dot connected';
-      lbl.textContent='Agent connecte';
-      sub.textContent=r.recording?'Enregistrement en cours...':'Pret a recevoir des actions';
+      lbl.textContent=t('integ.agent_connecte');
+      sub.textContent=r.recording?t('integ.enregistrement_en_cours'):t('integ.pret_a_recevoir');
     }else{
       dot.className='rpa-status-dot disconnected';
-      lbl.textContent='Agent deconnecte';
-      sub.innerHTML='Lancer <code>python rpa_agent.py</code> sur la machine hote';
+      lbl.textContent=t('integ.agent_deconnecte');
+      sub.innerHTML=t('integ.lancer_agent_local');
     }
-    if(r.queue_len>0){qb.style.display='';qb.textContent='file: '+r.queue_len;}
+    if(r.queue_len>0){qb.style.display='';qb.textContent=t('integ.file_n',{n:r.queue_len});}
     else{qb.style.display='none';}
     // Sync recording button state
     const btnStart=$('#btn-imit-start'),btnStop=$('#btn-imit-stop');
@@ -2215,14 +2928,14 @@ async function refreshContinuous(){
     const d=await(await fetch('/rpa/continuous',{headers:_authHdrs()})).json();
     cb.checked=!!d.enabled;
     if(d.enabled){
-      let txt='Observation active.';
-      if(d.learned&&d.learned.length)txt+=' '+d.learned.length+' routine(s) apprise(s) automatiquement.';
-      else txt+=' En attente d\'une séquence répétée...';
+      let txt=t('integ.observation_active');
+      if(d.learned&&d.learned.length)txt+=' '+t('integ.n_routines_apprises',{n:d.learned.length});
+      else txt+=' '+t('integ.en_attente_sequence');
       st.textContent=txt;
     }else st.textContent='';
   }catch(e){}
 }
-(function(){
+function _initContinuUi(){
   const cb=$('#cont-learn-cb');
   if(cb)cb.onchange=async function(){
     var self=this;
@@ -2231,50 +2944,52 @@ async function refreshContinuous(){
       if(!r.ok){
         var d={};try{d=await r.json();}catch(e){}
         self.checked=false;   // refus -> on remet le toggle a off
-        var st=$('#cont-learn-status');if(st)st.innerHTML='<span class="tag warn">premium requis</span> '+esc(d.detail||'Reserve a la version premium.');
+        var st=$('#cont-learn-status');if(st)st.innerHTML='<span class="tag warn">'+t('integ.premium_requis')+'</span> '+esc(d.detail||t('integ.reserve_premium'));
         return;
       }
     }catch(e){self.checked=false;}
     refreshContinuous();if(window.loadImitationList)loadImitationList();
   };
   refreshContinuous();
-  setInterval(refreshContinuous,5000);
-})();
+}
+let _continuInterval=null;
+if(!_continuInterval)_continuInterval=setInterval(refreshContinuous,5000);
 
 /* ===== IMITATION RECORDING UI ===== */
-$('#btn-imit-start').onclick=async()=>{
-  try{
-    await fetch('/rpa/record/start',{method:'POST'});
-    $('#btn-imit-start').style.display='none';
-    $('#btn-imit-stop').style.display='';
-  }catch(e){alert('Erreur : '+errMsg(e));}
-};
-
-$('#btn-imit-stop').onclick=async()=>{
-  const name=prompt('Nom de l\'enregistrement :','sequence_'+Date.now());
-  if(!name)return;
-  try{
-    const r=await(await fetch('/rpa/record/stop',{method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name})})).json();
-    if(r.detail){alert(errMsg(r.detail));return;}
-    $('#btn-imit-start').style.display='';
-    $('#btn-imit-stop').style.display='none';
-    loadImitationList();
-  }catch(e){alert('Erreur : '+errMsg(e));}
-};
-
-$('#btn-rpa-clear').onclick=async()=>{
-  if(!confirm('Arrêt d\'urgence : vider toute la file RPA ?'))return;
-  try{
-    const r=await(await fetch('/rpa/clear',{method:'POST'})).json();
-    alert('File videe : '+r.cleared+' action(s) annulee(s).');
-    pollRpaStatus();
-  }catch(e){alert('Erreur : '+errMsg(e));}
-};
+function _initImitationBtns(){
+  const bStart=$('#btn-imit-start'),bStop=$('#btn-imit-stop'),bClear=$('#btn-rpa-clear');
+  if(bStart)bStart.onclick=async()=>{
+    try{
+      await fetch('/rpa/record/start',{method:'POST'});
+      bStart.style.display='none';
+      if(bStop)bStop.style.display='';
+    }catch(e){alert(t('integ.erreur')+' : '+errMsg(e));}
+  };
+  if(bStop)bStop.onclick=async()=>{
+    const name=prompt(t('integ.nom_enregistrement'),'sequence_'+Date.now());
+    if(!name)return;
+    try{
+      const r=await(await fetch('/rpa/record/stop',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name})})).json();
+      if(r.detail){alert(errMsg(r.detail));return;}
+      if(bStart)bStart.style.display='';
+      bStop.style.display='none';
+      loadImitationList();
+    }catch(e){alert(t('integ.erreur')+' : '+errMsg(e));}
+  };
+  if(bClear)bClear.onclick=async()=>{
+    if(!confirm(t('integ.confirmer_arret_urgence')))return;
+    try{
+      const r=await(await fetch('/rpa/clear',{method:'POST'})).json();
+      alert(t('integ.file_videe',{n:r.cleared}));
+      pollRpaStatus();
+    }catch(e){alert(t('integ.erreur')+' : '+errMsg(e));}
+  };
+}
 
 /* ===== /remote-control ===== */
-(function(){
+function _initRemoteControlUi(){
   var _remoteActive=false;
   var btn=$('#btn-remote-control');
   var st=$('#remote-control-status');
@@ -2287,20 +3002,20 @@ $('#btn-rpa-clear').onclick=async()=>{
   function _renderRemote(){
     // Si agent deconnecte : section passive, pas d'alerte trompeuse
     if(!_rpaConnected){
-      btn.textContent='Prendre le contrôle';
-      btn.style.background='';btn.style.borderColor='';btn.style.color='';btn.disabled=true;btn.title='Agent déconnecté';
-      if(st){st.textContent='Agent non connecté — lance rpa_agent.py pour activer.';st.style.color='var(--mut)';}
+      btn.textContent=t('integ.prendre_controle');
+      btn.style.background='';btn.style.borderColor='';btn.style.color='';btn.disabled=true;btn.title=t('integ.agent_deconnecte');
+      if(st){st.textContent=t('integ.agent_non_connecte');st.style.color='var(--mut)';}
       return;
     }
     btn.disabled=false;btn.title='';
     if(_remoteActive){
-      btn.textContent='Arrêter le contrôle';
+      btn.textContent=t('integ.arreter_controle');
       btn.style.background='rgba(220,38,38,.12)';
       btn.style.borderColor='rgba(220,38,38,.4)';
       btn.style.color='var(--ko)';
-      if(st){st.textContent='Mode contrôle actif — l\'agent agit sans popup. Coin haut-gauche = arrêt d\'urgence.';st.style.color='var(--ko)';}
+      if(st){st.textContent=t('integ.mode_controle_actif');st.style.color='var(--ko)';}
     }else{
-      btn.textContent='Prendre le contrôle';
+      btn.textContent=t('integ.prendre_controle');
       btn.style.background='';btn.style.borderColor='';btn.style.color='';
       if(st){st.textContent='';st.style.color='';}
     }
@@ -2314,10 +3029,10 @@ $('#btn-rpa-clear').onclick=async()=>{
       _remoteActive=!_remoteActive;_renderRemote();}catch(e){}
   };
   _syncRemote();
-})();
+}
 
 /* ===== /goal : mode objectif autonome ===== */
-(function(){
+function _initGoalUi(){
   var btn=$('#btn-goal-launch');
   var log=$('#goal-log');
   var inp=$('#goal-input');
@@ -2326,25 +3041,25 @@ $('#btn-rpa-clear').onclick=async()=>{
   btn.onclick=async function(){
     if(_goalRunning)return;
     var objectif=(inp.value||'').trim();
-    if(!objectif){if(log)log.textContent='Saisis un objectif avant de lancer.';return;}
-    _goalRunning=true;btn.disabled=true;btn.textContent='En cours...';
-    if(log)log.textContent='Analyse de l\'objectif...\n';
+    if(!objectif){if(log)log.textContent=t('integ.saisis_objectif');return;}
+    _goalRunning=true;btn.disabled=true;btn.textContent=t('integ.en_cours');
+    if(log)log.textContent=t('integ.analyse_objectif')+'\n';
     try{
       var r=await(await fetch('/rpa/goal',{method:'POST',
         headers:_llmHdrs(),
         body:JSON.stringify({objectif})})).json();
-      if(r.detail){if(log)log.textContent+='Erreur : '+errMsg(r.detail)+'\n';return;}
+      if(r.detail){if(log)log.textContent+=t('integ.erreur')+' : '+errMsg(r.detail)+'\n';return;}
       // Si infos manquantes -> afficher la question et attendre
       if(r.infos_manquantes&&r.infos_manquantes.length){
-        if(log)log.textContent+='Information(s) requise(s) :\n'+r.infos_manquantes.map(function(x){return'  • '+x}).join('\n')+'\n\nRéponds dans le champ ci-dessous et relance.';
+        if(log)log.textContent+=t('integ.infos_requises')+' :\n'+r.infos_manquantes.map(function(x){return'  • '+x}).join('\n')+'\n\n'+t('integ.reponds_et_relance');
         inp.value=objectif+'\n\n[INFOS: ]';
         return;
       }
       if(log){log.textContent+=r.rapport||r.detail||JSON.stringify(r);}
-    }catch(e){if(log)log.textContent+='Erreur réseau : '+errMsg(e);}
-    finally{_goalRunning=false;btn.disabled=false;btn.textContent='Lancer';}
+    }catch(e){if(log)log.textContent+=t('integ.erreur_reseau')+' : '+errMsg(e);}
+    finally{_goalRunning=false;btn.disabled=false;btn.textContent=t('integ.lancer');}
   };
-})();
+}
 
 async function loadImitationList(){
   const el=$('#imit-list');if(!el)return;
@@ -2390,9 +3105,7 @@ showSection=function(name){
   // Redirect ingenieur → onglet ingenieur dans Dev & Analyse
   if(name==='ingenieur'){_origShowSection('analyse');anlzTab('ingenieur');return;}
   _origShowSection(name);
-  if(name==='integrations'){loadImitationList();pollRpaStatus();}
-  if(name==='cerveau'&&window.loadSkills){loadSkills();if(window.loadMemoire)loadMemoire();if(window.loadTaches)loadTaches();if(window.loadBebeAgents)loadBebeAgents();}
-  if(name==='marketing'&&window.loadMarketing){loadMarketing();}
+  /* cerveau/integrations/marketing : deja geres par renderCerveau()/renderIntegrations()/renderMarketing() dans _origShowSection (evite le double appel) */
 };
 
 /* ===== DEPLOY MODAL (Hostinger) ===== */
@@ -3205,13 +3918,15 @@ window.deleteSkill=async function(nom){
   try{await fetch('/skills/'+encodeURIComponent(nom),{method:'DELETE'});}catch(e){}
   loadSkills();
 };
-(function(){
+function _initSkillsUi(){
   const btn=document.getElementById('skills-refresh');
-  if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
+  if(btn)btn.onclick=function(){btn.textContent='...';loadSkills().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent=t('cerveau.rafraichir');},1500);});};
   loadSkills();
   const libBtn=document.getElementById('skills-library-btn');
   if(libBtn)libBtn.onclick=openSkillsLibrary;
-})();
+}
+/* appel initial deplace dans renderCerveau() (showSection('cerveau')) : le HTML
+   #skills-refresh/#skills-library-btn n'existe plus qu'apres le rendu JS de la section */
 
 function _starsHtml(note){
   if(!note)return '';
@@ -3371,18 +4086,20 @@ window.deleteMemoire=async function(id){
   try{await fetch('/memoire/'+encodeURIComponent(id),{method:'DELETE'});}catch(e){}
   loadMemoire();
 };
-(function(){
+function _initMemoireUi(){
   const btn=document.getElementById('mem-refresh');
-  if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
+  if(btn)btn.onclick=function(){btn.textContent='...';loadMemoire().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent=t('cerveau.rafraichir');},1500);});};
   loadMemoire();
-})();
+}
+/* appel initial deplace dans renderCerveau() (showSection('cerveau')) */
 
 // ===== BEBE-AGENTS CUSTOM =====
-(function(){
+function _initBebeAgentsUi(){
   const btn=document.getElementById('bebeagents-refresh');
-  if(btn)btn.onclick=function(){btn.textContent='...';loadBebeAgents().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent='Rafraichir';},1500);});};
+  if(btn)btn.onclick=function(){btn.textContent='...';loadBebeAgents().finally(()=>{btn.textContent='✓ Actualise';setTimeout(()=>{btn.textContent=t('cerveau.rafraichir');},1500);});};
   loadBebeAgents();
-})();
+}
+/* appel initial deplace dans renderCerveau() (showSection('cerveau')) */
 
 // ===== TACHES AUTONOMES (cron) =====
 async function loadTaches(){
@@ -3417,7 +4134,7 @@ window.deleteTache=async function(id){
   try{await fetch('/taches/'+encodeURIComponent(id),{method:'DELETE'});}catch(e){}
   loadTaches();
 };
-(function(){
+function _initTachesUi(){
   const add=document.getElementById('tache-add-btn'),form=document.getElementById('tache-form'),save=document.getElementById('tache-save');
   if(add)add.onclick=function(){form.classList.toggle('hidden');};
   if(save)save.onclick=async function(){
@@ -3442,9 +4159,12 @@ window.deleteTache=async function(id){
     }).catch(function(){});
   }
   loadTaches();
-})();
+}
+/* appel initial deplace dans renderCerveau() (showSection('cerveau')) */
 /* ===== HUB DU SAVOIR — section Evolution ===== */
+/* _hubUiWired declare tout en haut du fichier (evite la TDZ si appele tres tot) */
 async function loadHubEtat(){
+  if(!_hubUiWired){_hubUiWired=true;if(typeof _initHubUi==='function')_initHubUi();}
   try{
     const r=await fetch('/savoir/etat');
     if(r.status===403)return;   // vue bridee geree par loadEvolutionSysteme, section reste visible
@@ -3542,7 +4262,7 @@ function _renderProp(p){
   return wrap;
 }
 
-(function(){
+function _initHubUi(){
   const btnR=document.getElementById('btn-hub-refresh');
   const status=document.getElementById('hub-refresh-status');
   if(btnR)btnR.onclick=async function(){
@@ -3587,10 +4307,10 @@ function _renderProp(p){
     }catch(e){if(res)res.innerHTML='<div style="opacity:.4;font-size:12px">Erreur : '+esc(e.message)+'</div>';}
   };
   if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&btnS)btnS.click();});
-})();
+}
 
 /* ===== LA PENSEE — intelligence collective autonome ===== */
-let _penseeWired=false;
+/* _penseeWired declare tout en haut du fichier (evite la TDZ si appele tres tot) */
 async function loadPenseesConfig(){
   try{
     const r=await fetch('/savoir/pensees/config');
@@ -4159,7 +4879,7 @@ async function _injectUserCss(){
 })();
 
 /* ===== SUPER-CAPACITE — evolution gouvernee ===== */
-let _evoWired=false;
+/* _evoWired declare tout en haut du fichier (evite la TDZ si appele tres tot) */
 async function loadEvolutionSysteme(){
   const bridee=document.getElementById('evo-vue-bridee');
   const panneaux=document.getElementById('evo-panneaux-owner');
