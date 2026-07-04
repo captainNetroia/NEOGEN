@@ -1020,14 +1020,18 @@ function _llmHdrs(extra){
   if(_t)h['Authorization']='Bearer '+_t;   /* identifie l'utilisateur pour les quotas */
   return h;
 }
-/* Intercepteur global 401 — toute reponse non-auth qui retourne 401 affiche la modal de connexion */
+/* Intercepteur global 401 — toute reponse non-auth qui retourne 401 affiche la modal de connexion.
+   Exclusions : /auth/* (deja le formulaire lui-meme) et /rpa/* (polls de fond silencieux,
+   ex. pollRpaStatus toutes les 3s — un 401 normal pour un visiteur non connecte ne doit
+   jamais interrompre une saisie en cours ailleurs sur la page, cf. bug 2026-07-04 ou la
+   modal de login se recreait/se vidait pendant la frappe a cause de ce poll). */
 (function(){
   var _orig=window.fetch.bind(window);
   window.fetch=async function(){
     var res=await _orig.apply(this,arguments);
     if(res.status===401){
       var url=(typeof arguments[0]==='string'?arguments[0]:(arguments[0]&&arguments[0].url)||'');
-      if(!url.includes('/auth/')){
+      if(!url.includes('/auth/')&&!url.includes('/rpa/')){
         _showAuthModal('Tu dois te connecter à ton compte pour continuer.');
       }
     }
@@ -2155,8 +2159,9 @@ routeHash();
 let _rpaInterval=null;
 var _rpaConnected=false;
 async function pollRpaStatus(){
+  if(!_authToken())return; /* pas connecte : /rpa/status exige un compte, evite le 401 qui rouvrirait le login */
   try{
-    const r=await(await fetch('/rpa/status')).json();
+    const r=await(await fetch('/rpa/status',{headers:_authHdrs()})).json();
     const dot=$('#rpa-dot'), lbl=$('#rpa-label'), sub=$('#rpa-sub'), qb=$('#rpa-queue-badge');
     const wasConnected=_rpaConnected;
     _rpaConnected=!!r.connected;
@@ -2186,8 +2191,9 @@ pollRpaStatus();
 async function refreshContinuous(){
   const cb=$('#cont-learn-cb'),st=$('#cont-learn-status');
   if(!cb)return;
+  if(!_authToken())return; /* pas connecte : /rpa/continuous exige un compte, evite le 401 qui rouvrirait le login */
   try{
-    const d=await(await fetch('/rpa/continuous')).json();
+    const d=await(await fetch('/rpa/continuous',{headers:_authHdrs()})).json();
     cb.checked=!!d.enabled;
     if(d.enabled){
       let txt='Observation active.';
