@@ -538,32 +538,6 @@ def _section_compte() -> str:
     <div id="tele-status" style="font-size:11px;color:var(--mut);margin-top:8px"></div>
   </div>
 
-  <!-- Panel Preferences toujours visible (sans connexion requise) -->
-  <div class="panel glass" style="margin-bottom:18px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Preferences</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <span style="font-size:13px;color:var(--txt)">Mode sombre</span>
-      <label class="dark-toggle"><input type="checkbox" id="dark-toggle-cb"></label>
-    </div>
-    <div style="margin-bottom:6px">
-      <div style="font-size:13px;color:var(--txt);margin-bottom:8px">Autorisation agent ecran</div>
-      <div class="consent-btns">
-        <button class="consent-btn safe" data-level="always" data-dur="0" title="Popup avant chaque action">Toujours demander</button>
-        <button class="consent-btn" data-level="sequence" data-dur="120">2 min</button>
-        <button class="consent-btn" data-level="sequence" data-dur="600">10 min</button>
-        <button class="consent-btn" data-level="sequence" data-dur="1800">30 min</button>
-        <button class="consent-btn" data-level="sequence" data-dur="3600">1 h</button>
-        <button class="consent-btn" data-level="sequence" data-dur="7200">2 h</button>
-        <button class="consent-btn" data-level="sequence" data-dur="18000">5 h</button>
-        <button class="consent-btn" data-level="sequence" data-dur="43200">12 h</button>
-        <button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, auto-approuve tout">Auto</button>
-      </div>
-    </div>
-    <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
-      <span id="agent-local-status" style="font-size:13px;color:var(--mut)">Agent local...</span>
-      <button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">Effacer tous les chats</button>
-    </div>
-  </div>
   <div class="agent-chat-mount" data-agent="secretaire" data-titre="📋 Le Secretaire" data-sub="Ton conseiller, administrateur et assistant au quotidien."></div>
 
   <!-- Mes skills : espace personnel de creation (visible a tout user connecte) -->
@@ -852,7 +826,10 @@ def _foot() -> str:
     _v = int(_js.stat().st_mtime) if _js.exists() else 0
     _lg = _pl.Path(__file__).parent / "static" / "liquid-glass.js"
     _vlg = int(_lg.stat().st_mtime) if _lg.exists() else 0
-    return (f'<script src="/static/liquid-glass.js?v={_vlg}"></script>\n'
+    _i18n = _pl.Path(__file__).parent / "static" / "i18n.js"
+    _vi18n = int(_i18n.stat().st_mtime) if _i18n.exists() else 0
+    return (f'<script src="/static/i18n.js?v={_vi18n}"></script>\n'
+            f'<script src="/static/liquid-glass.js?v={_vlg}"></script>\n'
             f'<script src="/static/app.js?v={_v}"></script>\n</body>\n</html>\n')
 
 

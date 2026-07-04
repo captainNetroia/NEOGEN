@@ -1236,13 +1236,18 @@ async function renderCompteConnecte(root,user){
     +'<button id="fb-submit-btn">Envoyer</button><span id="fb-status"></span></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">Preferences</div>'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('compte.preferences')+'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
-    +'<span style="font-size:13px;color:var(--txt)">Mode sombre</span>'
+    +'<span style="font-size:13px;color:var(--txt)">'+t('compte.langue')+'</span>'
+    +'<select id="langue-select" style="padding:6px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--txt);font-size:12px">'
+    +'<option value="fr">Francais</option><option value="en">English</option>'
+    +'</select></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<span style="font-size:13px;color:var(--txt)">'+t('compte.mode_sombre')+'</span>'
     +'<label class="dark-toggle"><input type="checkbox" id="dark-toggle-cb"><span style="font-size:12px;color:var(--mut)"></span></label></div>'
-    +'<div style="margin-bottom:6px"><div style="font-size:13px;color:var(--txt);margin-bottom:8px">Autorisation agent ecran</div>'
+    +'<div style="margin-bottom:6px"><div style="font-size:13px;color:var(--txt);margin-bottom:8px">'+t('compte.autorisation_agent_ecran')+'</div>'
     +'<div class="consent-btns">'
-    +'<button class="consent-btn safe" data-level="always" data-dur="0" title="Popup avant chaque action">Toujours demander</button>'
+    +'<button class="consent-btn safe" data-level="always" data-dur="0" title="Popup avant chaque action">'+t('compte.toujours_demander')+'</button>'
     +'<button class="consent-btn" data-level="sequence" data-dur="120" title="Autorise pour 2 minutes">2 min</button>'
     +'<button class="consent-btn" data-level="sequence" data-dur="600" title="Autorise pour 10 minutes">10 min</button>'
     +'<button class="consent-btn" data-level="sequence" data-dur="1800" title="Autorise pour 30 minutes">30 min</button>'
@@ -1251,11 +1256,11 @@ async function renderCompteConnecte(root,user){
     +'<button class="consent-btn" data-level="sequence" data-dur="18000" title="Autorise pour 5 heures">5 h</button>'
     +'<button class="consent-btn" data-level="sequence" data-dur="43200" title="Autorise pour 12 heures">12 h</button>'
     +'<button class="consent-btn" data-level="sequence" data-dur="86400" title="Autorise pour 24 heures">24 h</button>'
-    +'<button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, toutes les actions passent automatiquement">Auto</button>'
+    +'<button class="consent-btn danger" data-level="auto" data-dur="0" title="Aucune popup, toutes les actions passent automatiquement">'+t('compte.auto')+'</button>'
     +'</div></div>'
     +'<div style="margin-top:14px;display:flex;align-items:center;gap:10px">'
-    +'<span id="agent-local-status" style="font-size:13px;color:var(--mut)">Agent local...</span>'
-    +'<button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">Effacer tous les chats</button>'
+    +'<span id="agent-local-status" style="font-size:13px;color:var(--mut)">'+t('compte.agent_local_attente')+'</span>'
+    +'<button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">'+t('compte.effacer_chats')+'</button>'
     +'</div></div>'
 
     +'<div class="panel glass">'
@@ -1277,6 +1282,20 @@ async function renderCompteConnecte(root,user){
     darkCb.onchange=function(){
       document.body.classList.toggle('dark',this.checked);
       localStorage.setItem('neogen_dark_mode',this.checked?'1':'0');
+    };
+  }
+
+  // --- Langue ---
+  const langueSel=$('#langue-select');
+  if(langueSel){
+    langueSel.value=(function(){try{return localStorage.getItem('neogen_langue')||'fr';}catch(e){return 'fr';}})();
+    langueSel.onchange=async function(){
+      var langue=this.value;
+      definirLangue(langue);
+      try{
+        await fetch('/compte/langue',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),body:JSON.stringify({langue:langue})});
+      }catch(e){}
+      location.reload();
     };
   }
 

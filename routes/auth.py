@@ -154,7 +154,8 @@ def compte_profil_post(data: dict, authorization: str = Header(None)):
     prenom = (data.get("prenom") or "").strip()
     if not prenom:
         raise HTTPException(400, "Prenom requis")
-    profil = {
+    profil = _lire_profil(user["id"])
+    profil.update({
         "prenom": prenom,
         "projets": (data.get("projets") or "").strip(),
         "aime": (data.get("aime") or "").strip(),
@@ -162,9 +163,29 @@ def compte_profil_post(data: dict, authorization: str = Header(None)):
         "style_travail": (data.get("style_travail") or "").strip(),
         "complet": True,
         "updated_at": _dt.utcnow().isoformat(),
-    }
+    })
     _ecrire_profil(user["id"], profil)
     return {"ok": True}
+
+
+_LANGUES_SUPPORTEES = {"fr", "en"}
+
+
+@router.post("/compte/langue")
+def compte_langue_post(data: dict, authorization: str = Header(None)):
+    """Change la langue d'interface preferee de l'utilisateur, independamment
+    du reste du profil (pas besoin de prenom/projets pour juste changer de langue)."""
+    user = _auth(authorization)
+    if not user:
+        raise HTTPException(401, "Non authentifie")
+    langue = (data.get("langue") or "").strip().lower()
+    if langue not in _LANGUES_SUPPORTEES:
+        raise HTTPException(400, f"Langue non supportee. Valides : {sorted(_LANGUES_SUPPORTEES)}")
+    profil = _lire_profil(user["id"])
+    profil["langue"] = langue
+    profil["updated_at"] = _dt.utcnow().isoformat()
+    _ecrire_profil(user["id"], profil)
+    return {"ok": True, "langue": langue}
 
 
 @router.post("/auth/logout")
