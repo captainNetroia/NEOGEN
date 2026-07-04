@@ -1946,6 +1946,17 @@ async function renderCompteConnecte(root,user){
     +'<button id="fb-submit-btn">'+t('compte.envoyer')+'</button><span id="fb-status"></span></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:6px">'+t('pp.titre')+'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:12px">'+t('pp.sous_titre')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+    +'<input type="text" id="pp-sujet" placeholder="'+t('pp.sujet_placeholder')+'" style="flex:1;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<button id="pp-declencher-btn" style="font-size:12px;padding:8px 16px;white-space:nowrap">'+t('pp.declencher')+'</button>'
+    +'</div>'
+    +'<div id="pp-status" style="font-size:12px;color:var(--mut);min-height:16px;margin-bottom:10px"></div>'
+    +'<div id="pp-liste"><div style="color:var(--mut);font-size:13px">'+t('compte.chargement')+'</div></div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-bottom:18px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('compte.preferences')+'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<span style="font-size:13px;color:var(--txt)">'+t('compte.langue')+'</span>'
@@ -2128,7 +2139,132 @@ async function renderCompteConnecte(root,user){
       ).join('');
     }catch(e){hist.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
   }
+
+  // --- Ma Pensee (version publique bridee, isolee au sac de l'utilisateur) ---
+  await _initMaPensee();
+
   if(window._breath)_breath.scan();
+}
+
+function _ppTranscriptHtml(p){
+  if(!p.transcript||!p.transcript.length)return '';
+  const lignes=p.transcript.map(function(tour){
+    return '<div style="margin-bottom:6px"><b style="color:var(--acc)">'+esc(tour.agent||'')+' : </b>'
+      +'<span style="color:var(--txt)">'+esc(tour.texte||'')+'</span></div>';
+  }).join('');
+  return '<div class="pp-transcript hidden" style="margin-top:8px;padding:10px;background:rgba(0,0,0,.2);border-radius:8px;font-size:12px">'+lignes+'</div>';
+}
+
+function _ppCardHtml(p){
+  const badge=(p.bulle&&!p.lue)?'<span class="tag ok" style="margin-left:6px">'+t('pp.bulle_badge')+'</span>':'';
+  const propBadge=p.vie_donnee?'<span class="tag" style="margin-left:6px;background:rgba(59,130,246,.15);color:#3b82f6">'+t('pp.proposition_creee')+'</span>':'';
+  return '<div class="hist-item pp-card" data-id="'+esc(p.id)+'" style="flex-direction:column;align-items:stretch">'
+    +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<span class="tag" style="background:rgba(168,85,247,.12);color:#a855f7">'+esc(p.type||'idee')+'</span>'
+    +'<b style="font-size:13px">'+esc(p.titre||'')+'</b>'+badge
+    +'<span style="margin-left:auto;font-size:11px;color:var(--mut)">score '+(p.score||0)+'</span>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-top:4px">'+esc(p.synthese||'')+'</div>'
+    +(p.transcript&&p.transcript.length?'<button class="ghost pp-toggle-transcript" style="font-size:11px;padding:3px 8px;margin-top:6px;align-self:flex-start">'+t('pp.voir_transcript')+'</button>':'')
+    +_ppTranscriptHtml(p)
+    +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center">'
+    +(!p.lue?'<button class="ghost pp-marquer-lue" style="font-size:11px;padding:3px 8px">'+t('pp.marquer_lue')+'</button>':'')
+    +'<button class="ghost pp-archiver" style="font-size:11px;padding:3px 8px">'+t('pp.archiver')+'</button>'
+    +(!p.vie_donnee?'<button class="pp-donner-vie" style="font-size:11px;padding:3px 8px;margin-left:auto">'+t('pp.donner_vie')+'</button>':propBadge)
+    +'</div>'
+    +'<div class="pp-card-status" style="font-size:11px;color:var(--mut);min-height:14px;margin-top:4px"></div>'
+    +'</div>';
+}
+
+async function _ppChargerListe(){
+  const el=$('#pp-liste');
+  if(!el)return;
+  try{
+    const r=await fetch('/savoir/pensees-perso',{headers:_authHdrs()});
+    if(!r.ok){el.innerHTML='<div style="color:var(--mut);font-size:13px">'+t('pp.mode_requis')+'</div>';return;}
+    const d=await r.json();
+    const list=d.pensees||[];
+    if(!list.length){el.innerHTML='<div style="color:var(--mut);font-size:13px">'+t('pp.aucune_pensee')+'</div>';return;}
+    el.innerHTML=list.map(_ppCardHtml).join('');
+    _ppCablerCartes();
+  }catch(e){el.innerHTML='<div style="color:var(--mut);font-size:13px">'+t('pp.erreur_generique')+'</div>';}
+}
+
+function _ppCablerCartes(){
+  document.querySelectorAll('.pp-card').forEach(function(card){
+    const id=card.dataset.id;
+    const statusEl=card.querySelector('.pp-card-status');
+
+    const toggleBtn=card.querySelector('.pp-toggle-transcript');
+    if(toggleBtn)toggleBtn.onclick=function(){
+      const tr=card.querySelector('.pp-transcript');
+      if(!tr)return;
+      const hidden=tr.classList.toggle('hidden');
+      toggleBtn.textContent=hidden?t('pp.voir_transcript'):t('pp.masquer_transcript');
+    };
+
+    const lueBtn=card.querySelector('.pp-marquer-lue');
+    if(lueBtn)lueBtn.onclick=async function(){
+      try{await fetch('/savoir/pensees-perso/'+encodeURIComponent(id)+'/lue',{method:'POST',headers:_authHdrs()});}catch(e){}
+      lueBtn.remove();
+    };
+
+    const archBtn=card.querySelector('.pp-archiver');
+    if(archBtn)archBtn.onclick=async function(){
+      try{await fetch('/savoir/pensees-perso/'+encodeURIComponent(id)+'/archiver',{method:'POST',headers:_authHdrs()});}catch(e){}
+      card.remove();
+    };
+
+    const vieBtn=card.querySelector('.pp-donner-vie');
+    if(vieBtn)vieBtn.onclick=async function(){
+      vieBtn.disabled=true;vieBtn.textContent='...';
+      try{
+        const r=await fetch('/savoir/pensees-perso/'+encodeURIComponent(id)+'/donner-vie',{method:'POST',headers:_authHdrs()});
+        const d=await r.json();
+        if(d.voie==='interface'&&d.css){
+          if(statusEl)statusEl.textContent=t('pp.interface_apercu');
+          vieBtn.remove();
+        }else if(d.ok){
+          if(statusEl){statusEl.textContent=t('pp.proposition_creee');statusEl.style.color='var(--ok)';}
+          vieBtn.remove();
+        }else{
+          if(statusEl){statusEl.textContent=t('pp.proposition_refusee',{raison:d.raison||''});statusEl.style.color='var(--ko)';}
+          vieBtn.disabled=false;vieBtn.textContent=t('pp.donner_vie');
+        }
+      }catch(e){
+        if(statusEl){statusEl.textContent=t('pp.erreur_generique');statusEl.style.color='var(--ko)';}
+        vieBtn.disabled=false;vieBtn.textContent=t('pp.donner_vie');
+      }
+    };
+  });
+}
+
+async function _initMaPensee(){
+  const btn=$('#pp-declencher-btn');
+  const inp=$('#pp-sujet');
+  const status=$('#pp-status');
+  if(btn){
+    btn.onclick=async function(){
+      btn.disabled=true;btn.textContent=t('pp.en_cours');
+      if(status){status.textContent='';status.style.color='var(--mut)';}
+      try{
+        const sujet=(inp&&inp.value||'').trim();
+        const r=await fetch('/savoir/pensees-perso/cycle',{method:'POST',
+          headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),
+          body:JSON.stringify(sujet?{sujet:sujet}:{})});
+        if(r.status===402){if(status){status.textContent=t('pp.quota_atteint');status.style.color='var(--ko)';}}
+        else if(r.status===401){if(status){status.textContent=t('pp.mode_requis');status.style.color='var(--ko)';}}
+        else{
+          const d=await r.json();
+          if(!d.execute&&status){status.textContent=d.raison||t('pp.erreur_generique');}
+          if(inp)inp.value='';
+          await _ppChargerListe();
+        }
+      }catch(e){if(status){status.textContent=t('pp.erreur_generique');status.style.color='var(--ko)';}}
+      btn.disabled=false;btn.textContent=t('pp.declencher');
+    };
+  }
+  await _ppChargerListe();
 }
 
 /* Abonnement Stripe : etat + resiliation (section Compte) */

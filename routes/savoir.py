@@ -515,13 +515,20 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
         return {"ok": False, "voie": "interface", "raison": apercu.get("raison", "echec")}
 
     # VOIE 1/2/3 : toujours une PROPOSITION (jamais d'application directe), protegee par
-    # noyau.payload_sain() dans evolution_gouvernee.proposer() (cf. Phase 2).
+    # noyau.payload_sain() dans evolution_gouvernee.proposer() (cf. Phase 2). Un refus
+    # (payload malveillant) ne marque PAS la pensee comme "vie donnee" -> l'utilisateur
+    # voit l'echec et le bouton reste disponible (rien n'est perdu ni fige sur un refus).
     if evo and evo.get("type") and isinstance(evo.get("payload"), dict):
         payload = dict(evo["payload"])
         payload["_pensee_id"] = pensee_id
         r = _evo.proposer(evo["type"], payload, titre=p.get("titre", ""),
                           raison=evo.get("raison", "") or p.get("synthese", ""), user=user)
         r["voie"] = "propose"
+        if r.get("ok"):
+            try:
+                _pp.marquer_vie_donnee_perso(user, pensee_id)
+            except Exception:
+                pass
         return r
 
     r = _evo.proposer(
@@ -530,10 +537,11 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
          "_pensee_id": pensee_id},
         titre=p.get("titre", ""), raison=p.get("synthese", ""), user=user)
     r["voie"] = "propose"
-    try:
-        _pp.marquer_archive_perso(user, pensee_id)
-    except Exception:
-        pass
+    if r.get("ok"):
+        try:
+            _pp.marquer_vie_donnee_perso(user, pensee_id)
+        except Exception:
+            pass
     return r
 
 

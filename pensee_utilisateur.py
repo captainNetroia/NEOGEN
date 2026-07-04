@@ -389,6 +389,22 @@ def marquer_archive_perso(user: dict | None, pensee_id: str) -> dict:
     return {"ok": trouve, "id": pensee_id}
 
 
+def marquer_vie_donnee_perso(user: dict | None, pensee_id: str) -> dict:
+    """Marque qu'un 'donner-vie' a deja ete tente sur cette pensee (empeche de la
+    re-proposer indefiniment a chaque rechargement de la liste)."""
+    import time as _time
+    pensees = _lire_perso(user)
+    trouve = False
+    for p in pensees:
+        if p.get("id") == pensee_id:
+            p["vie_donnee"] = True
+            p["vie_donnee_ts"] = _time.time()
+            trouve = True
+    if trouve:
+        _reecrire_perso(user, pensees)
+    return {"ok": trouve, "id": pensee_id}
+
+
 def etat_perso(user: dict | None) -> dict:
     pensees = _lire_perso(user)
     return {
