@@ -385,6 +385,158 @@ def _user_courant(authorization: str | None):
         return None
 
 
+# ── Pensee personnelle : version publique et bridee (isolee au sac utilisateur) ──
+# Cousine de La Pensee (owner-only ci-dessus) : chaque compte web peut declencher sa
+# propre reflexion, isolee dans son sac (jamais le cerveau commun data/pensees.jsonl),
+# avec ses propres personas generiques et son propre modele (eco/local ou BYOK).
+# Toute proposition qui en ressort passe par evolution_gouvernee.proposer(user=...),
+# protegee par le garde-fou noyau.payload_sain() (voir noyau.py).
+
+@router.post("/pensees-perso/cycle")
+def pensees_perso_cycle(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+    x_llm_key: str | None = Header(default=None),
+    x_llm_provider: str | None = Header(default=None),
+    x_llm_model: str | None = Header(default=None),
+    x_llm_base: str | None = Header(default=None),
+):
+    """Declenche une session de pensee personnelle (isolee au sac de l'utilisateur).
+    Quota pensee_perso : gratuit=0, essential=10/mois, pro=40, power=150.
+    Mode eco (Ollama local) par defaut, ou BYOK (cle IA perso dans Integrations)."""
+    from routes.deps import _verifier_quota
+    from gateway import contexte_depuis_headers
+
+    _gate_auth(authorization)                                   # 401 si non connecte
+    _verifier_quota(authorization, "pensee_perso")               # 402 si palier insuffisant
+    user = _user_courant(authorization)
+
+    ctx = None
+    if x_llm_provider:
+        ctx = contexte_depuis_headers(x_llm_provider, x_llm_model, x_llm_key, x_llm_base)
+
+    import pensee_utilisateur as _pp
+    sujet = (corps or {}).get("sujet") if isinstance(corps, dict) else None
+    res = _pp.cycle_pensee_perso(user, force=True, sujet=sujet, byok_ctx=ctx)
+
+    try:
+        import quotas as _quotas
+        if user and user.get("id"):
+            _quotas.incrementer(user["id"], "pensee_perso")
+    except Exception:
+        pass
+    return res
+
+
+@router.get("/pensees-perso")
+def pensees_perso_lister(authorization: str | None = Header(default=None)):
+    """Liste les pensees personnelles de l'utilisateur (jamais celles d'un autre)."""
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    return {"pensees": _pp.lister_perso(_user_courant(authorization))}
+
+
+@router.get("/pensees-perso/bulles")
+def pensees_perso_bulles(authorization: str | None = Header(default=None)):
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    return {"bulles": _pp.bulles_non_lues_perso(_user_courant(authorization))}
+
+
+@router.post("/pensees-perso/{pensee_id}/lue")
+def pensees_perso_marquer_lue(pensee_id: str, authorization: str | None = Header(default=None)):
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    return _pp.marquer_lue_perso(_user_courant(authorization), pensee_id)
+
+
+@router.post("/pensees-perso/{pensee_id}/archiver")
+def pensees_perso_archiver(pensee_id: str, authorization: str | None = Header(default=None)):
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    return _pp.marquer_archive_perso(_user_courant(authorization), pensee_id)
+
+
+@router.get("/pensees-perso/config")
+def pensees_perso_config_get(authorization: str | None = Header(default=None)):
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    return _pp._config_perso(_user_courant(authorization))
+
+
+@router.post("/pensees-perso/config")
+def pensees_perso_config_set(
+    corps: dict = Body(default={}),
+    authorization: str | None = Header(default=None),
+):
+    """Met a jour mode (eco/byok), intervalle_min. Jamais 'fort'/'mixte' avec cle systeme."""
+    _gate_auth(authorization)
+    import pensee_utilisateur as _pp
+    user = _user_courant(authorization)
+    return _pp._set_config_perso(
+        user,
+        mode=corps.get("mode"),
+        intervalle_min=corps.get("intervalle_min"),
+    )
+
+
+@router.post("/pensees-perso/{pensee_id}/donner-vie")
+def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(default=None)):
+    """Donne vie a une pensee personnelle : meme routage a 4 voies que l'owner
+    (VOIE 0 interface -> apercu applique au sac de l'utilisateur uniquement ;
+    VOIE 1/2/3 -> proposition dans le Hub, protegee par noyau.payload_sain(), jamais
+    auto-appliquee). Un contenu malveillant est rejete ici, avant meme d'atteindre
+    le Hub de validation de Jordan."""
+    _gate_auth(authorization)
+    user = _user_courant(authorization)
+    import pensee_utilisateur as _pp
+    import evolution_gouvernee as _evo
+
+    toutes = _pp.lister_perso(user, limit=500)
+    p = next((x for x in toutes if x.get("id") == pensee_id), None)
+    if not p:
+        raise HTTPException(status_code=404, detail="pensee introuvable")
+
+    evo = p.get("evolution") if isinstance(p.get("evolution"), dict) else None
+
+    # VOIE 0 (interface) : idee visuelle -> apercu CSS, applique UNIQUEMENT au sac
+    # de l'utilisateur (jamais l'interface maitre). Reutilise forge_interface tel quel,
+    # deja concu pour ce cas (docstring forge_interface.py : isolation par sac).
+    blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
+    indices_interface = ("interface", "affichage", "css", "visuel", "apparence", "couleur", "mise en page")
+    if any(ind in blob for ind in indices_interface):
+        import forge_interface as _fi
+        idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
+        apercu = _fi.generer_apercu(idee)
+        if apercu.get("ok"):
+            return {"ok": True, "voie": "interface", "pensee_id": pensee_id,
+                    "titre": p.get("titre", ""), "css": apercu["css"],
+                    "explication": apercu.get("explication", "")}
+        return {"ok": False, "voie": "interface", "raison": apercu.get("raison", "echec")}
+
+    # VOIE 1/2/3 : toujours une PROPOSITION (jamais d'application directe), protegee par
+    # noyau.payload_sain() dans evolution_gouvernee.proposer() (cf. Phase 2).
+    if evo and evo.get("type") and isinstance(evo.get("payload"), dict):
+        payload = dict(evo["payload"])
+        payload["_pensee_id"] = pensee_id
+        r = _evo.proposer(evo["type"], payload, titre=p.get("titre", ""),
+                          raison=evo.get("raison", "") or p.get("synthese", ""), user=user)
+        r["voie"] = "propose"
+        return r
+
+    r = _evo.proposer(
+        "idee",
+        {"idee": f"{p.get('titre', '')} : {p.get('synthese', '')}".strip(),
+         "_pensee_id": pensee_id},
+        titre=p.get("titre", ""), raison=p.get("synthese", ""), user=user)
+    r["voie"] = "propose"
+    try:
+        _pp.marquer_archive_perso(user, pensee_id)
+    except Exception:
+        pass
+    return r
+
+
 @router.get("/evolution/etat")
 def evolution_etat(authorization: str | None = Header(default=None)):
     """Noyau (ADN+murs), generation courante, stores forgeables actifs."""

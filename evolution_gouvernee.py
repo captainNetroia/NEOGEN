@@ -219,6 +219,16 @@ def proposer(type_: str, payload: dict, *, titre: str = "", raison: str = "",
                         source="evolution_gouvernee")
         return {"ok": False, "refuse": True, "raison": motif, "portee": None}
 
+    # Garde-fou de contenu (injection/jailbreak/HTML dangereux) pour toute proposition
+    # venant d'un utilisateur web (sac). Le proprietaire garde son flux inchange : il est
+    # la source de confiance du contenu, ce garde ne s'applique jamais a son propre flux.
+    if _ns.a_un_sac(user):
+        sain, motif_payload = noyau.payload_sain(changement["type"], changement["payload"])
+        if not sain:
+            rob.journaliser(f"evolution refusee (payload public) : {motif_payload} ({titre})",
+                            "alerte", source="evolution_gouvernee")
+            return {"ok": False, "refuse": True, "raison": motif_payload, "portee": None}
+
     p = noyau.portee(changement["type"], user)
     changement["portee"] = p
     try:
@@ -723,6 +733,28 @@ if __name__ == "__main__":
     assert len(cl) >= 4, f"changelog={len(cl)}"
     assert generation_courante()["numero"] == 1, "toujours gen 1 (annuel)"
     print(f"  changelog generation 1 : {len(cl)} changements notifies (regle annuelle) -> OK")
+
+    # 8. proposer() : garde-fou payload_sain applique UNIQUEMENT pour un user avec sac
+    #    (public). Le flux owner (user=None ou sans sac) reste inchange.
+    import sys, types as _types
+    faux_prop = _types.ModuleType("proposeur_hub")
+    faux_prop.proposer_depuis_evolution = lambda chg: {"ok": True, "id": "test", "deja": False}
+    sys.modules["proposeur_hub"] = faux_prop
+
+    user_web = {"id": "u_test_evo_public", "email": "public@test.local"}
+    os.environ["NEOGEN_OWNER_UNLIMITED"] = ""
+
+    r = proposer("regle", {"valeur": "<script>alert(1)</script>"}, titre="x", user=user_web)
+    assert not r["ok"] and r.get("refuse"), r
+    print("  proposer() : payload malveillant REFUSE pour un user web -> OK")
+
+    r = proposer("regle", {"valeur": "<script>alert(1)</script>"}, titre="x", user=None)
+    assert r["ok"], r
+    print("  proposer() : meme payload ACCEPTE pour l'owner (user=None) -> flux inchange, OK")
+
+    r = proposer("regle", {"valeur": "prioriser par urgence"}, titre="x", user=user_web)
+    assert r["ok"], r
+    print("  proposer() : payload legitime ACCEPTE pour un user web -> OK")
 
     del os.environ["NEOGEN_OWNER_UNLIMITED"]
     print("=" * 64)

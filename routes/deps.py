@@ -185,7 +185,7 @@ def _verifier_quota(authorization: str | None, type_: str):
     v = quotas.verifier(user, type_)
     if not v["autorise"]:
         raise HTTPException(status_code=402, detail=v["raison"])
-    return user, v["premium"]
+    return user, quotas.est_premium(user)
 
 
 def _llm_client(provider=None, model=None, key=None, base=None, tier="fort"):
