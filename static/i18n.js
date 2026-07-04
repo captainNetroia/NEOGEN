@@ -11,6 +11,51 @@
 
 const TRADUCTIONS = {
   fr: {
+    'creation.titre': 'Creation',
+    'creation.sous_titre': "Construis ton produit etape par etape : intention, ADN, capacites, forge en direct.",
+    'creation.forgeron_sub': "Decris ton projet (app, SaaS, gadget), je le cree de A a Z.",
+    'creation.etape_intention': 'Intention',
+    'creation.etape_adn': 'ADN',
+    'creation.etape_composition': 'Composition',
+    'creation.etape_production': 'Production',
+    'creation.etape_forge': 'Forge',
+    'creation.decrire_intention': 'Decris ton intention',
+    'creation.intention_placeholder': 'Ex : un convertisseur de temperature celsius / fahrenheit',
+    'creation.scanner_intention': "Scanner l'intention",
+    'creation.conseils_conformite': 'Conseils (conformite)',
+    'creation.openlegi': '⊜ OpenLegi (Legifrance)',
+    'creation.notebooklm': '◫ NotebookLM',
+    'creation.intention_modifiee': 'Intention modifiee &mdash; resultats anterieurs ci-dessous',
+    'creation.refaire_analyse': "&#8635; Refaire l'analyse",
+    'creation.composer_adn': "Composer l'ADN &rsaquo;",
+    'creation.genere_adn': "Genere l'ADN : choisis les murs de gouvernance",
+    'creation.adn_help': "L'organisme propose des murs. Garde les indispensables, ajoute ou retire selon ton projet.",
+    'creation.ajouter_mur': 'Ajouter un mur :',
+    'creation.mur_custom_placeholder': 'Definir un mur personnalise...',
+    'creation.ajouter': '+ Ajouter',
+    'creation.retour': '&lsaquo; Retour',
+    'creation.valider_adn': "Valider l'ADN &rsaquo;",
+    'creation.composition_adn': "Composition de l'ADN",
+    'creation.chargement': 'Chargement...',
+    'creation.configurer_production': 'Configurer la production &rsaquo;',
+    'creation.production_capacites': 'Production : capacites et puissance',
+    'creation.production_help': "Active uniquement ce dont le projet a besoin. Plus de puissance = plus de cout.",
+    'creation.mode_juge': 'Mode juge',
+    'creation.mode_juge_desc': 'Genere 2 strategies et garde la meilleure. Plus lent, plus robuste.',
+    'creation.mode_delegation': 'Mode delegation',
+    'creation.mode_delegation_desc': "L'orchestrateur decompose en organes et delegue chacun a un sous-agent au tier adapte (fort/moyen/leger). Gouverne, visible en direct.",
+    'creation.persistance': 'Persistance',
+    'creation.persistance_desc': 'Un espace disque isole et jetable (volume dedie). Pour coffre, journal, sauvegarde.',
+    'creation.reseau': 'Reseau',
+    'creation.reseau_desc': 'Sortie reseau limitee a une liste blanche de domaines. Aucun autre acces.',
+    'creation.domaines_placeholder': 'domaines autorises, separes par virgule',
+    'creation.bureau_rpa': 'Bureau (RPA)',
+    'creation.bureau_desc': "Piloter le clavier et la souris de l'hote via l'agent local (RPA / computer-use).",
+    'creation.tentatives_reparation': "tentatives d'auto-reparation",
+    'creation.lancer_forge': 'Lancer la forge (ultracode) &rsaquo;',
+    'creation.forge_direct': 'Forge en direct',
+    'creation.produire': 'Produire',
+    'creation.archiver': 'Archiver &rsaquo;',
     'compte.preferences': 'Preferences',
     'compte.mode_sombre': 'Mode sombre',
     'compte.autorisation_agent_ecran': 'Autorisation agent ecran',
@@ -312,6 +357,51 @@ const TRADUCTIONS = {
     'mkt.outils_essentiels': 'Outils Essentiels',
   },
   en: {
+    'creation.titre': 'Creation',
+    'creation.sous_titre': 'Build your product step by step: intention, DNA, capabilities, live forge.',
+    'creation.forgeron_sub': 'Describe your project (app, SaaS, gadget), I create it from A to Z.',
+    'creation.etape_intention': 'Intention',
+    'creation.etape_adn': 'DNA',
+    'creation.etape_composition': 'Composition',
+    'creation.etape_production': 'Production',
+    'creation.etape_forge': 'Forge',
+    'creation.decrire_intention': 'Describe your intention',
+    'creation.intention_placeholder': 'Ex: a celsius / fahrenheit temperature converter',
+    'creation.scanner_intention': 'Scan the intention',
+    'creation.conseils_conformite': 'Advice (compliance)',
+    'creation.openlegi': '⊜ OpenLegi (Legifrance)',
+    'creation.notebooklm': '◫ NotebookLM',
+    'creation.intention_modifiee': 'Intention changed &mdash; previous results below',
+    'creation.refaire_analyse': '&#8635; Redo the analysis',
+    'creation.composer_adn': 'Compose the DNA &rsaquo;',
+    'creation.genere_adn': 'Generate the DNA: choose governance walls',
+    'creation.adn_help': 'The organism suggests walls. Keep the essential ones, add or remove according to your project.',
+    'creation.ajouter_mur': 'Add a wall:',
+    'creation.mur_custom_placeholder': 'Define a custom wall...',
+    'creation.ajouter': '+ Add',
+    'creation.retour': '&lsaquo; Back',
+    'creation.valider_adn': 'Validate DNA &rsaquo;',
+    'creation.composition_adn': 'DNA Composition',
+    'creation.chargement': 'Loading...',
+    'creation.configurer_production': 'Configure production &rsaquo;',
+    'creation.production_capacites': 'Production: capabilities and power',
+    'creation.production_help': 'Only activate what the project needs. More power = more cost.',
+    'creation.mode_juge': 'Judge mode',
+    'creation.mode_juge_desc': 'Generates 2 strategies and keeps the best one. Slower, more robust.',
+    'creation.mode_delegation': 'Delegation mode',
+    'creation.mode_delegation_desc': 'The orchestrator breaks down into organs and delegates each to a sub-agent at the suitable tier (strong/medium/light). Governed, visible live.',
+    'creation.persistance': 'Persistence',
+    'creation.persistance_desc': 'An isolated, disposable disk space (dedicated volume). For vault, log, backup.',
+    'creation.reseau': 'Network',
+    'creation.reseau_desc': 'Network output limited to a domain whitelist. No other access.',
+    'creation.domaines_placeholder': 'allowed domains, comma-separated',
+    'creation.bureau_rpa': 'Desktop (RPA)',
+    'creation.bureau_desc': "Control the host's keyboard and mouse via the local agent (RPA / computer-use).",
+    'creation.tentatives_reparation': 'self-repair attempts',
+    'creation.lancer_forge': 'Launch the forge (ultracode) &rsaquo;',
+    'creation.forge_direct': 'Live forge',
+    'creation.produire': 'Produce',
+    'creation.archiver': 'Archive &rsaquo;',
     'compte.preferences': 'Preferences',
     'compte.mode_sombre': 'Dark mode',
     'compte.autorisation_agent_ecran': 'Screen agent permission',
@@ -644,4 +734,37 @@ function definirLangue(langue) {
   document.documentElement.lang = langue;
 }
 
+/* Scanner data-i18n : pour du HTML STATIQUE (jamais reconstruit en JS), traduit
+   in-place sans toucher aux listeners existants. Usage dans le HTML (ui.py) :
+     <div data-i18n="creation.decrire_intention">Decris ton intention</div>
+     <textarea data-i18n-placeholder="creation.intention_placeholder" placeholder="..."></textarea>
+     <button data-i18n-title="creation.qqch" title="...">
+   IMPORTANT : ne s'applique jamais au CONTENU GENERE (idees, ADN, code produit) —
+   uniquement au texte d'interface fixe (labels, titres, placeholders). Le contenu
+   genere par l'IA garde toujours sa langue d'origine, quelle que soit la langue
+   active de l'interface (coherence demandee : une appli en anglais reste en
+   anglais meme si on bascule l'UI en francais, et inversement). */
+function scanI18n(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-i18n]').forEach(function (el) {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  scope.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+    el.setAttribute('placeholder', t(el.getAttribute('data-i18n-placeholder')));
+  });
+  scope.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+    el.setAttribute('title', t(el.getAttribute('data-i18n-title')));
+  });
+  scope.querySelectorAll('[data-i18n-sub]').forEach(function (el) {
+    el.setAttribute('data-sub', t(el.getAttribute('data-i18n-sub')));
+  });
+}
+
 document.documentElement.lang = _langueActive();
+
+/* Scan initial du HTML statique servi par le serveur (ex: section Creation).
+   DOMContentLoaded suffit : ce HTML existe deja au chargement, pas besoin
+   d'attendre app.js. Les sections reconstruites en JS (Cerveau, Evolution...)
+   passent deja leur texte par t() au moment de leur construction, donc n'ont
+   pas besoin de ce scan. */
+document.addEventListener('DOMContentLoaded', function () { scanI18n(); });

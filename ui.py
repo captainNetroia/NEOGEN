@@ -203,38 +203,38 @@ def _section_creation() -> str:
     return r"""<!-- CREATION : Studio A->Z -->
 <div id="section-creation" class="section">
   <div class="sec-header">
-    <h2><span class="sec-dot" style="background:var(--c-creation)"></span>Creation</h2>
-    <p>Construis ton produit etape par etape : intention, ADN, capacites, forge en direct.</p>
+    <h2><span class="sec-dot" style="background:var(--c-creation)"></span><span data-i18n="creation.titre">Creation</span></h2>
+    <p data-i18n="creation.sous_titre">Construis ton produit etape par etape : intention, ADN, capacites, forge en direct.</p>
   </div>
-  <div class="agent-chat-mount" data-agent="createur" data-titre="🔨 Le Forgeron" data-sub="Decris ton projet (app, SaaS, gadget), je le cree de A a Z."></div>
+  <div class="agent-chat-mount" data-agent="createur" data-titre="🔨 Le Forgeron" data-sub="Decris ton projet (app, SaaS, gadget), je le cree de A a Z." data-i18n-sub="creation.forgeron_sub"></div>
 
   <!-- Rail des etapes -->
   <div class="studio-rail" id="studio-rail">
-    <div class="srail-step active" data-step="1"><span class="srail-num">1</span><span class="srail-lbl">Intention</span></div>
-    <div class="srail-step" data-step="2"><span class="srail-num">2</span><span class="srail-lbl">ADN</span></div>
-    <div class="srail-step" data-step="3"><span class="srail-num">3</span><span class="srail-lbl">Composition</span></div>
-    <div class="srail-step" data-step="4"><span class="srail-num">4</span><span class="srail-lbl">Production</span></div>
-    <div class="srail-step" data-step="5"><span class="srail-num">5</span><span class="srail-lbl">Forge</span></div>
+    <div class="srail-step active" data-step="1"><span class="srail-num">1</span><span class="srail-lbl" data-i18n="creation.etape_intention">Intention</span></div>
+    <div class="srail-step" data-step="2"><span class="srail-num">2</span><span class="srail-lbl" data-i18n="creation.etape_adn">ADN</span></div>
+    <div class="srail-step" data-step="3"><span class="srail-num">3</span><span class="srail-lbl" data-i18n="creation.etape_composition">Composition</span></div>
+    <div class="srail-step" data-step="4"><span class="srail-num">4</span><span class="srail-lbl" data-i18n="creation.etape_production">Production</span></div>
+    <div class="srail-step" data-step="5"><span class="srail-num">5</span><span class="srail-lbl" data-i18n="creation.etape_forge">Forge</span></div>
   </div>
 
   <!-- ETAPE 1 : Intention + discernement -->
   <div class="studio-step active panel glass" data-step="1">
-    <div class="step-title">Decris ton intention</div>
-    <textarea id="intention" placeholder="Ex : un convertisseur de temperature celsius / fahrenheit"></textarea>
+    <div class="step-title" data-i18n="creation.decrire_intention">Decris ton intention</div>
+    <textarea id="intention" placeholder="Ex : un convertisseur de temperature celsius / fahrenheit" data-i18n-placeholder="creation.intention_placeholder"></textarea>
     <div class="row" style="margin-top:14px">
-      <button id="btn-scan">Scanner l'intention</button>
-      <button id="btn-conseils">Conseils (conformite)</button>
+      <button id="btn-scan" data-i18n="creation.scanner_intention">Scanner l'intention</button>
+      <button id="btn-conseils" data-i18n="creation.conseils_conformite">Conseils (conformite)</button>
     </div>
     <div class="row" style="margin-top:8px;gap:8px">
-      <button id="btn-openlegi" class="ghost" style="font-size:12px;padding:6px 12px">⊜ OpenLegi (Legifrance)</button>
-      <button id="btn-notebooklm" class="ghost" style="font-size:12px;padding:6px 12px" onclick="ouvrirNotebookLM()">◫ NotebookLM</button>
+      <button id="btn-openlegi" class="ghost" style="font-size:12px;padding:6px 12px" data-i18n="creation.openlegi">⊜ OpenLegi (Legifrance)</button>
+      <button id="btn-notebooklm" class="ghost" style="font-size:12px;padding:6px 12px" onclick="ouvrirNotebookLM()" data-i18n="creation.notebooklm">◫ NotebookLM</button>
     </div>
     <div id="outils-actifs-banner" class="outils-actifs hidden"></div>
     <div id="stale-notice" class="hidden" style="margin-top:8px;padding:5px 12px;border-radius:8px;
       background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);
       font-size:12px;color:var(--warn);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      Intention modifiee &mdash; resultats anterieurs ci-dessous
-      <button id="btn-reanalyse" style="padding:3px 10px;font-size:12px">&#8635; Refaire l'analyse</button>
+      <span data-i18n="creation.intention_modifiee">Intention modifiee &mdash; resultats anterieurs ci-dessous</span>
+      <button id="btn-reanalyse" style="padding:3px 10px;font-size:12px" data-i18n="creation.refaire_analyse">&#8635; Refaire l'analyse</button>
     </div>
     <div id="discernement" class="hidden"></div>
     <div id="conseil-box" class="hidden"></div>
@@ -242,110 +242,110 @@ def _section_creation() -> str:
     <div id="scan-status"></div>
     <div class="step-nav">
       <span></span>
-      <button id="to-step2" class="hidden">Composer l'ADN &rsaquo;</button>
+      <button id="to-step2" class="hidden" data-i18n="creation.composer_adn">Composer l'ADN &rsaquo;</button>
     </div>
   </div>
 
   <!-- ETAPE 2 : Bulles de murs (ADN) -->
   <div class="studio-step panel glass" data-step="2">
-    <div class="step-title">Genere l'ADN : choisis les murs de gouvernance</div>
-    <p class="step-help">L'organisme propose des murs. Garde les indispensables, ajoute ou retire selon ton projet.</p>
+    <div class="step-title" data-i18n="creation.genere_adn">Genere l'ADN : choisis les murs de gouvernance</div>
+    <p class="step-help" data-i18n="creation.adn_help">L'organisme propose des murs. Garde les indispensables, ajoute ou retire selon ton projet.</p>
     <div class="bulle-zone" id="bulles-murs"></div>
     <div class="bulle-add">
-      <span class="bulle-add-lbl">Ajouter un mur :</span>
+      <span class="bulle-add-lbl" data-i18n="creation.ajouter_mur">Ajouter un mur :</span>
       <div id="bulles-dispo" class="bulle-dispo-row"></div>
       <div class="bulle-custom-add">
-        <input type="text" id="mur-custom-input" placeholder="Definir un mur personnalise...">
-        <button class="ghost" id="btn-add-custom-mur">+ Ajouter</button>
+        <input type="text" id="mur-custom-input" placeholder="Definir un mur personnalise..." data-i18n-placeholder="creation.mur_custom_placeholder">
+        <button class="ghost" id="btn-add-custom-mur" data-i18n="creation.ajouter">+ Ajouter</button>
       </div>
     </div>
     <div class="caps-bulles" id="bulles-caps"></div>
     <div class="step-nav">
-      <button class="ghost" data-goto="1">&lsaquo; Retour</button>
-      <button id="to-step3">Valider l'ADN &rsaquo;</button>
+      <button class="ghost" data-goto="1" data-i18n="creation.retour">&lsaquo; Retour</button>
+      <button id="to-step3" data-i18n="creation.valider_adn">Valider l'ADN &rsaquo;</button>
     </div>
   </div>
 
   <!-- ETAPE 3 : Composition -->
   <div class="studio-step panel glass" data-step="3">
-    <div class="step-title">Composition de l'ADN</div>
-    <div id="composition-box"><div class="step-help">Chargement...</div></div>
+    <div class="step-title" data-i18n="creation.composition_adn">Composition de l'ADN</div>
+    <div id="composition-box"><div class="step-help" data-i18n="creation.chargement">Chargement...</div></div>
     <div class="step-nav">
-      <button class="ghost" data-goto="2">&lsaquo; Retour</button>
-      <button id="to-step4">Configurer la production &rsaquo;</button>
+      <button class="ghost" data-goto="2" data-i18n="creation.retour">&lsaquo; Retour</button>
+      <button id="to-step4" data-i18n="creation.configurer_production">Configurer la production &rsaquo;</button>
     </div>
   </div>
 
   <!-- ETAPE 4 : Production (capacites) -->
   <div class="studio-step panel glass" data-step="4">
-    <div class="step-title">Production : capacites et puissance</div>
-    <p class="step-help">Active uniquement ce dont le projet a besoin. Plus de puissance = plus de cout.</p>
+    <div class="step-title" data-i18n="creation.production_capacites">Production : capacites et puissance</div>
+    <p class="step-help" data-i18n="creation.production_help">Active uniquement ce dont le projet a besoin. Plus de puissance = plus de cout.</p>
     <div class="cap-choices">
       <div class="cap-card">
         <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="juger" class="toggle-inp"><span class="toggle-pill"></span></label>
-          <span class="cap-card-name">Mode juge</span>
+          <span class="cap-card-name" data-i18n="creation.mode_juge">Mode juge</span>
           <span class="cap-useful" id="useful-juger"></span>
         </div>
-        <div class="cap-card-desc">Genere 2 strategies et garde la meilleure. Plus lent, plus robuste.</div>
+        <div class="cap-card-desc" data-i18n="creation.mode_juge_desc">Genere 2 strategies et garde la meilleure. Plus lent, plus robuste.</div>
       </div>
       <div class="cap-card">
         <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="deleguer" class="toggle-inp"><span class="toggle-pill"></span></label>
-          <span class="cap-card-name">Mode delegation</span>
+          <span class="cap-card-name" data-i18n="creation.mode_delegation">Mode delegation</span>
           <span class="cap-useful" id="useful-deleguer"></span>
         </div>
-        <div class="cap-card-desc">L'orchestrateur decompose en organes et delegue chacun a un sous-agent au tier adapte (fort/moyen/leger). Gouverne, visible en direct.</div>
+        <div class="cap-card-desc" data-i18n="creation.mode_delegation_desc">L'orchestrateur decompose en organes et delegue chacun a un sous-agent au tier adapte (fort/moyen/leger). Gouverne, visible en direct.</div>
       </div>
       <div class="cap-card">
         <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="persistance" class="toggle-inp"><span class="toggle-pill"></span></label>
-          <span class="cap-card-name">Persistance</span>
+          <span class="cap-card-name" data-i18n="creation.persistance">Persistance</span>
           <span class="cap-useful" id="useful-persistance"></span>
         </div>
-        <div class="cap-card-desc">Un espace disque isole et jetable (volume dedie). Pour coffre, journal, sauvegarde.</div>
+        <div class="cap-card-desc" data-i18n="creation.persistance_desc">Un espace disque isole et jetable (volume dedie). Pour coffre, journal, sauvegarde.</div>
       </div>
       <div class="cap-card">
         <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="reseau" class="toggle-inp"><span class="toggle-pill"></span></label>
-          <span class="cap-card-name">Reseau</span>
+          <span class="cap-card-name" data-i18n="creation.reseau">Reseau</span>
           <span class="cap-useful" id="useful-reseau"></span>
         </div>
-        <div class="cap-card-desc">Sortie reseau limitee a une liste blanche de domaines. Aucun autre acces.</div>
-        <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par virgule">
+        <div class="cap-card-desc" data-i18n="creation.reseau_desc">Sortie reseau limitee a une liste blanche de domaines. Aucun autre acces.</div>
+        <input type="text" id="domaines" class="hidden" placeholder="domaines autorises, separes par virgule" data-i18n-placeholder="creation.domaines_placeholder">
       </div>
       <div class="cap-card">
         <div class="cap-card-head">
           <label class="toggle-wrap"><input type="checkbox" id="bureau" class="toggle-inp"><span class="toggle-pill"></span></label>
-          <span class="cap-card-name">Bureau (RPA)</span>
+          <span class="cap-card-name" data-i18n="creation.bureau_rpa">Bureau (RPA)</span>
           <span class="cap-useful" id="useful-bureau"></span>
         </div>
-        <div class="cap-card-desc">Piloter le clavier et la souris de l'hote via l'agent local (RPA / computer-use).</div>
+        <div class="cap-card-desc" data-i18n="creation.bureau_desc">Piloter le clavier et la souris de l'hote via l'agent local (RPA / computer-use).</div>
       </div>
     </div>
     <div class="row" style="margin-top:6px">
       <label style="color:var(--mut);font-size:13px;display:flex;align-items:center;gap:6px">
-        tentatives d'auto-reparation <input type="number" id="max" value="2" min="1" max="5">
+        <span data-i18n="creation.tentatives_reparation">tentatives d'auto-reparation</span> <input type="number" id="max" value="2" min="1" max="5">
       </label>
       <span class="power-gauge" id="power-gauge"></span>
     </div>
     <div class="step-nav">
-      <button class="ghost" data-goto="3">&lsaquo; Retour</button>
-      <button id="btn-forger">Lancer la forge (ultracode) &rsaquo;</button>
+      <button class="ghost" data-goto="3" data-i18n="creation.retour">&lsaquo; Retour</button>
+      <button id="btn-forger" data-i18n="creation.lancer_forge">Lancer la forge (ultracode) &rsaquo;</button>
     </div>
   </div>
 
   <!-- ETAPE 5 : Forge en direct (SSE) -->
   <div class="studio-step panel glass" data-step="5">
-    <div class="step-title">Forge en direct</div>
+    <div class="step-title" data-i18n="creation.forge_direct">Forge en direct</div>
     <div class="forge-flow" id="forge-flow"></div>
     <div id="deleg-flow" class="deleg-flow hidden"></div>
     <div id="strategies-dual" class="strategies-dual hidden"></div>
     <div id="forge-result"></div>
     <pre id="code-creation" class="code hidden"></pre>
     <div class="step-nav">
-      <button class="ghost" id="btn-recommencer">Produire</button>
-      <button id="btn-voir-catalogue" class="hidden">Archiver &rsaquo;</button>
+      <button class="ghost" id="btn-recommencer" data-i18n="creation.produire">Produire</button>
+      <button id="btn-voir-catalogue" class="hidden" data-i18n="creation.archiver">Archiver &rsaquo;</button>
     </div>
   </div>
 </div>
