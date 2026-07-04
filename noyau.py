@@ -135,6 +135,14 @@ _TERMES_PRESENTATION_INTERDITS = (
     "credentials", "api_key", "sk-ant", "shpat_", "owner_unlimited", "neogen_owner",
 )
 
+# Audit securite 2026-07-04 : la liste ci-dessus n'enumerait que onerror=/onload=, laissant
+# passer tout autre gestionnaire d'evenement HTML (onclick, onmouseover, onfocus, onchange,
+# onsubmit, onkeydown...) - confirme exploitable (test : <div onclick="fetch(...)"> passait le
+# filtre). Detection generique par regex de tout attribut on<lettres>= au lieu d'une
+# enumeration fragile au cas par cas.
+import re as _re_noyau
+_RE_GESTIONNAIRE_EVENEMENT = _re_noyau.compile(r"\bon[a-z]+\s*=", _re_noyau.IGNORECASE)
+
 # ---------------------------------------------------------------------------
 # Privileges : qui peut quoi.
 # ---------------------------------------------------------------------------
@@ -262,6 +270,8 @@ def presentation_sure(contenu: str) -> tuple[bool, str]:
     if not isinstance(contenu, str):
         return False, "contenu de presentation invalide"
     bas = contenu.lower()
+    if _RE_GESTIONNAIRE_EVENEMENT.search(bas):
+        return False, "attribut gestionnaire d'evenement HTML interdit en presentation (onclick, onmouseover, etc. — charte proprio : integrite/securite)"
     for terme in _TERMES_PRESENTATION_INTERDITS:
         if terme in bas:
             return False, f"terme interdit en presentation : '{terme}' (charte proprio : integrite/securite)"

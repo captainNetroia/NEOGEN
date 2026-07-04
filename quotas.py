@@ -201,8 +201,8 @@ if __name__ == "__main__":
     u_power = {"id": "__test__", "palier": "power"}
     u_ent   = {"id": "__test__", "palier": "enterprise"}
 
-    # Gratuit : 5 créations
-    for _ in range(5):
+    # Gratuit : 3 créations (LIMITES["gratuit"]["creations"])
+    for _ in range(3):
         v = verifier(u_free, "creations")
         assert v["autorise"], v
         incrementer("__test__", "creations")
@@ -214,13 +214,17 @@ if __name__ == "__main__":
     assert verifier(u_ess, "deploiement")["autorise"]
     # Gratuit : ne peut pas déployer
     assert not verifier(u_free, "deploiement")["autorise"]
-    # Pro requis pour delegation_complete
-    assert not verifier(u_ess, "delegation_complete")["autorise"]
-    assert verifier(u_pro, "delegation_complete")["autorise"]
-    # Power requis pour vision
-    assert not verifier(u_pro, "vision")["autorise"]
-    assert verifier(u_power, "vision")["autorise"]
-    # Enterprise : tout
+    # Essential requis pour delegation_complete (PALIER_REQUIS)
+    assert not verifier(u_free, "delegation_complete")["autorise"]
+    assert verifier(u_ess, "delegation_complete")["autorise"]
+    # Essential requis pour vision
+    assert not verifier(u_free, "vision")["autorise"]
+    assert verifier(u_ess, "vision")["autorise"]
+    # Pro requis pour cron_illimite
+    assert not verifier(u_ess, "cron_illimite")["autorise"]
+    assert verifier(u_pro, "cron_illimite")["autorise"]
+    # Enterprise requis pour telemetrie_privee
+    assert not verifier(u_power, "telemetrie_privee")["autorise"]
     assert verifier(u_ent, "telemetrie_privee")["autorise"]
     # Rétrocompat premium booléen → essential
     assert palier({"premium": True}) == "essential"

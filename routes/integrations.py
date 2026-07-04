@@ -1,11 +1,24 @@
 from __future__ import annotations
 import asyncio
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
-from .deps import _load_cred
+from .deps import _auth, _load_cred
 
 router = APIRouter()
+
+
+def _gate_connecte(authorization: str | None) -> None:
+    """Refuse une action d'ecriture a un anonyme. Meme garde que routes/agents.py :
+    ces integrations sont un stockage GLOBAL (une seule config partagee, injectee dans le
+    prompt systeme des agents via integ_hub.bloc_pour_prompt) - sans authentification, un
+    anonyme pouvait injecter une fausse cle ou supprimer les integrations du proprietaire
+    (audit securite 2026-07-04, aucune verification d'auth n'existait sur ces 2 routes)."""
+    import quotas
+    if quotas._owner_unlimited():
+        return
+    if not _auth(authorization):
+        raise HTTPException(status_code=401, detail="Connecte-toi a ton compte pour cette action.")
 
 
 class IntegVerifBody(BaseModel):
@@ -258,8 +271,9 @@ _KEY_VERIFIERS = {
 # ── Routes ─────────────────────────────────────────────────────────────────
 
 @router.post("/integrations/activer")
-def integrations_activer(body: dict):
+def integrations_activer(body: dict, authorization: str | None = Header(default=None)):
     """Stocke la clé d'une intégration côté serveur pour que les agents y accèdent."""
+    _gate_connecte(authorization)
     import integ_hub
     name = (body.get("name") or "").strip()
     key = (body.get("key") or "").strip()
@@ -271,8 +285,9 @@ def integrations_activer(body: dict):
 
 
 @router.delete("/integrations/activer/{name}")
-def integrations_desactiver(name: str):
+def integrations_desactiver(name: str, authorization: str | None = Header(default=None)):
     """Supprime une intégration du stockage serveur."""
+    _gate_connecte(authorization)
     import integ_hub
     integ_hub.desactiver(name)
     return {"ok": True}

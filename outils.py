@@ -172,21 +172,35 @@ _MSG_AGENT_ABSENT = ("L'agent local n'est PAS lance : impossible de controler l'
                      "ou double-clic sur Lancer-Agent-NEOGEN.bat) puis de reessayer.")
 
 
-def _agent_pret() -> bool:
+def _rpa_user_id(kw: dict) -> str:
+    """Identifiant a utiliser pour scoper la file/le contexte RPA de cet appel.
+    Le proprietaire (pas de sac, cf. user_namespace.a_un_sac) utilise l'espace
+    "__owner__" ; un utilisateur web authentifie utilise son id reel."""
+    user = kw.get("_user")
+    if isinstance(user, dict) and user.get("id"):
+        return user["id"]
+    return "__owner__"
+
+
+def _agent_pret(uid: str) -> bool:
     import rpa
-    return rpa.is_agent_connected()
+    return rpa.is_agent_connected(uid)
 
 
 def outil_controler_ecran(actions: Any = None, **kw) -> str:
     """Envoie des actions souris/clavier à l'agent local. Consentement requis côté hôte."""
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
     if not actions:
         return "Aucune action fournie."
     if isinstance(actions, dict):
         actions = [actions]
-    ids = rpa.RpaQueue.push_multiple(actions)
+    try:
+        ids = rpa.RpaQueue.push_multiple(uid, actions)
+    except rpa.ActionRpaRefusee as e:
+        return f"Action refusee : {e}"
     return (f"{len(ids)} action(s) envoyee(s) a l'agent local. "
             "L'utilisateur doit donner son consentement sur sa machine pour qu'elles s'executent.")
 
@@ -202,9 +216,10 @@ def outil_lister_routines(**kw) -> str:
 
 def outil_rejouer_routine(routine_id: str = "", **kw) -> str:
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
-    ids = rpa.replay_recording(routine_id)
+    ids = rpa.replay_recording(uid, routine_id)
     if ids is None:
         return f"Routine introuvable : {routine_id}."
     return f"Routine '{routine_id}' envoyee a l'agent local ({len(ids)} actions, consentement requis)."
@@ -213,14 +228,18 @@ def outil_rejouer_routine(routine_id: str = "", **kw) -> str:
 def outil_ouvrir_url(url: str = "", **kw) -> str:
     """Ouvre une page web dans le navigateur de l'utilisateur (via l'agent local, consentement requis)."""
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
     url = (url or "").strip()
     if not url:
         return "Aucune URL fournie."
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
-    rpa.RpaQueue.push({"action": "open_url", "url": url})
+    try:
+        rpa.RpaQueue.push(uid, {"action": "open_url", "url": url})
+    except rpa.ActionRpaRefusee as e:
+        return f"Action refusee : {e}"
     return f"Demande d'ouverture de {url} envoyee a l'agent local (consentement requis cote utilisateur)."
 
 
@@ -229,13 +248,14 @@ def outil_contexte_navigateur(**kw) -> str:
     Utilise Chrome DevTools Protocol si disponible, sinon le titre de la fenêtre."""
     import time
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
-    t0 = rpa.request_browser_context()
+    t0 = rpa.request_browser_context(uid)
     # Attendre que l'agent hôte réponde (max 5s)
     for _ in range(25):
         time.sleep(0.2)
-        ctx = rpa.get_browser_context()
+        ctx = rpa.get_browser_context(uid)
         if ctx.get("ts", 0) > t0:
             url = ctx.get("url") or "(URL non disponible — lance Chrome avec --remote-debugging-port=9222)"
             titre = ctx.get("titre") or "(titre inconnu)"
@@ -250,7 +270,8 @@ def outil_executer_mission_rpa(objectif: str = "", actions: Any = None,
     une info que seul l'utilisateur peut fournir. Tout blocage technique est géré seul."""
     import time
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
     if not objectif:
         return "Fournis un 'objectif' décrivant ce que la mission doit accomplir."
@@ -273,8 +294,12 @@ def outil_executer_mission_rpa(objectif: str = "", actions: Any = None,
         succes = False
         derniere_erreur = ""
         for tentative in range(1, MAX_RETRY + 1):
-            action_id = rpa.RpaQueue.push(action)
-            res = rpa.wait_result(action_id, timeout=30)
+            try:
+                action_id = rpa.RpaQueue.push(uid, action)
+            except rpa.ActionRpaRefusee as e:
+                rapport.append(f"  ✗ Action {i+1} refusée (liste noire) : {e}")
+                return nettoyer("\n".join(rapport))
+            res = rpa.wait_result(uid, action_id, timeout=30)
             statut = res.get("status", "timeout")
 
             if statut == "executed":
@@ -293,11 +318,11 @@ def outil_executer_mission_rpa(objectif: str = "", actions: Any = None,
 
                 if tentative < MAX_RETRY:
                     # Capture screenshot pour comprendre le blocage
-                    t_shot = rpa.request_screenshot()
+                    t_shot = rpa.request_screenshot(uid)
                     img = None
                     for _ in range(15):
                         time.sleep(0.3)
-                        img = rpa.get_screenshot(apres=t_shot)
+                        img = rpa.get_screenshot(uid, apres=t_shot)
                         if img:
                             break
                     if img:
@@ -340,19 +365,20 @@ def outil_objectif_rpa(objectif: str = "", infos_utilisateur: str = "", **kw) ->
     import json as _j
     import time as _t
     import rpa
+    uid = _rpa_user_id(kw)
     if not objectif.strip():
         return "Fournis un 'objectif' décrivant la mission en langage naturel."
-    if not _agent_pret():
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
 
     infos = infos_utilisateur.strip()
 
     # Capture screenshot pour ancrer le LLM sur l'état réel de l'écran
     screen_b64 = None
-    t_shot = rpa.request_screenshot()
+    t_shot = rpa.request_screenshot(uid)
     for _ in range(15):
         _t.sleep(0.3)
-        screen_b64 = rpa.get_screenshot(apres=t_shot)
+        screen_b64 = rpa.get_screenshot(uid, apres=t_shot)
         if screen_b64:
             break
 
@@ -434,9 +460,10 @@ def outil_remote_control(enabled: str = "on", **kw) -> str:
 def outil_fermer_onglet(**kw) -> str:
     """Ferme l'onglet actif du navigateur (raccourci Ctrl+W) via l'agent local."""
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
-    rpa.RpaQueue.push({"action": "hotkey", "keys": ["ctrl", "w"], "guard": "close_tab"})
+    rpa.RpaQueue.push(uid, {"action": "hotkey", "keys": ["ctrl", "w"], "guard": "close_tab"})
     return ("Demande de fermeture de l'onglet actif (Ctrl+W) envoyee a l'agent local. "
             "Note : si NEOGEN est l'onglet au premier plan, la fermeture sera refusee "
             "pour ne pas fermer l'application ; mets l'onglet a fermer au premier plan.")
@@ -446,13 +473,14 @@ def outil_regarder_ecran(objectif: str = "", **kw) -> str:
     """Capture l'écran de l'utilisateur et l'analyse avec un modèle vision."""
     import time
     import rpa
-    if not _agent_pret():
+    uid = _rpa_user_id(kw)
+    if not _agent_pret(uid):
         return _MSG_AGENT_ABSENT
-    t0 = rpa.request_screenshot()
+    t0 = rpa.request_screenshot(uid)
     img = None
     for _ in range(24):
         time.sleep(0.5)
-        img = rpa.get_screenshot(apres=t0)
+        img = rpa.get_screenshot(uid, apres=t0)
         if img:
             break
     if not img:

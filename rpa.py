@@ -27,12 +27,32 @@ IMITATIONS_DIR = os.path.join(DATA_DIR, "imitations")
 RPA_LOG_FILE = os.path.join(DATA_DIR, "rpa_logs.jsonl")
 CONTINU_STATE_FILE = os.path.join(DATA_DIR, "rpa_continuous.json")  # etat persiste du mode continu
 
-# File d'attente en mémoire pour l'agent RPA
-_QUEUE: list[dict] = []
-# Session d'enregistrement d'imitation active
+# Etat RPA scope par utilisateur : chaque user_id a sa propre file, ses propres
+# resultats, son propre contexte navigateur, sa propre derniere capture d'ecran
+# et son propre horodatage de ping. Cloisonnement : la file/l'ecran/le contexte
+# d'un utilisateur ne sont jamais visibles ni modifiables par un autre.
+def _etat_defaut() -> dict:
+    return {
+        "queue": [],
+        "results": {},
+        "browser_ctx": {"url": "", "titre": "", "ts": 0.0},
+        "last_screenshot": {"b64": None, "ts": 0.0},
+        "last_ping_time": 0.0,
+    }
+
+
+_ETATS: dict[str, dict] = {}
+
+
+def _etat(user_id: str) -> dict:
+    return _ETATS.setdefault(user_id, _etat_defaut())
+
+
+# Session d'enregistrement d'imitation active (mono-utilisateur : un seul
+# enregistrement manuel a la fois dans tout le systeme, comme avant le scoping ;
+# c'est un mode explicite start/stop, pas un flux permanent comme la queue RPA).
 _ACTIVE_RECORDING: list[dict] = []
 _IS_RECORDING: bool = False
-_LAST_PING_TIME: float = 0.0
 
 # ── Apprentissage continu (non-draconien) ─────────────────────────────────────
 # Au lieu d'un enregistrement manuel start/stop, l'agent observe en continu (si
@@ -47,80 +67,119 @@ IDLE_GAP = 4.0                      # secondes d'inactivite -> fin de segment
 MIN_SEGMENT = 3                     # actions minimum pour qu'un segment compte
 REPEAT_THRESHOLD = 2               # nb d'occurrences avant apprentissage auto
 
-# Dernière capture d'écran reçue de l'agent local (pour la perception/vision)
-_LAST_SCREENSHOT: dict = {"b64": None, "ts": 0.0}
 
-# Résultats des actions terminées (en attente d'être lus par wait_result)
-_RESULTS: dict[str, dict] = {}
-
-# Contexte navigateur actif (URL + titre, poussé par l'agent hôte)
-_BROWSER_CTX: dict = {"url": "", "titre": "", "ts": 0.0}
+def store_screenshot(user_id: str, b64: str) -> None:
+    """Stocke la dernière capture d'écran envoyée par l'agent local de cet utilisateur."""
+    e = _etat(user_id)
+    e["last_screenshot"]["b64"] = b64
+    e["last_screenshot"]["ts"] = time.time()
 
 
-def store_screenshot(b64: str) -> None:
-    """Stocke la dernière capture d'écran envoyée par l'agent local."""
-    _LAST_SCREENSHOT["b64"] = b64
-    _LAST_SCREENSHOT["ts"] = time.time()
-
-
-def get_screenshot(apres: float = 0.0) -> str | None:
-    """Renvoie la dernière capture si elle est plus récente que 'apres', sinon None."""
-    if _LAST_SCREENSHOT["b64"] and _LAST_SCREENSHOT["ts"] > apres:
-        return _LAST_SCREENSHOT["b64"]
+def get_screenshot(user_id: str, apres: float = 0.0) -> str | None:
+    """Renvoie la dernière capture de cet utilisateur si plus récente que 'apres'."""
+    shot = _etat(user_id)["last_screenshot"]
+    if shot["b64"] and shot["ts"] > apres:
+        return shot["b64"]
     return None
 
 
-def request_screenshot() -> float:
-    """Demande une capture d'écran à l'agent local. Renvoie l'instant de la demande
-    (sert à savoir si la capture reçue ensuite est bien postérieure)."""
+def request_screenshot(user_id: str) -> float:
+    """Demande une capture d'écran à l'agent local de cet utilisateur. Renvoie
+    l'instant de la demande (sert à savoir si la capture reçue est postérieure)."""
     t = time.time()
-    RpaQueue.push({"action": "screenshot", "guard": "screenshot"})
+    RpaQueue.push(user_id, {"action": "screenshot", "guard": "screenshot"})
     return t
 
 
-def wait_result(action_id: str, timeout: float = 30.0) -> dict:
-    """Attend le résultat d'une action RPA (bloquant). Retourne {status, error}.
-    status : 'executed' | 'failed' | 'rejected' | 'timeout'."""
+def wait_result(user_id: str, action_id: str, timeout: float = 30.0) -> dict:
+    """Attend le résultat d'une action RPA de cet utilisateur (bloquant).
+    Retourne {status, error}. status : 'executed' | 'failed' | 'rejected' | 'timeout'."""
+    results = _etat(user_id)["results"]
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if action_id in _RESULTS:
-            return _RESULTS.pop(action_id)
+        if action_id in results:
+            return results.pop(action_id)
         time.sleep(0.2)
     return {"status": "timeout", "error": f"aucun résultat après {timeout}s"}
 
 
-def store_browser_context(ctx: dict) -> None:
-    """Reçoit et stocke le contexte navigateur envoyé par l'agent hôte."""
-    _BROWSER_CTX["url"] = ctx.get("url", "")
-    _BROWSER_CTX["titre"] = ctx.get("titre", "")
-    _BROWSER_CTX["ts"] = time.time()
+def store_browser_context(user_id: str, ctx: dict) -> None:
+    """Reçoit et stocke le contexte navigateur envoyé par l'agent hôte de cet utilisateur."""
+    b = _etat(user_id)["browser_ctx"]
+    b["url"] = ctx.get("url", "")
+    b["titre"] = ctx.get("titre", "")
+    b["ts"] = time.time()
 
 
-def get_browser_context() -> dict:
-    """Retourne le dernier contexte navigateur connu (url, titre, ts)."""
-    return dict(_BROWSER_CTX)
+def get_browser_context(user_id: str) -> dict:
+    """Retourne le dernier contexte navigateur connu de cet utilisateur (url, titre, ts)."""
+    return dict(_etat(user_id)["browser_ctx"])
 
 
-def request_browser_context() -> float:
-    """Demande à l'agent hôte de lire le contexte navigateur actif.
+def request_browser_context(user_id: str) -> float:
+    """Demande à l'agent hôte de cet utilisateur de lire le contexte navigateur actif.
     Retourne le timestamp de la demande."""
     t = time.time()
-    RpaQueue.push({"action": "get_browser_context"})
+    RpaQueue.push(user_id, {"action": "get_browser_context"})
     return t
 
 
-def ping_agent():
-    global _LAST_PING_TIME
-    _LAST_PING_TIME = time.time()
+def ping_agent(user_id: str):
+    _etat(user_id)["last_ping_time"] = time.time()
 
-def is_agent_connected() -> bool:
-    return (time.time() - _LAST_PING_TIME) < 5.0
+def is_agent_connected(user_id: str) -> bool:
+    return (time.time() - _etat(user_id)["last_ping_time"]) < 5.0
+
+
+# ── Liste noire d'actions dangereuses ───────────────────────────────────────
+# Garde-fou fail-closed avant toute mise en file : une action qui matche est
+# rejetee ici, jamais transmise a l'agent local. Vise les 2 familles d'abus
+# les plus dangereuses pour un RPA public : ouvrir un handler non-http (acces
+# fichier local / execution JS hors navigateur) et invoquer un shell systeme
+# (via la combinaison Win+R puis frappe d'une commande, la voie la plus directe
+# pour un agent RPA d'obtenir une execution de code arbitraire sur l'hote).
+_SCHEMES_URL_INTERDITS = ("file:", "javascript:", "data:", "vbscript:")
+_COMMANDES_SHELL_INTERDITES = (
+    "cmd", "powershell", "pwsh", "regedit", "certutil", "mshta",
+    "wscript", "cscript", "bitsadmin", "rundll32",
+)
+
+
+class ActionRpaRefusee(Exception):
+    """Levee quand une action RPA matche la liste noire. Message propre, jamais
+    d'exception qui fuite au client."""
+
+
+def _valider_action_liste_noire(action: dict) -> None:
+    """Fail-closed : lève ActionRpaRefusee si l'action est dans la liste noire.
+    Ne bloque jamais autre chose que les motifs explicitement identifiés."""
+    act_type = (action.get("action") or "").strip().lower()
+
+    if act_type == "open_url":
+        url = (action.get("url") or "").strip().lower()
+        if any(url.startswith(s) for s in _SCHEMES_URL_INTERDITS):
+            raise ActionRpaRefusee(f"Schema d'URL non autorise : {url[:30]}")
+
+    if act_type == "type":
+        texte = (action.get("text") or "").strip().lower()
+        if any(cmd in texte for cmd in _COMMANDES_SHELL_INTERDITES):
+            raise ActionRpaRefusee("Texte contenant une commande systeme interdite.")
+
+    if act_type == "hotkey":
+        keys = [str(k).strip().lower() for k in (action.get("keys") or [])]
+        # Win+R (execution de commande) : le combo lui-meme est inoffensif, mais
+        # on le bloque par prudence car il ouvre la porte a n'importe quelle saisie
+        # ensuite (la frappe suivante n'est pas forcement liee dans la meme requete).
+        if set(keys) == {"win", "r"} or ("win" in keys and "r" in keys and len(keys) == 2):
+            raise ActionRpaRefusee("Combinaison Win+R non autorisee (ouverture Executer Windows).")
 
 
 class RpaQueue:
     @staticmethod
-    def push(action: dict) -> str:
-        """Ajoute une action à la file d'attente avec un statut 'pending'."""
+    def push(user_id: str, action: dict) -> str:
+        """Ajoute une action à la file d'attente de cet utilisateur, statut 'pending'.
+        Leve ActionRpaRefusee si l'action matche la liste noire (fail-closed)."""
+        _valider_action_liste_noire(action)
         action_id = action.get("id") or str(uuid.uuid4())
         item = {
             "id": action_id,
@@ -138,73 +197,79 @@ class RpaQueue:
             "timestamp": datetime.now().isoformat(timespec="seconds"),
             "error": None
         }
-        _QUEUE.append(item)
-        logger.info(f"[RPA QUEUE] Action push: {item['action']} ({action_id})")
+        _etat(user_id)["queue"].append(item)
+        logger.info(f"[RPA QUEUE] Action push: {item['action']} ({action_id}) user={user_id}")
         return action_id
 
     @staticmethod
-    def push_multiple(actions: list[dict]) -> list[str]:
-        """Ajoute une liste d'actions d'un coup."""
+    def push_multiple(user_id: str, actions: list[dict]) -> list[str]:
+        """Ajoute une liste d'actions d'un coup pour cet utilisateur.
+        Atomique : si une seule action de la liste matche la liste noire, AUCUNE
+        n'est poussee (evite qu'une sequence partiellement malveillante s'execute
+        en partie avant le refus)."""
+        for act in actions:
+            _valider_action_liste_noire(act)
         ids = []
         for act in actions:
-            ids.append(RpaQueue.push(act))
+            ids.append(RpaQueue.push(user_id, act))
         return ids
 
     @staticmethod
-    def get_pending() -> dict | None:
-        """Renvoie la première action en attente ('pending') et la passe en 'executing'."""
-        for item in _QUEUE:
+    def get_pending(user_id: str) -> dict | None:
+        """Renvoie la première action en attente de cet utilisateur et la passe en 'executing'."""
+        for item in _etat(user_id)["queue"]:
             if item["status"] == "pending":
                 item["status"] = "executing"
                 return item
         return None
 
     @staticmethod
-    def set_result(action_id: str, status: str, error: str | None = None) -> bool:
-        """Met à jour le statut d'une action et écrit dans le journal persistant."""
-        for item in _QUEUE:
+    def set_result(user_id: str, action_id: str, status: str, error: str | None = None) -> bool:
+        """Met à jour le statut d'une action de cet utilisateur et journalise."""
+        queue = _etat(user_id)["queue"]
+        for item in queue:
             if item["id"] == action_id:
                 item["status"] = status
                 item["error"] = error
                 item["finished_at"] = datetime.now().isoformat(timespec="seconds")
 
                 # Journalisation persistante sous NEOGEN
-                RpaQueue._log_action(item)
+                RpaQueue._log_action(user_id, item)
 
                 # Stocker le résultat AVANT de retirer (pour wait_result)
                 if status in ("executed", "failed", "rejected"):
-                    _RESULTS[action_id] = {"status": status, "error": error}
+                    _etat(user_id)["results"][action_id] = {"status": status, "error": error}
                     try:
-                        _QUEUE.remove(item)
+                        queue.remove(item)
                     except ValueError:
                         pass
                 return True
         return False
 
     @staticmethod
-    def clear() -> int:
-        """Arrêt d'urgence : vide toute la file d'attente RPA."""
-        count = len(_QUEUE)
-        # Log de l'arrêt d'urgence
-        for item in _QUEUE:
+    def clear(user_id: str) -> int:
+        """Arrêt d'urgence : vide la file d'attente RPA de cet utilisateur."""
+        queue = _etat(user_id)["queue"]
+        count = len(queue)
+        for item in queue:
             item["status"] = "cancelled"
             item["error"] = "Emergency Stop triggered"
-            RpaQueue._log_action(item)
-        _QUEUE.clear()
-        logger.warning(f"[RPA QUEUE] Emergency stop: {count} actions cancelled.")
+            RpaQueue._log_action(user_id, item)
+        queue.clear()
+        logger.warning(f"[RPA QUEUE] Emergency stop: {count} actions cancelled. user={user_id}")
         return count
 
     @staticmethod
-    def list_queue() -> list[dict]:
-        """Renvoie l'état actuel de la file."""
-        return list(_QUEUE)
+    def list_queue(user_id: str) -> list[dict]:
+        """Renvoie l'état actuel de la file de cet utilisateur."""
+        return list(_etat(user_id)["queue"])
 
     @staticmethod
-    def _log_action(item: dict):
-        """Écrit l'action dans le journal d'actions NEOGEN."""
+    def _log_action(user_id: str, item: dict):
+        """Écrit l'action dans le journal d'actions NEOGEN, avec l'utilisateur proprietaire."""
         os.makedirs(DATA_DIR, exist_ok=True)
         with open(RPA_LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            f.write(json.dumps({**item, "user_id": user_id}, ensure_ascii=False) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -433,18 +498,24 @@ def delete_recording(rec_id: str) -> bool:
         return True
     return False
 
-def replay_recording(rec_id: str) -> list[str] | None:
-    """Charge l'imitation et pousse toutes ses actions dans la file d'attente RPA."""
+def replay_recording(user_id: str, rec_id: str) -> list[str] | None:
+    """Charge l'imitation et pousse toutes ses actions dans la file d'attente de cet utilisateur."""
     rec = get_recording(rec_id)
     if not rec:
         return None
     actions = rec.get("actions", [])
-    logger.info(f"[RPA QUEUE] Replay de l'imitation '{rec_id}' ({len(actions)} actions)")
-    return RpaQueue.push_multiple(actions)
+    logger.info(f"[RPA QUEUE] Replay de l'imitation '{rec_id}' ({len(actions)} actions) user={user_id}")
+    return RpaQueue.push_multiple(user_id, actions)
 
 
 # ---------------------------------------------------------------------------
-# Intercepteur de sortie standard des conteneurs
+# Reglages de consentement — UN SEUL fichier partage (pas par utilisateur) :
+# l'agent local (rpa_agent.py) lit ce fichier directement sur disque via le
+# bind-mount Docker, sans connaitre d'user_id. Limite assumee : le niveau de
+# consentement est un reglage de la MACHINE sur laquelle l'agent est installe,
+# pas du compte NEOGEN connecte. Cloisonner ce reglage par utilisateur demanderait
+# de faire transiter l'user_id jusqu'a la lecture locale de rpa_agent.py, hors
+# perimetre de cette session (cf. plan : protocole minimal, pas le packaging complet).
 # ---------------------------------------------------------------------------
 _SETTINGS_FILE = os.path.join(DATA_DIR, "rpa_settings.json")
 _SETTINGS_DEFAULT = {"consent_level": "sequence", "sequence_duration": 120}
@@ -471,10 +542,10 @@ def save_settings(data: dict) -> dict:
     return current
 
 
-def intercepter_sorties_rpa(stdout: str) -> list[dict]:
+def intercepter_sorties_rpa(user_id: str, stdout: str) -> list[dict]:
     """
     Parcourt le stdout d'un conteneur pour y chercher les commandes RPA
-    au format RPA_ACTION:{...}. Pousse chaque action valide dans la file RPA.
+    au format RPA_ACTION:{...}. Pousse chaque action valide dans la file de cet utilisateur.
     """
     actions_trouvees = []
     for line in stdout.splitlines():
@@ -487,6 +558,92 @@ def intercepter_sorties_rpa(stdout: str) -> list[dict]:
             except Exception as e:
                 logger.error(f"[RPA DETECT] Erreur de parsing de l'action: {payload_str} : {e}")
     if actions_trouvees:
-        RpaQueue.push_multiple(actions_trouvees)
-        logger.info(f"[RPA DETECT] {len(actions_trouvees)} actions interceptées et empilées.")
+        RpaQueue.push_multiple(user_id, actions_trouvees)
+        logger.info(f"[RPA DETECT] {len(actions_trouvees)} actions interceptées et empilées. user={user_id}")
     return actions_trouvees
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("NEOGEN - RPA : auto-verification (scoping + liste noire)")
+    print("=" * 60)
+
+    # ── Cloisonnement par utilisateur ────────────────────────────────────────
+    uid_a, uid_b = "__test_rpa_a__", "__test_rpa_b__"
+    _ETATS.pop(uid_a, None)
+    _ETATS.pop(uid_b, None)
+
+    id_a = RpaQueue.push(uid_a, {"action": "click", "x": 10, "y": 20})
+    assert len(RpaQueue.list_queue(uid_a)) == 1
+    assert len(RpaQueue.list_queue(uid_b)) == 0, "la file de B ne doit jamais voir les actions de A"
+
+    store_screenshot(uid_a, "b64_a")
+    assert get_screenshot(uid_a) == "b64_a"
+    assert get_screenshot(uid_b) is None, "screenshot de A ne doit pas fuiter vers B"
+
+    store_browser_context(uid_a, {"url": "https://a.example", "titre": "A"})
+    assert get_browser_context(uid_a)["url"] == "https://a.example"
+    assert get_browser_context(uid_b)["url"] == "", "contexte navigateur de A ne doit pas fuiter vers B"
+
+    ping_agent(uid_a)
+    assert is_agent_connected(uid_a)
+    assert not is_agent_connected(uid_b), "ping de A ne doit pas connecter B"
+
+    RpaQueue.set_result(uid_a, id_a, "executed")
+    r = wait_result(uid_a, id_a, timeout=0.5)
+    assert r["status"] == "executed"
+    assert len(RpaQueue.list_queue(uid_a)) == 0, "action terminee retiree de la file"
+
+    cleared = RpaQueue.clear(uid_a)
+    assert cleared == 0, "file de A deja vide apres set_result"
+
+    _ETATS.pop(uid_a, None)
+    _ETATS.pop(uid_b, None)
+
+    # ── Liste noire d'actions dangereuses ────────────────────────────────────
+    uid_c = "__test_rpa_blacklist__"
+    _ETATS.pop(uid_c, None)
+
+    # Action normale : acceptee.
+    RpaQueue.push(uid_c, {"action": "click", "x": 1, "y": 1})
+
+    # open_url avec schema interdit : refusee, rien ajoute.
+    try:
+        RpaQueue.push(uid_c, {"action": "open_url", "url": "file:///etc/passwd"})
+        assert False, "file:// aurait du etre refuse"
+    except ActionRpaRefusee:
+        pass
+
+    # open_url http normal : acceptee.
+    RpaQueue.push(uid_c, {"action": "open_url", "url": "https://example.com"})
+
+    # type() contenant une commande shell : refusee.
+    try:
+        RpaQueue.push(uid_c, {"action": "type", "text": "powershell -c whoami"})
+        assert False, "commande powershell aurait du etre refusee"
+    except ActionRpaRefusee:
+        pass
+
+    # hotkey Win+R : refusee.
+    try:
+        RpaQueue.push(uid_c, {"action": "hotkey", "keys": ["win", "r"]})
+        assert False, "Win+R aurait du etre refuse"
+    except ActionRpaRefusee:
+        pass
+
+    # push_multiple atomique : une action refusee bloque tout le lot.
+    avant = len(RpaQueue.list_queue(uid_c))
+    try:
+        RpaQueue.push_multiple(uid_c, [
+            {"action": "click", "x": 5, "y": 5},
+            {"action": "open_url", "url": "javascript:alert(1)"},
+        ])
+        assert False, "lot avec une action interdite aurait du etre refuse en bloc"
+    except ActionRpaRefusee:
+        pass
+    assert len(RpaQueue.list_queue(uid_c)) == avant, "push_multiple doit etre atomique"
+
+    _ETATS.pop(uid_c, None)
+
+    print("  Tous les tests RPA OK (cloisonnement utilisateur + liste noire)")
+    print("=" * 60)

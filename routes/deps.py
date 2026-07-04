@@ -5,6 +5,7 @@ Helpers d'auth, JSONL, mots de passe, LLM, gestion utilisateurs.
 from __future__ import annotations
 
 import hashlib as _hl
+import hmac as _hmac
 import os as _os
 import secrets as _sec
 import uuid as _uid
@@ -69,7 +70,7 @@ def _user_by_email(email: str) -> dict | None:
 def _user_by_token(token: str) -> dict | None:
     now = _dt.utcnow().isoformat()
     for s in _rjsonl(_SESSIONS):
-        if s.get("token") == token and s.get("expires_at", "") > now:
+        if _hmac.compare_digest(s.get("token", ""), token) and s.get("expires_at", "") > now:
             uid = s.get("user_id")
             for u in _rjsonl(_USERS):
                 if u.get("id") == uid:

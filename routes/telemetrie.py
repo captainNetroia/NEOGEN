@@ -60,11 +60,23 @@ def admin_telemetrie(authorization: str = Header(None)):
     return _tele.stats_agregees()
 
 
+# Evenements que le client peut declencher lui-meme sans verification serveur externe
+# (auto-declaratifs : premiere action, streak de connexion). skill_valide/parrainage/
+# cadeau_tirage sont exclus ici car ils dependent d'un fait verifie ailleurs (validation
+# communautaire d'un skill, inscription reelle d'un filleul, tirage serveur) : les
+# exposer sur cet endpoint public permettrait de les declencher a volonte (farming GEN).
+_EVENEMENTS_CLIENT_AUTORISES = frozenset({
+    "premiere_creation", "premier_skill", "streak_7j", "telemetrie_mensuelle",
+})
+
+
 @router.post("/recompenses/declencher")
 def recompenses_declencher(body: RecompenseBody, authorization: str = Header(None)):
     user = _auth(authorization)
     if not user:
         raise HTTPException(401, "Non authentifie")
+    if body.evenement not in _EVENEMENTS_CLIENT_AUTORISES:
+        raise HTTPException(403, "Cet evenement ne peut pas etre declenche directement.")
     import recompenses as _reco
     result = _reco.declencher(user["id"], body.evenement)
     if not result["ok"] and result["raison_refus"]:

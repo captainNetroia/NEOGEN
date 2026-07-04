@@ -129,8 +129,12 @@ def executer_en_conteneur(code: str, timeout: int = 25,
             rc, out, err, path = r.returncode, r.stdout, r.stderr, ("<volume:" + volume_nom + ">" if cap.persistance else "<stdin>")
         
         if cap.bureau:
+            # TODO(dette) : Capacites(bureau=True) n'est appelee par aucun flux public
+            # aujourd'hui (grep confirme, 2026-07-04) ; "__owner__" est un espace reserve,
+            # pas un vrai scoping. A remplacer par le user_id reel le jour ou une creation
+            # avec capacite bureau devient accessible a un utilisateur non-owner.
             from rpa import intercepter_sorties_rpa
-            intercepter_sorties_rpa(out)
+            intercepter_sorties_rpa("__owner__", out)
         return rc, out, err, path
     except subprocess.TimeoutExpired:
         return -1, "", f"TIMEOUT conteneur apres {timeout}s", "<stdin>"
@@ -154,8 +158,12 @@ def executer_avec_entree(code: str, donnees: dict, timeout: int = 25,
                                                cap=cap, volume_nom=volume_nom,
                                                env_extra={"VIVARIUM_INPUT": entree_json})
         if cap.bureau:
+            # TODO(dette) : Capacites(bureau=True) n'est appelee par aucun flux public
+            # aujourd'hui (grep confirme, 2026-07-04) ; "__owner__" est un espace reserve,
+            # pas un vrai scoping. A remplacer par le user_id reel le jour ou une creation
+            # avec capacite bureau devient accessible a un utilisateur non-owner.
             from rpa import intercepter_sorties_rpa
-            intercepter_sorties_rpa(out)
+            intercepter_sorties_rpa("__owner__", out)
         return _extraire_resultat(rc, out, err)
 
     cmd = ["docker", "run", "-i"] + FLAGS_INVARIANTS + ["--network", "none"]

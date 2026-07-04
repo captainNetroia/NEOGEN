@@ -130,8 +130,11 @@ def fabriquer(intention, forger_fn, generer_fn, *, reparer=True, max_tentatives=
         _emit({"stade": "conteneur", "tentative": t, "msg": "execution en conteneur durci"})
         rc, out, err, _ = executer_isole(module.code, cap=cap, volume_nom=volume_nom)
         if cap is not None and getattr(cap, "bureau", False):
+            # TODO(dette) : voir executeur_conteneur.py — "__owner__" est un espace
+            # reserve, pas un vrai scoping. Aucun flux public n'utilise bureau=True
+            # aujourd'hui (2026-07-04).
             from rpa import intercepter_sorties_rpa
-            intercepter_sorties_rpa(out)
+            intercepter_sorties_rpa("__owner__", out)
         if rc == 0:
             succes, verdict, code_final = True, f"execute OK (tentative {t})", module.code
             _emit({"stade": "execution", "ok": True, "tentative": t, "msg": "le produit tourne"})

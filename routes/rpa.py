@@ -18,6 +18,31 @@ def _gate_owner(authorization: str | None = None):
     raise HTTPException(status_code=403, detail="Section réservée au propriétaire.")
 
 
+def _gate_rpa(authorization: str | None = None) -> str:
+    """Authentifie l'appelant pour un endpoint RPA et renvoie le user_id à utiliser
+    pour scoper sa file/ses résultats/son contexte navigateur. Le propriétaire
+    (instance perso ou palier enterprise) a un accès illimité sous l'id "__owner__".
+    Sinon : compte connecté obligatoire (401) + palier minimum "essential" pour le
+    RPA (402), cf. quotas.PALIER_REQUIS["rpa"]."""
+    if _quotas._owner_unlimited():
+        return "__owner__"
+    user = _auth(authorization)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Non authentifié.")
+    if _quotas.palier(user) == "enterprise":
+        return "__owner__"
+    v = _quotas.verifier(user, "rpa")
+    if not v["autorise"]:
+        raise HTTPException(status_code=402, detail=v["raison"])
+    return user["id"]
+
+
+def _refuser_si_liste_noire(exc: Exception):
+    if isinstance(exc, rpa.ActionRpaRefusee):
+        raise HTTPException(status_code=400, detail=str(exc))
+    raise exc
+
+
 class RpaContinuousBody(BaseModel):
     enabled: bool
 
@@ -37,53 +62,59 @@ class RpaRecordStopBody(BaseModel):
 
 
 @router.post("/rpa/agent/ping")
-def rpa_ping():
-    rpa.ping_agent()
+def rpa_ping(authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    rpa.ping_agent(uid)
     return {"recording": rpa.is_recording() or rpa.is_continuous(),
             "continuous": rpa.is_continuous()}
 
 
 @router.post("/rpa/continuous")
 def rpa_continuous_set(body: RpaContinuousBody, authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     if body.enabled:
-        import quotas
-        if not quotas.verifier(_auth(authorization), "apprentissage_continu")["autorise"]:
+        if not _quotas.verifier(_auth(authorization), "apprentissage_continu")["autorise"]:
             raise HTTPException(status_code=402,
                                 detail="L'apprentissage continu est reserve a la version premium.")
     return {"enabled": rpa.set_continuous(body.enabled)}
 
 
 @router.get("/rpa/continuous")
-def rpa_continuous_get():
+def rpa_continuous_get(authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     return rpa.continuous_status()
 
 
 @router.get("/rpa/status")
-def rpa_status():
-    return {"connected": rpa.is_agent_connected(), "recording": rpa.is_recording(),
-            "queue_len": len(rpa.RpaQueue.list_queue())}
+def rpa_status(authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    return {"connected": rpa.is_agent_connected(uid), "recording": rpa.is_recording(),
+            "queue_len": len(rpa.RpaQueue.list_queue(uid))}
 
 
 @router.get("/rpa/pending")
-def rpa_pending():
-    act = rpa.RpaQueue.get_pending()
+def rpa_pending(authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    act = rpa.RpaQueue.get_pending(uid)
     if not act:
         raise HTTPException(status_code=404, detail="No pending actions")
     return act
 
 
 @router.post("/rpa/screenshot")
-def rpa_screenshot(body: dict):
+def rpa_screenshot(body: dict, authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
     img = body.get("image", "")
     if not img:
         raise HTTPException(status_code=400, detail="image manquante")
-    rpa.store_screenshot(img)
+    rpa.store_screenshot(uid, img)
     return {"ok": True}
 
 
 @router.post("/rpa/action/result")
-def rpa_action_result(body: RpaResultBody):
-    ok = rpa.RpaQueue.set_result(body.id, body.status, body.error)
+def rpa_action_result(body: RpaResultBody, authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    ok = rpa.RpaQueue.set_result(uid, body.id, body.status, body.error)
     if not ok:
         raise HTTPException(status_code=404, detail="Action not found")
     return {"ok": True}
@@ -91,32 +122,38 @@ def rpa_action_result(body: RpaResultBody):
 
 @router.post("/rpa/clear")
 def rpa_clear(authorization: str | None = Header(default=None)):
-    _gate_owner(authorization)
-    count = rpa.RpaQueue.clear()
+    uid = _gate_rpa(authorization)
+    count = rpa.RpaQueue.clear(uid)
     return {"cleared": count}
 
 
 @router.post("/rpa/execute")
 def rpa_execute(body: RpaExecuteBody, authorization: str | None = Header(default=None)):
-    _gate_owner(authorization)
-    ids = rpa.RpaQueue.push_multiple(body.actions)
+    uid = _gate_rpa(authorization)
+    try:
+        ids = rpa.RpaQueue.push_multiple(uid, body.actions)
+    except rpa.ActionRpaRefusee as e:
+        _refuser_si_liste_noire(e)
     return {"ids": ids}
 
 
 @router.post("/rpa/record/start")
-def rpa_record_start():
+def rpa_record_start(authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     rpa.start_recording()
     return {"ok": True}
 
 
 @router.post("/rpa/record/action")
-def rpa_record_action(action: dict):
+def rpa_record_action(action: dict, authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     rpa.add_recorded_action(action)
     return {"ok": True}
 
 
 @router.post("/rpa/record/stop")
-def rpa_record_stop(body: RpaRecordStopBody):
+def rpa_record_stop(body: RpaRecordStopBody, authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     rec = rpa.stop_recording(body.name)
     if not rec:
         raise HTTPException(status_code=400, detail="Recording not active")
@@ -124,12 +161,14 @@ def rpa_record_stop(body: RpaRecordStopBody):
 
 
 @router.get("/rpa/recordings")
-def rpa_list_recordings():
+def rpa_list_recordings(authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     return {"recordings": rpa.list_recordings()}
 
 
 @router.get("/rpa/recordings/{rec_id}")
-def rpa_get_recording(rec_id: str):
+def rpa_get_recording(rec_id: str, authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     rec = rpa.get_recording(rec_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Recording not found")
@@ -137,20 +176,26 @@ def rpa_get_recording(rec_id: str):
 
 
 @router.post("/rpa/browser_context")
-def rpa_store_browser_context(body: dict):
-    rpa.store_browser_context(body)
+def rpa_store_browser_context(body: dict, authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    rpa.store_browser_context(uid, body)
     return {"ok": True}
 
 
 @router.get("/rpa/browser_context")
-def rpa_get_browser_context():
-    return rpa.get_browser_context()
+def rpa_get_browser_context(authorization: str | None = Header(default=None)):
+    uid = _gate_rpa(authorization)
+    return rpa.get_browser_context(uid)
 
 
 # ── Settings (consent level) ────────────────────────────────────────────────
+# Réglage global partagé (pas par utilisateur) : voir le commentaire dans rpa.py
+# au-dessus de _SETTINGS_FILE — c'est un paramètre de la MACHINE hôte de l'agent,
+# pas du compte NEOGEN connecté.
 
 @router.get("/rpa/settings")
-def rpa_settings_get():
+def rpa_settings_get(authorization: str | None = Header(default=None)):
+    _gate_rpa(authorization)
     return rpa.get_settings()
 
 
@@ -168,7 +213,7 @@ class RpaGoalBody(BaseModel):
 
 
 @router.post("/rpa/goal")
-def rpa_goal(body: RpaGoalBody):
+def rpa_goal(body: RpaGoalBody, authorization: str | None = Header(default=None)):
     """
     Mode Objectif : l'utilisateur décrit une mission en langage naturel.
     Le LLM analyse l'écran actuel + l'objectif, génère un plan d'actions RPA,
@@ -179,7 +224,9 @@ def rpa_goal(body: RpaGoalBody):
     import gateway as _gw
     import outils as _outils
 
-    if not rpa.is_agent_connected():
+    uid = _gate_rpa(authorization)
+
+    if not rpa.is_agent_connected(uid):
         return {"erreur": "Agent RPA non connecté. Lance rpa_agent.py sur ton poste."}
 
     objectif = body.objectif.strip()
@@ -187,10 +234,10 @@ def rpa_goal(body: RpaGoalBody):
 
     # Capture screenshot pour donner le contexte écran au LLM
     screen_b64 = None
-    t_shot = rpa.request_screenshot()
+    t_shot = rpa.request_screenshot(uid)
     for _ in range(15):
         _time.sleep(0.3)
-        screen_b64 = rpa.get_screenshot(apres=t_shot)
+        screen_b64 = rpa.get_screenshot(uid, apres=t_shot)
         if screen_b64:
             break
 
@@ -254,9 +301,13 @@ def rpa_goal(body: RpaGoalBody):
     if not actions:
         return {"erreur": "Aucune action générée pour cet objectif."}
 
-    rapport = _outils.outil_executer_mission_rpa(
-        objectif=objectif,
-        actions=actions,
-        infos_utilisateur=infos_util,
-    )
+    try:
+        rapport = _outils.outil_executer_mission_rpa(
+            objectif=objectif,
+            actions=actions,
+            infos_utilisateur=infos_util,
+            _user={"id": uid},
+        )
+    except rpa.ActionRpaRefusee as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"rapport": rapport}

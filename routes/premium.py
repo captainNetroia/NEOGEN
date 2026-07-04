@@ -45,7 +45,6 @@ class DonBody(BaseModel):
 
 class CreditsDepenseBody(BaseModel):
     fonction: str
-    montant: int | None = None
 
 
 class CreditsRechargerBody(BaseModel):
@@ -344,10 +343,13 @@ def credits_depenser(body: CreditsDepenseBody, authorization: str = Header(None)
     import credits as _cred
     import quotas as _q
     p = _q.palier(user)
-    montant = body.montant if body.montant is not None else (_cred.cout(body.fonction, p) or 0)
-    if montant is None:
+    # SECURITE : le montant n'est JAMAIS accepte depuis le client (vuln critique corrigee -
+    # un montant negatif permettait de se crediter au lieu de se debiter). Toujours derive du
+    # bareme serveur COUTS, jamais du body de la requete.
+    cout = _cred.cout(body.fonction, p)
+    if cout is None:
         raise HTTPException(402, f"'{body.fonction}' non disponible sur le palier {p}.")
-    result = _cred.debiter(user["id"], montant, body.fonction)
+    result = _cred.debiter(user["id"], cout, body.fonction)
     if not result["ok"]:
         raise HTTPException(402, f"Solde GEN insuffisant ({result['manque']} GEN manquants).")
     return result

@@ -105,6 +105,14 @@ def debiter(
     Débite des GEN. Retourne {ok, solde_avant, solde_apres, manque}.
     Si solde insuffisant → ok=False, aucune modification.
     """
+    if not isinstance(montant, int) or montant < 0:
+        # Garde-fou critique : un montant negatif ici inverserait le sens de l'operation
+        # (avant - montant_negatif = credit deguise). Fail-closed : jamais de debit avec un
+        # montant negatif, peu importe l'appelant. montant == 0 reste autorise (action
+        # gratuite sur un palier premium, ex: cout 0 pour "mode_juge" en enterprise) : c'est
+        # un no-op legitime, pas une tentative d'exploit.
+        return {"ok": False, "solde_avant": solde(user_id), "solde_apres": solde(user_id),
+                "manque": 0, "erreur": "montant invalide"}
     with _LOCK:
         data = _lire_soldes()
         avant = data.get(user_id, 0)
@@ -113,11 +121,14 @@ def debiter(
                     "manque": montant - avant}
         data[user_id] = avant - montant
         _ecrire_soldes(data)
-        _append_txn({
-            "user_id": user_id, "ts": time.time(), "type": "spend",
-            "montant": -montant, "description": description,
-            "metadata": {"fonction": fonction},
-        })
+        if montant > 0:
+            # Pas de transaction journalisee pour un debit a 0 GEN (aucun mouvement reel,
+            # eviter de polluer l'historique avec des lignes "spend -0").
+            _append_txn({
+                "user_id": user_id, "ts": time.time(), "type": "spend",
+                "montant": -montant, "description": description,
+                "metadata": {"fonction": fonction},
+            })
         return {"ok": True, "solde_avant": avant, "solde_apres": data[user_id], "manque": 0}
 
 
@@ -170,9 +181,17 @@ if __name__ == "__main__":
     assert solde(uid) == 70
     h = historique(uid)
     assert len(h) == 2
-    assert cout("mode_juge", "gratuit") == 5
-    assert cout("mode_juge", "power") == 0
+    assert cout("mode_juge", "gratuit") is None
+    assert cout("mode_juge", "power") == 30
     assert cout("delegation_complete", "gratuit") is None
+    # montant == 0 : no-op legitime (ex. fonction gratuite sur un palier premium), pas un refus
+    r3 = debiter(uid, 0, "mode_juge")
+    assert r3["ok"] and r3["solde_apres"] == 70
+    # montant negatif : refuse fail-closed (vuln critique corrigee 2026-07-04 : un montant
+    # negatif inversait le sens de l'operation et permettait de se crediter au lieu de se
+    # debiter). Le solde ne doit JAMAIS bouger.
+    r4 = debiter(uid, -500, "mode_juge")
+    assert not r4["ok"] and solde(uid) == 70
 
     globals()["SOLDES_FILE"] = SOLDES_FILE_BAK
     globals()["TXNS_FILE"]   = TXNS_FILE_BAK

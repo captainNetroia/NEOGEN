@@ -22,6 +22,7 @@ import json as _json
 from pathlib import Path
 
 _SETTINGS_PATH = Path(__file__).parent / "data" / "rpa_settings.json"
+_TOKEN_PATH = Path(__file__).parent / "data" / "rpa_agent_token.txt"
 
 
 def _lire_settings() -> dict:
@@ -32,6 +33,34 @@ def _lire_settings() -> dict:
     except Exception:
         pass
     return {"consent_level": "sequence", "sequence_duration": 120}
+
+
+def _lire_token() -> str:
+    """Lit le token de session utilisateur qui identifie cet agent au serveur.
+    Priorite : variable d'environnement NEOGEN_RPA_TOKEN, sinon fichier local
+    data/rpa_agent_token.txt (colle ton token de session NEOGEN dedans)."""
+    import os as _os
+    tok = _os.environ.get("NEOGEN_RPA_TOKEN", "").strip()
+    if tok:
+        return tok
+    try:
+        if _TOKEN_PATH.exists():
+            return _TOKEN_PATH.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    return ""
+
+
+_TOKEN = _lire_token()
+_AUTH_HEADERS = {"Authorization": f"Bearer {_TOKEN}"} if _TOKEN else {}
+
+if not _TOKEN:
+    print("\n" + "=" * 68)
+    print("ATTENTION : aucun token trouve (NEOGEN_RPA_TOKEN ou data/rpa_agent_token.txt).")
+    print("L'agent va demarrer mais le serveur refusera ses requetes (401).")
+    print("Connecte-toi sur NEOGEN, recupere ton token de session, et colle-le dans :")
+    print(f"  {_TOKEN_PATH}")
+    print("=" * 68 + "\n")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("NEOGEN-Agent")
@@ -242,7 +271,7 @@ def _capturer_et_envoyer() -> tuple[bool, str | None]:
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode()
-        requests.post(f"{SERVER_URL}/rpa/screenshot", json={"image": b64}, timeout=10)
+        requests.post(f"{SERVER_URL}/rpa/screenshot", json={"image": b64}, headers=_AUTH_HEADERS, timeout=10)
         return True, None
     except Exception as e:
         return False, f"capture écran échouée : {e}"
@@ -301,7 +330,7 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
         elif act_type == "get_browser_context":
             ctx = _get_browser_context()
             try:
-                requests.post(f"{SERVER_URL}/rpa/browser_context", json=ctx, timeout=5)
+                requests.post(f"{SERVER_URL}/rpa/browser_context", json=ctx, headers=_AUTH_HEADERS, timeout=5)
             except Exception as e:
                 return False, f"envoi contexte navigateur échoué : {e}"
             return True, None
@@ -322,7 +351,7 @@ def executer_physique(action: dict) -> tuple[bool, str | None]:
 def send_recorded_action(action_data: dict):
     """Envoie une action utilisateur capturée au backend NEOGEN."""
     try:
-        requests.post(f"{SERVER_URL}/rpa/record/action", json=action_data, timeout=2)
+        requests.post(f"{SERVER_URL}/rpa/record/action", json=action_data, headers=_AUTH_HEADERS, timeout=2)
     except Exception as e:
         logger.error(f"Impossible d'envoyer l'action enregistrée : {e}")
 
@@ -392,7 +421,7 @@ def ping_loop():
     """Signale la présence de l'agent au serveur toutes les 2 secondes."""
     while running:
         try:
-            r = requests.post(f"{SERVER_URL}/rpa/agent/ping", timeout=2)
+            r = requests.post(f"{SERVER_URL}/rpa/agent/ping", headers=_AUTH_HEADERS, timeout=2)
             if r.status_code == 200:
                 data = r.json()
                 # Activer/Désactiver l'enregistrement selon l'ordre du serveur
@@ -408,7 +437,7 @@ def poll_loop():
     while running:
         try:
             # Récupérer l'action suivante
-            r = requests.get(f"{SERVER_URL}/rpa/pending", timeout=3)
+            r = requests.get(f"{SERVER_URL}/rpa/pending", headers=_AUTH_HEADERS, timeout=3)
             if r.status_code == 200:
                 action = r.json()
                 if action and "id" in action:
@@ -425,26 +454,26 @@ def poll_loop():
                             logger.info("  Action exécutée avec succès.")
                             requests.post(f"{SERVER_URL}/rpa/action/result", json={
                                 "id": action_id, "status": "executed"
-                            })
+                            }, headers=_AUTH_HEADERS)
                         else:
                             logger.error(f"  Échec de l'exécution : {err}")
                             requests.post(f"{SERVER_URL}/rpa/action/result", json={
                                 "id": action_id, "status": "failed", "error": err
-                            })
+                            }, headers=_AUTH_HEADERS)
                     elif decision == "rejected":
                         logger.warning("  Action rejetée par l'utilisateur.")
                         requests.post(f"{SERVER_URL}/rpa/action/result", json={
                             "id": action_id, "status": "rejected"
-                        })
+                        }, headers=_AUTH_HEADERS)
                     else:
                         logger.warning("  Arrêt d'urgence demandé !")
                         global _auto_approve_until
                         _auto_approve_until = 0.0  # coupe l'auto-approbation en cours
                         # Vider la file côté serveur
-                        requests.post(f"{SERVER_URL}/rpa/clear")
+                        requests.post(f"{SERVER_URL}/rpa/clear", headers=_AUTH_HEADERS)
                         requests.post(f"{SERVER_URL}/rpa/action/result", json={
                             "id": action_id, "status": "rejected", "error": "Emergency stop"
-                        })
+                        }, headers=_AUTH_HEADERS)
             elif r.status_code == 404:
                 # Aucune action en attente
                 pass
