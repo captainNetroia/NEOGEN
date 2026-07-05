@@ -31,6 +31,9 @@ services:
       - NEOGEN_OWNER_EMAIL=${NEOGEN_OWNER_EMAIL:-}
       # Secret de maintenance (correction de donnees sans SSH) — vide = endpoint desactive (fail-closed)
       - NEOGEN_MAINTENANCE_SECRET=${NEOGEN_MAINTENANCE_SECRET:-}
+      # Base Ollama (mode eco) : host.docker.internal marche sur Docker Desktop (Mac/Windows),
+      # jamais sur Linux -> surcharger via .env avec l'IP de la passerelle du reseau compose.
+      - NEOGEN_OLLAMA_BASE=${NEOGEN_OLLAMA_BASE:-http://host.docker.internal:11434/v1}
     volumes:
       # socket Docker : permet de lancer les conteneurs durcis du code genere
       - /var/run/docker.sock:/var/run/docker.sock

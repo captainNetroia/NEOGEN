@@ -50,6 +50,9 @@ services:
       - NEOGEN_ALLOW_DEFAULT_KEY=0
       # Secret de maintenance (correction de donnees sans SSH) — depuis le .env du VPS ; vide = desactive
       - NEOGEN_MAINTENANCE_SECRET=${NEOGEN_MAINTENANCE_SECRET:-}
+      # Base Ollama (mode eco) : host.docker.internal marche sur Docker Desktop (Mac/Windows),
+      # jamais sur Linux -> surcharger via .env avec l'IP de la passerelle du reseau compose.
+      - NEOGEN_OLLAMA_BASE=${NEOGEN_OLLAMA_BASE:-http://host.docker.internal:11434/v1}
       # Docker pointe sur le proxy (pas le socket direct)
       - DOCKER_HOST=tcp://socket-proxy:2375
     networks:
