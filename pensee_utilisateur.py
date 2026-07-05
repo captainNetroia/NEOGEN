@@ -186,7 +186,8 @@ def converser_perso(user: dict | None, sujet: str | None = None,
         res = cl.messages.create(
             system=systeme,
             messages=[{"role": "user", "content": consigne}],
-            max_tokens=1200,
+            max_tokens=6000,  # marge large : certains modeles BYOK "reasoning" consomment
+            response_json=True,  # des tokens de reflexion caches avant la reponse
         )
         brut = _texte_de(res)
         data = _parser_json(brut)

@@ -246,6 +246,7 @@ class _AnthropicAdapter(_BaseAdapter):
         return self._c.messages.parse(model=self.model, **self._adapter_kw(kw))
 
     def _create(self, **kw):
+        kw.pop("response_json", None)  # specifique OpenAI-compat/Gemini, sans equivalent Anthropic
         return self._c.messages.create(model=self.model, **self._adapter_kw(kw))
 
 
@@ -308,8 +309,8 @@ class _OpenAICompatAdapter(_BaseAdapter):
             raise RuntimeError(nettoyer(f"{self.provider} : JSON non conforme au schema : {e}"))
         return _ParseResult(parsed)
 
-    def _create(self, *, system=None, messages, max_tokens=None, **kw):
-        return _CreateResult(self._chat(system, messages, max_tokens, response_json=False))
+    def _create(self, *, system=None, messages, max_tokens=None, response_json=False, **kw):
+        return _CreateResult(self._chat(system, messages, max_tokens, response_json=response_json))
 
 
 class _GeminiAdapter(_BaseAdapter):
@@ -358,8 +359,8 @@ class _GeminiAdapter(_BaseAdapter):
             raise RuntimeError(nettoyer(f"gemini : JSON non conforme au schema : {e}"))
         return _ParseResult(parsed)
 
-    def _create(self, *, system=None, messages, max_tokens=None, **kw):
-        return _CreateResult(self._gen(system, messages, max_tokens, response_json=False))
+    def _create(self, *, system=None, messages, max_tokens=None, response_json=False, **kw):
+        return _CreateResult(self._gen(system, messages, max_tokens, response_json=response_json))
 
 
 # ---------------------------------------------------------------------------

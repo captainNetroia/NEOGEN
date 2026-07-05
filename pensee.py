@@ -72,7 +72,7 @@ THROTTLE_S = 60           # garde-fou anti-rafale (cycle_pensee force=False)
 _MODES = ("eco", "fort", "mixte")
 
 # Ordre de preference des providers externes pour les modes fort/mixte.
-_PROVIDERS_PREF = ("anthropic", "openai", "mistral", "deepseek", "gemini")
+_PROVIDERS_PREF = ("deepseek", "anthropic", "openai", "mistral", "gemini", "moonshot", "glm")
 
 
 # ── Configuration (data/pensee_config.json) ─────────────────────────────────────
@@ -130,10 +130,25 @@ def _config_valide(cfg: dict) -> dict:
 
 # ── Resolution du client LLM selon le mode ──────────────────────────────────────
 
+def _client_repond(cl) -> bool:
+    """Verifie qu'un client LLM repond REELLEMENT (pas juste que la cle existe) : un
+    credit epuise ou une cle invalide renvoie une exception a l'appel, jamais a la
+    construction du client. Test minimal, peu couteux. Ne leve jamais."""
+    try:
+        res = cl.messages.create(
+            messages=[{"role": "user", "content": "ok"}],
+            max_tokens=5,
+        )
+        return bool(_texte_de(res) or True)  # une reponse (meme vide) = le provider repond
+    except Exception:
+        return False
+
+
 def _resoudre_client(mode: str):
     """Renvoie (client, tier, mode_effectif). eco -> Ollama local (gratuit).
-    fort/mixte -> 1er provider systeme dont la cle existe (credentials/), repli eco
-    + alerte si aucune cle. Aucune cle n'est jamais loguee ni stockee."""
+    fort/mixte -> 1er provider systeme dont la cle existe ET qui repond REELLEMENT a un
+    appel de test (credit epuise/cle invalide -> passe au suivant), repli eco + alerte
+    si aucun provider ne repond. Aucune cle n'est jamais loguee ni stockee."""
     import gateway
     mode = mode if mode in _MODES else "eco"
 
@@ -141,12 +156,21 @@ def _resoudre_client(mode: str):
         import credentials_loader
         for prov in _PROVIDERS_PREF:
             cle = credentials_loader.cle_provider(prov)
-            if cle:
-                tier = "fort" if mode == "fort" else "moyen"
+            if not cle:
+                continue
+            tier = "fort" if mode == "fort" else "moyen"
+            try:
                 ctx = gateway.LLMContext(provider=prov, api_key=cle)
-                return gateway.client(ctx, tier=tier), tier, mode
+                cl = gateway.client(ctx, tier=tier)
+            except Exception:
+                continue
+            if _client_repond(cl):
+                return cl, tier, mode
+            rob.journaliser(
+                f"pensee : provider '{prov}' indisponible (cle presente mais appel echoue) -> essai suivant",
+                "alerte", source="pensee")
         rob.journaliser(
-            f"pensee : mode '{mode}' demande sans cle systeme -> repli eco/local",
+            f"pensee : mode '{mode}' demande, aucun provider systeme disponible -> repli eco/local",
             "alerte", source="pensee")
         # repli eco
 
@@ -424,7 +448,8 @@ def converser(ambiance: dict | None = None, mode: str | None = None,
         res = cl.messages.create(
             system=systeme,
             messages=[{"role": "user", "content": consigne}],
-            max_tokens=1400,
+            max_tokens=6000,  # marge large : les modeles "reasoning" (deepseek-v4-pro...)
+            response_json=True,  # consomment des tokens de reflexion caches avant la reponse
         )
         brut = _texte_de(res)
         data = _parser_json(brut)

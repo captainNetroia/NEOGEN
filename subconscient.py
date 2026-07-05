@@ -147,7 +147,7 @@ def rever(client=None) -> dict | None:
             cl = client or _client_reve()
             resp = parse_resilient(
                 cl, model=getattr(cl, "model", None) or gateway.TIERS["anthropic"]["moyen"],
-                max_tokens=1200, system=systeme,
+                max_tokens=4000, system=systeme,  # marge reasoning (deepseek-v4-pro...)
                 messages=[{"role": "user", "content": message}],
                 output_format=Reve,
             )
