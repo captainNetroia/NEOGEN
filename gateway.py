@@ -130,7 +130,7 @@ _OPENAI_COMPAT = {
 }
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
-_TIMEOUT = httpx.Timeout(180.0, connect=15.0)
+_TIMEOUT = httpx.Timeout(400.0, connect=15.0)  # Ollama CPU-only : ~6 tok/s, 2000 tok peut prendre >180s
 
 
 # ---------------------------------------------------------------------------
