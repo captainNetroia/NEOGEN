@@ -461,9 +461,16 @@ def converser(ambiance: dict | None = None, mode: str | None = None,
         rob.journaliser("pensee : sortie LLM non parsable -> ignoree", "alerte", source="pensee")
         return None
 
+    def _texte(v) -> str:
+        """Normalise un champ attendu 'texte' : certains modeles faibles renvoient une
+        liste de phrases au lieu d'une chaine -> jointure au lieu de planter sur .strip()."""
+        if isinstance(v, list):
+            v = " ".join(str(x) for x in v)
+        return str(v or "").strip()
+
     typ = data.get("type") if data.get("type") in TYPES_PENSEE else random.choice(TYPES_PENSEE)
     transcript = data.get("transcript") if isinstance(data.get("transcript"), list) else []
-    synthese = (data.get("synthese") or "").strip() or (data.get("titre") or "").strip()
+    synthese = _texte(data.get("synthese")) or _texte(data.get("titre"))
     if not synthese:
         return None
     try:
@@ -481,7 +488,7 @@ def converser(ambiance: dict | None = None, mode: str | None = None,
         "participants": [p["titre"] for p in participants],
         "transcript": transcript,
         "type": typ,
-        "titre": (data.get("titre") or synthese)[:120],
+        "titre": (_texte(data.get("titre")) or synthese)[:120],
         "synthese": synthese[:800],
         "interet": round(interet, 3),
         "mode": mode_eff,
