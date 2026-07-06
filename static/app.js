@@ -2790,6 +2790,7 @@ const INTEG_DEFS={
     keyPh:'Cle API Runway...',
     desc:'Generation video IA — clips et effets visuels depuis les agents'},
   magnific:{name:'Magnific',icon:'⊕',cat:'Video & Creation',bientot:true},
+  higgsfield:{name:'Higgsfield',icon:'⧫',cat:'Video & Creation',bientot:true},
   youtube:{name:'YouTube',icon:'▶',cat:'Video & Creation',bientot:true},
   /* ── RESEAUX SOCIAUX ── */
   xtwitter:{name:'X (Twitter)',icon:'✕',cat:'Reseaux sociaux',type:'key',
