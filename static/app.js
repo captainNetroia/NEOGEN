@@ -2570,7 +2570,7 @@ function _initIntegModeleUi(){
       models:['glm-4.5-flash','glm-4.5','glm-5.2'],
       ph:'xxxxxxx.NI3rc... (cle z.ai / Zhipu AI)'},
     local:{label:'Local (Ollama)',check:_=>true,
-      models:['llama3.2','qwen2.5','mistral','phi4','gemma3','deepseek-r1:8b'],
+      models:['llama3.2','qwen2.5','qwen3.6','mistral','phi4','gemma3','deepseek-r1:8b'],
       ph:'http://host.docker.internal:11434/v1'}
   };
 

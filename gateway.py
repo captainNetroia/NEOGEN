@@ -150,10 +150,22 @@ def contexte_depuis_headers(provider=None, model=None, key=None, base=None) -> L
     (=> Anthropic par defaut via credentials)."""
     if not provider:
         return None
-    return LLMContext(provider=provider.strip().lower(),
+    provider = provider.strip().lower()
+    base = (base or "").strip() or None
+    if provider == "local" and base and "host.docker.internal" in base:
+        # host.docker.internal ne fonctionne QUE sur Docker Desktop (Mac/Windows), jamais
+        # sur un VPS Linux ou l'utilisateur suivrait le tuto par defaut affiche dans l'app
+        # sans savoir que cette instance a besoin d'une autre adresse. Repli transparent
+        # sur la config serveur (NEOGEN_OLLAMA_BASE) si definie, sinon on garde tel quel
+        # (le cas Docker Desktop reste inchange).
+        import os
+        serveur = os.environ.get("NEOGEN_OLLAMA_BASE", "").strip()
+        if serveur and "host.docker.internal" not in serveur:
+            base = serveur
+    return LLMContext(provider=provider,
                       model=(model or "").strip() or None,
                       api_key=(key or "").strip() or None,
-                      base_url=(base or "").strip() or None)
+                      base_url=base)
 
 
 # ---------------------------------------------------------------------------
@@ -536,4 +548,16 @@ if __name__ == "__main__":
     assert faux not in resume, "fuite : la cle apparait dans le resume !"
     assert faux not in nettoyer(f"erreur openai avec cle {faux}"), "fuite : sanitizer ne redacte pas la cle !"
     print("  garde-fous OK : resume sans cle + sanitizer redacte une vraie cle en log.")
+
+    # repli host.docker.internal -> NEOGEN_OLLAMA_BASE (jamais resolu sur un VPS Linux,
+    # ce tuto par defaut de l'app ne marche que sur Docker Desktop Mac/Windows).
+    import os as _os
+    _os.environ["NEOGEN_OLLAMA_BASE"] = "http://172.20.0.1:11434/v1"
+    ctx_vps = contexte_depuis_headers("local", "qwen2.5", None, "http://host.docker.internal:11434/v1")
+    assert ctx_vps.base_url == "http://172.20.0.1:11434/v1", ctx_vps.base_url
+    _os.environ.pop("NEOGEN_OLLAMA_BASE", None)
+    # sans NEOGEN_OLLAMA_BASE definie (dev local Docker Desktop) : valeur inchangee.
+    ctx_local = contexte_depuis_headers("local", "qwen2.5", None, "http://host.docker.internal:11434/v1")
+    assert ctx_local.base_url == "http://host.docker.internal:11434/v1", ctx_local.base_url
+    print("  repli VPS OK : host.docker.internal -> NEOGEN_OLLAMA_BASE si definie, inchange sinon.")
     print("=" * 64)
