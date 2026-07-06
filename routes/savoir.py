@@ -486,11 +486,16 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
     (VOIE 0 interface -> apercu applique au sac de l'utilisateur uniquement ;
     VOIE 1/2/3 -> proposition dans le Hub, protegee par noyau.payload_sain(), jamais
     auto-appliquee). Un contenu malveillant est rejete ici, avant meme d'atteindre
-    le Hub de validation de Jordan."""
+    le Hub de validation de Jordan.
+    Quota donner_vie : gratuit=0, essential=5/mois, pro=15, power=50 (comptabilise
+    uniquement un essai reussi, VOIE 0 et VOIE 1/2/3 refusees ne consomment rien)."""
+    from routes.deps import _verifier_quota
     _gate_auth(authorization)
+    _verifier_quota(authorization, "donner_vie")   # 402 si palier/quota insuffisant
     user = _user_courant(authorization)
     import pensee_utilisateur as _pp
     import evolution_gouvernee as _evo
+    import quotas as _quotas
 
     toutes = _pp.lister_perso(user, limit=500)
     p = next((x for x in toutes if x.get("id") == pensee_id), None)
@@ -502,6 +507,14 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
     # VOIE 0 (interface) : idee visuelle -> apercu CSS, applique UNIQUEMENT au sac
     # de l'utilisateur (jamais l'interface maitre). Reutilise forge_interface tel quel,
     # deja concu pour ce cas (docstring forge_interface.py : isolation par sac).
+    def _consommer_quota():
+        """Incremente le quota mensuel donner_vie de l'utilisateur (best-effort)."""
+        try:
+            if user and user.get("id"):
+                _quotas.incrementer(user["id"], "donner_vie")
+        except Exception:
+            pass
+
     blob = f"{p.get('titre','')} {p.get('synthese','')}".lower()
     indices_interface = ("interface", "affichage", "css", "visuel", "apparence", "couleur", "mise en page")
     if any(ind in blob for ind in indices_interface):
@@ -509,6 +522,7 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
         idee = f"{p.get('titre','')}. {p.get('synthese','')}".strip()
         apercu = _fi.generer_apercu(idee)
         if apercu.get("ok"):
+            _consommer_quota()
             return {"ok": True, "voie": "interface", "pensee_id": pensee_id,
                     "titre": p.get("titre", ""), "css": apercu["css"],
                     "explication": apercu.get("explication", "")}
@@ -525,6 +539,7 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
                           raison=evo.get("raison", "") or p.get("synthese", ""), user=user)
         r["voie"] = "propose"
         if r.get("ok"):
+            _consommer_quota()
             try:
                 _pp.marquer_vie_donnee_perso(user, pensee_id)
             except Exception:
@@ -538,6 +553,7 @@ def pensees_perso_donner_vie(pensee_id: str, authorization: str | None = Header(
         titre=p.get("titre", ""), raison=p.get("synthese", ""), user=user)
     r["voie"] = "propose"
     if r.get("ok"):
+        _consommer_quota()
         try:
             _pp.marquer_vie_donnee_perso(user, pensee_id)
         except Exception:

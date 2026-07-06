@@ -153,12 +153,24 @@ def historique(user_id: str, limite: int = 50) -> list[dict]:
     return sorted(txns, key=lambda x: x.get("ts", 0), reverse=True)[:limite]
 
 
-def recharger_mensuel(user_id: str, palier: str) -> int:
-    """Crédit mensuel automatique selon le palier. À appeler au renouvellement d'abonnement."""
+def recharger_mensuel(user_id: str, palier: str, cycle_id: str = "") -> int:
+    """Crédit mensuel automatique selon le palier. À appeler au renouvellement d'abonnement.
+
+    cycle_id : identifiant unique du cycle facturé (ex: id de session Stripe ou d'invoice).
+    Sans lui, un meme cycle confirme par 2 canaux differents (front premium_confirmer +
+    webhook checkout.session.completed, ou webhook double-envoye par Stripe) recreditait
+    2 fois le meme mois - idempotence deja appliquee au pack GEN ponctuel, etendue ici.
+    Si cycle_id est vide (retrocompat appelant sans cycle), aucune dedup n'est possible."""
     montant = GEN_MENSUEL.get(palier, 0)
     if montant <= 0:
         return solde(user_id)
-    return crediter(user_id, montant, "monthly", f"Crédit mensuel palier {palier}")
+    if cycle_id:
+        deja = any((t.get("metadata") or {}).get("cycle_id") == cycle_id
+                   for t in historique(user_id, limite=200))
+        if deja:
+            return solde(user_id)
+    return crediter(user_id, montant, "monthly", f"Crédit mensuel palier {palier}",
+                     metadata={"cycle_id": cycle_id} if cycle_id else None)
 
 
 if __name__ == "__main__":
@@ -192,6 +204,17 @@ if __name__ == "__main__":
     # debiter). Le solde ne doit JAMAIS bouger.
     r4 = debiter(uid, -500, "mode_juge")
     assert not r4["ok"] and solde(uid) == 70
+
+    # recharger_mensuel : idempotence par cycle_id (corrige le double-credit
+    # premium_confirmer + webhook checkout.session.completed sur le meme paiement).
+    s_avant = solde(uid)
+    recharger_mensuel(uid, "essential", cycle_id="cs_test_123")
+    s_apres_1 = solde(uid)
+    assert s_apres_1 == s_avant + GEN_MENSUEL["essential"]
+    recharger_mensuel(uid, "essential", cycle_id="cs_test_123")  # meme cycle : no-op
+    assert solde(uid) == s_apres_1
+    recharger_mensuel(uid, "essential", cycle_id="cs_test_456")  # cycle different : credite
+    assert solde(uid) == s_apres_1 + GEN_MENSUEL["essential"]
 
     globals()["SOLDES_FILE"] = SOLDES_FILE_BAK
     globals()["TXNS_FILE"]   = TXNS_FILE_BAK

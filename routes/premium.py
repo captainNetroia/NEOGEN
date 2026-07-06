@@ -128,7 +128,7 @@ def premium_confirmer(data: dict, authorization: str | None = Header(default=Non
         _lier_stripe_customer(user["id"], sess.get("customer") or "")
         essai = sess.get("payment_status") == "no_payment_required"
         import credits as _cred
-        _cred.recharger_mensuel(user["id"], palier_sess)
+        _cred.recharger_mensuel(user["id"], palier_sess, cycle_id=session_id)
         return {"ok": True, "premium": True, "palier": palier_sess, "essai": essai}
     return {"ok": False, "premium": False, "raison": "Paiement non confirme pour ce compte."}
 
@@ -174,7 +174,7 @@ async def premium_webhook(request: Request):
             _set_premium(uid, True, palier_evt)
             _lier_stripe_customer(uid, obj.get("customer") or "")
             import credits as _cred
-            _cred.recharger_mensuel(uid, palier_evt)
+            _cred.recharger_mensuel(uid, palier_evt, cycle_id=obj.get("id") or "")
     elif etype in ("invoice.paid", "invoice.payment_succeeded"):
         # Renouvellement mensuel d'abonnement : recredite l'allocation GEN du palier.
         if obj.get("billing_reason") == "subscription_cycle":
@@ -192,7 +192,7 @@ async def premium_webhook(request: Request):
                         break
             if uid:
                 import credits as _cred
-                _cred.recharger_mensuel(uid, palier_evt)
+                _cred.recharger_mensuel(uid, palier_evt, cycle_id=obj.get("id") or "")
     elif etype in ("customer.subscription.deleted",):
         _revoquer_premium_par_customer(obj.get("customer") or "")
     elif etype == "invoice.payment_failed":

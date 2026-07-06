@@ -3714,7 +3714,7 @@ var _PALIERS=[
      '4 providers IA + local',
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons',
-     '5 "Donner vie"/mois · 15 applis · 7 deploiements',
+     '5 "Donner vie"/mois · 15 applis',
      '10 Mode Juge inclus/mois (puis GEN)',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
@@ -3724,7 +3724,7 @@ var _PALIERS=[
      '6 providers IA + local',
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons illimites · Webhook & API',
-     '15 "Donner vie"/mois · 50 applis · 25 deploiements',
+     '15 "Donner vie"/mois · 50 applis',
      'Mode Juge illimite inclus',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
@@ -3734,7 +3734,7 @@ var _PALIERS=[
      'Tous providers IA + local',
      'Multi-agents · RPA · Apprentissage',
      'Vision active · Crons illimites · Webhook & API',
-     '50 "Donner vie"/mois · 200 applis · 100 deploiements',
+     '50 "Donner vie"/mois · 200 applis',
      'Mode Juge illimite inclus',
      '⚡ Mode ECLAIR : -30 a -50% tokens',
    ]},
@@ -6324,7 +6324,7 @@ function _obPlans(box,overlay,stopMatrix){
     +'</div>'
     +'<div style="font-size:28px;font-weight:900;color:#fff;margin-bottom:18px">14,99€<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,.4)">/mois apres essai</span></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 20px;margin-bottom:22px">'
-    +['1 500 GEN/mois','4 providers IA + local','Multi-agents RPA Apprentissage','Vision active Crons','5 Donner vie/mois','15 applis + 7 deploiements','10 Mode Juge/mois','Integrations tierces illimitees'].map(function(f){
+    +['1 500 GEN/mois','4 providers IA + local','Multi-agents RPA Apprentissage','Vision active Crons','5 Donner vie/mois','15 applis','10 Mode Juge/mois','Integrations tierces illimitees'].map(function(f){
       return'<div style="font-size:12.5px;color:rgba(255,255,255,.72);display:flex;align-items:center;gap:7px"><span style="color:#00ff41;font-size:10px">●</span>'+f+'</div>';
     }).join('')
     +'</div>'
@@ -6340,7 +6340,7 @@ function _obPlans(box,overlay,stopMatrix){
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'
     +[
       {n:'Pro',p:'29,99€',pal:'pro',feats:['4 500 GEN/mois','6 providers IA + local','Crons illimites','15 Donner vie/mois · 50 applis','Webhook & API','⚡ ECLAIR -30 a -50% tokens']},
-      {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','50 Donner vie/mois · 200 applis','100 deploiements geres','Webhook & API','⚡ ECLAIR -30 a -50% tokens']}
+      {n:'Power',p:'49,99€',pal:'power',feats:['12 000 GEN/mois','Tous providers IA','50 Donner vie/mois · 200 applis','Webhook & API','⚡ ECLAIR -30 a -50% tokens']}
     ].map(function(pk){
       return'<div style="border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:18px;background:rgba(255,255,255,.05);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">'
         +'<div style="font-size:15px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:3px">'+pk.n+'</div>'
