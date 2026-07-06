@@ -23,6 +23,7 @@ _LOCK = threading.Lock()
 # Coût des fonctions par palier (GEN).
 # None = interdit sur ce palier.
 COUTS: dict[str, dict[str, int | None]] = {
+    "conversation":         {"gratuit": 15,   "essential": 15, "pro": 15, "power": 15, "enterprise": 0},
     "mode_juge":            {"gratuit": None, "essential": 60, "pro": 60, "power": 30, "enterprise": 0},
     "deploiement":          {"gratuit": None, "essential": 100,"pro": 100,"power": 50, "enterprise": 0},
     "delegation_complete":  {"gratuit": None, "essential": 15, "pro": 10, "power": 5,  "enterprise": 0},
@@ -137,6 +138,31 @@ def cout(fonction: str, palier: str) -> int | None:
     return COUTS.get(fonction, {}).get(palier, 0)
 
 
+def debiter_conversation(user: dict | None) -> dict:
+    """Decompte une session de conversation (1 par ouverture, jamais par message).
+    Priorite au quota mensuel offert (conversations_offertes, essential=20/pro=60/power=160/
+    enterprise=illimite) ; une fois epuise, retombe sur le debit GEN classique (15 GEN,
+    tous paliers connectes y compris gratuit). Jamais applique aux visiteurs anonymes BYOK
+    (aucun user_id a suivre) - reste gratuit, coherent avec l'usage BYOK actuel.
+    Retourne {ok, via: 'offerte'|'gen'|'aucun', ...} - ne bloque jamais la conversation
+    elle-meme (best-effort, l'agent repond meme si le debit echoue silencieusement)."""
+    import quotas as _quotas
+    if not user or not user.get("id"):
+        return {"ok": True, "via": "anonyme"}
+    uid = user["id"]
+    p = _quotas.palier(user)
+    v = _quotas.verifier(user, "conversations_offertes")
+    if v["autorise"]:
+        # gratuit (limite=0) -> reste=0 -> autorise=False -> tombe directement sur le GEN.
+        _quotas.incrementer(uid, "conversations_offertes")
+        return {"ok": True, "via": "offerte", "reste": (v["reste"] - 1) if v["reste"] is not None else None}
+    montant = cout("conversation", p)
+    if not montant:
+        return {"ok": True, "via": "gen", "solde": solde(uid)}
+    r = debiter(uid, montant, "conversation", "Conversation avec un agent")
+    return {"ok": r["ok"], "via": "gen", "solde_apres": r.get("solde_apres"), "manque": r.get("manque", 0)}
+
+
 def historique(user_id: str, limite: int = 50) -> list[dict]:
     """Dernières transactions de l'utilisateur, les plus récentes en premier."""
     txns = []
@@ -215,6 +241,25 @@ if __name__ == "__main__":
     assert solde(uid) == s_apres_1
     recharger_mensuel(uid, "essential", cycle_id="cs_test_456")  # cycle different : credite
     assert solde(uid) == s_apres_1 + GEN_MENSUEL["essential"]
+
+    # debiter_conversation : quota offert d'abord, puis GEN une fois epuise.
+    import quotas as _q
+    with _q._LOCK:
+        d = _q._lire(); d.pop(uid, None); _q._ecrire(d)
+    u_ess = {"id": uid, "palier": "essential"}
+    r = debiter_conversation(u_ess)
+    assert r["ok"] and r["via"] == "offerte" and r["reste"] == 19
+    for _ in range(19):
+        debiter_conversation(u_ess)
+    s_avant_gen = solde(uid)
+    r_epuise = debiter_conversation(u_ess)  # 21e conversation : quota offert epuise -> GEN
+    assert r_epuise["ok"] and r_epuise["via"] == "gen"
+    assert solde(uid) == s_avant_gen - cout("conversation", "essential")
+    # anonyme (pas de user) : jamais debite, toujours gratuit (BYOK)
+    r_anon = debiter_conversation(None)
+    assert r_anon["ok"] and r_anon["via"] == "anonyme"
+    with _q._LOCK:
+        d = _q._lire(); d.pop(uid, None); _q._ecrire(d)
 
     globals()["SOLDES_FILE"] = SOLDES_FILE_BAK
     globals()["TXNS_FILE"]   = TXNS_FILE_BAK

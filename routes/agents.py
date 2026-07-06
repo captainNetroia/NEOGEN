@@ -296,6 +296,16 @@ def agent_chat_stream(role: str, demande: DemandeChat,
     _user = _auth(authorization)
     hist = [{"role": m.role, "content": m.content} for m in demande.historique]
 
+    if not hist:
+        # Debut d'une nouvelle session de chat (jamais par message) : decompte le quota
+        # de conversations offertes du palier, ou 15 GEN une fois ce quota epuise. Best
+        # effort : n'empeche jamais l'agent de repondre si le debit echoue.
+        import credits as _cred
+        try:
+            _cred.debiter_conversation(_user)
+        except Exception:
+            pass
+
     file_evts: "queue.Queue" = queue.Queue()
     _SENTINEL = object()
 

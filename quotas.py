@@ -29,11 +29,11 @@ def rang_palier(palier: str) -> int:
 
 # Limites mensuelles par palier (None = illimité).
 LIMITES: dict[str, dict[str, int | None]] = {
-    "gratuit":    {"creations": 3,    "mode_juge": 0,    "integrations": 2,    "modeles": 1, "donner_vie": 0, "creation_app_forge": 0, "deploiement_gere": 0, "pensee_perso": 0},
-    "essential":  {"creations": None, "mode_juge": 10,   "integrations": None, "modeles": 4, "donner_vie": 5, "creation_app_forge": 15, "deploiement_gere": 7, "pensee_perso": 10},
-    "pro":        {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": 15,"creation_app_forge": 50, "deploiement_gere": 25, "pensee_perso": 40},
-    "power":      {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": 50,  "creation_app_forge": 200,  "deploiement_gere": 100, "pensee_perso": 150},
-    "enterprise": {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": None,"creation_app_forge": None,"deploiement_gere": None, "pensee_perso": None},
+    "gratuit":    {"creations": 3,    "mode_juge": 0,    "integrations": 2,    "modeles": 1, "donner_vie": 0, "creation_app_forge": 0, "deploiement_gere": 0, "pensee_perso": 0, "conversations_offertes": 0},
+    "essential":  {"creations": None, "mode_juge": 10,   "integrations": None, "modeles": 4, "donner_vie": 5, "creation_app_forge": 15, "deploiement_gere": 7, "pensee_perso": 10, "conversations_offertes": 20},
+    "pro":        {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": 15,"creation_app_forge": 50, "deploiement_gere": 25, "pensee_perso": 40, "conversations_offertes": 60},
+    "power":      {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": 50,  "creation_app_forge": 200,  "deploiement_gere": 100, "pensee_perso": 150, "conversations_offertes": 160},
+    "enterprise": {"creations": None, "mode_juge": None, "integrations": None, "modeles": None,"donner_vie": None,"creation_app_forge": None,"deploiement_gere": None, "pensee_perso": None, "conversations_offertes": None},
 }
 
 # Palier minimum requis pour certaines fonctions.
