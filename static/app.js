@@ -512,10 +512,40 @@ function renderEvolution(){
     +'</div>'
     +'<div class="agent-chat-mount" id="evo-architecte-mount" data-agent="architecte" data-titre="🏗️ '+t('evo.titre')+'" data-sub="'+t('evo.architecte_sub')+'"></div>'
 
-    +'<div id="evo-vue-bridee" class="panel glass" style="display:none;margin-bottom:20px;border-color:rgba(16,185,129,.3)">'
-    +'<div style="font-size:14px;font-weight:700;margin-bottom:8px;color:#10b981">'+t('evo.vue_publique')+'</div>'
-    +'<div style="font-size:13px;line-height:1.6;opacity:.8;margin-bottom:14px">'+t('evo.vue_bridee_desc')+'</div>'
-    +'<button id="evo-vers-mes-skills" style="font-size:13px;padding:10px 20px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.45);color:#10b981;border-radius:10px;font-weight:600;cursor:pointer">'+t('evo.aller_mes_skills')+'</button>'
+    +'<div id="evo-vue-bridee" style="display:none">'
+
+    +'<div class="panel glass" style="margin-bottom:18px" id="pp-evo-panel">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:6px">'+t('pp.titre')+'</div>'
+    +'<div style="font-size:12px;color:var(--mut);margin-bottom:12px">'+t('pp.sous_titre')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+    +'<input type="text" id="pp-sujet" placeholder="'+t('pp.sujet_placeholder')+'" style="flex:1;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
+    +'<button id="pp-declencher-btn" style="font-size:12px;padding:8px 16px;white-space:nowrap">'+t('pp.declencher')+'</button>'
+    +'</div>'
+    +'<div id="pp-status" style="font-size:12px;color:var(--mut);min-height:16px;margin-bottom:10px"></div>'
+    +'<div id="pp-liste"><div style="color:var(--mut);font-size:13px">'+t('compte.chargement')+'</div></div>'
+    +'</div>'
+
+    +'<div class="panel glass" style="margin-bottom:18px;display:none" id="mes-skills-panel">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +'<span style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981"></span>'
+    +'<div style="font-size:13px;font-weight:700">Mes skills</div>'
+    +'<span style="font-size:11px;opacity:.5;font-weight:400">code forge, teste en sandbox, isole dans ton espace</span>'
+    +'</div>'
+    +'<div style="margin-bottom:14px;padding:12px;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:10px">'
+    +'<div style="font-size:12px;font-weight:600;margin-bottom:8px;color:#10b981">Forge un nouveau skill</div>'
+    +'<textarea id="ms-besoin" placeholder="Decris ce que tu veux que ton skill fasse (ex: convertir des dates en francais, calculer une TVA, formater du texte...)" style="width:100%;resize:vertical;min-height:64px;font-size:12px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(16,185,129,.2);color:#e8ffe8;border-radius:8px;box-sizing:border-box" rows="3"></textarea>'
+    +'<input type="text" id="ms-titre" placeholder="Titre court (optionnel)" style="width:100%;margin-top:6px;font-size:12px;padding:7px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(16,185,129,.2);color:#e8ffe8;border-radius:8px;box-sizing:border-box">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-top:8px">'
+    +'<button id="ms-forge-btn" onclick="forgerMonSkill(this)" style="font-size:12px;padding:7px 18px;background:rgba(16,185,129,.18);border:1px solid rgba(16,185,129,.5);color:#10b981;font-weight:600">Forger</button>'
+    +'<span style="font-size:10px;opacity:.45">Cle IA requise — configure-la dans Integrations</span>'
+    +'</div>'
+    +'<div id="ms-forge-erreur" style="font-size:11px;color:#ef4444;margin-top:6px;display:none"></div>'
+    +'</div>'
+    +'<div id="mes-skills-liste">'
+    +'<div style="text-align:center;padding:14px;opacity:.4;font-size:12px">Aucun skill forge. Decris un besoin ci-dessus pour commencer.</div>'
+    +'</div>'
+    +'</div>'
+
     +'</div>'
 
     +'<div id="evo-panneaux-owner">'
@@ -1946,17 +1976,6 @@ async function renderCompteConnecte(root,user){
     +'<button id="fb-submit-btn">'+t('compte.envoyer')+'</button><span id="fb-status"></span></div></div>'
 
     +'<div class="panel glass" style="margin-bottom:18px">'
-    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:6px">'+t('pp.titre')+'</div>'
-    +'<div style="font-size:12px;color:var(--mut);margin-bottom:12px">'+t('pp.sous_titre')+'</div>'
-    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
-    +'<input type="text" id="pp-sujet" placeholder="'+t('pp.sujet_placeholder')+'" style="flex:1;font-size:13px;padding:8px 10px;background:rgba(0,0,0,.25);border:1px solid rgba(100,116,139,.3);color:var(--txt);border-radius:8px;box-sizing:border-box">'
-    +'<button id="pp-declencher-btn" style="font-size:12px;padding:8px 16px;white-space:nowrap">'+t('pp.declencher')+'</button>'
-    +'</div>'
-    +'<div id="pp-status" style="font-size:12px;color:var(--mut);min-height:16px;margin-bottom:10px"></div>'
-    +'<div id="pp-liste"><div style="color:var(--mut);font-size:13px">'+t('compte.chargement')+'</div></div>'
-    +'</div>'
-
-    +'<div class="panel glass" style="margin-bottom:18px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:14px">'+t('compte.preferences')+'</div>'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
     +'<span style="font-size:13px;color:var(--txt)">'+t('compte.langue')+'</span>'
@@ -2140,9 +2159,6 @@ async function renderCompteConnecte(root,user){
     }catch(e){hist.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
   }
 
-  // --- Ma Pensee (version publique bridee, isolee au sac de l'utilisateur) ---
-  await _initMaPensee();
-
   if(window._breath)_breath.scan();
 }
 
@@ -2315,14 +2331,10 @@ async function _loadAbonnement(){
 async function loadCompte(){
   const root=$('#compte-root');if(!root)return;
   const user=await _fetchMe();
-  const panel=document.getElementById('mes-skills-panel');
   if(user){
     await renderCompteConnecte(root,user);
-    if(panel)panel.style.display='';
-    loadMesSkills();
   }else{
     renderCompteAuth(root);
-    if(panel)panel.style.display='none';
   }
 }
 
@@ -5023,17 +5035,15 @@ async function loadEvolutionSysteme(){
     const r=await fetch('/savoir/evolution/etat');
     const archMount=document.getElementById('evo-architecte-mount');
     if(!r.ok){
-      // Non-proprietaire : Evolution reste visible mais bridee, chemin sur vers Mes skills.
-      // L'Architecte (agent systeme, profil inexistant hors instance owner) reste cache :
-      // pas de widget qui erreurait a chaque message.
+      // Non-proprietaire : Evolution reste visible mais bridee -> Ma Pensee + Mes skills
+      // (espace personnel isole) a la place du Hub complet. L'Architecte (agent systeme,
+      // profil inexistant hors instance owner) reste cache : pas de widget qui erreurait
+      // a chaque message.
       if(archMount)archMount.style.display='none';
       if(bridee)bridee.style.display='';
       if(panneaux)panneaux.style.display='none';
-      const btn=document.getElementById('evo-vers-mes-skills');
-      if(btn&&!btn._wired){
-        btn._wired=true;
-        btn.onclick=function(){showSection('compte');};
-      }
+      await _initMaPensee();
+      loadMesSkills();
       return;
     }
     if(archMount)archMount.style.display='';
