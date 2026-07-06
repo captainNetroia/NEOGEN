@@ -895,6 +895,11 @@ function showSection(name){
   if(name==='integrations')renderIntegrations();
   if(name==='don')renderDon();
   if(name==='evolution'){renderEvolution();loadHubEtat();loadHubPropositions();loadPenseesConfig();loadPensees();loadEvolutionSysteme();}
+  /* cable les widgets de chat injectes dynamiquement par les render*() ci-dessus : le
+     cablage global (buildChat sur .agent-chat-mount) ne tourne qu'une fois au chargement
+     du script, avant que ces sections ne soient jamais rendues -> sans ce rappel, tout
+     agent-chat-mount cree apres coup reste vide (children=0, aucun input/bouton actif). */
+  document.querySelectorAll('.agent-chat-mount').forEach(function(m){if(!m.children.length)buildChat(m);});
   /* scan post-section : enregistre les panels rendus dynamiquement (fragments, chats) */
   setTimeout(()=>_breath.scan(),150);
   /* re-verifie la distorsion glass des panels de la section qui vient de s'activer - un
