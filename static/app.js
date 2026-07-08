@@ -2635,6 +2635,13 @@ function _initIntegModeleUi(){
     });
     updateModels(prov);
     updateTabDots();
+    /* Avertissement : le serveur qui heberge cette instance web tourne sur des
+       ressources CPU limitees (2 vCPU) - une vraie generation Ollama peut y
+       timeout, contrairement a une instance locale (Docker Desktop) sur une
+       machine perso plus puissante. Prevenir avant le clic, pas apres l'echec. */
+    if(prov==='local' && st){
+      st.innerHTML='<span class="tag warn">Attention</span> Sur cette instance web, le modele local peut etre tres lent ou ne pas repondre (ressources serveur limitees). Pour un usage fluide, prefere un modele avec cle API, ou installe NEOGEN en local sur ta propre machine.';
+    }
   }
 
   tabs.forEach(t=>t.addEventListener('click',()=>switchProv(t.dataset.prov)));

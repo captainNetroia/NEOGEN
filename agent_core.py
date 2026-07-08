@@ -572,9 +572,16 @@ _DIRECTIVE_RIGUEUR = (
 
 
 def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
-             user=None) -> str:
+             user=None, petit_modele: bool = False) -> str:
     """Construit le prompt systeme : role + protocole + liste d'outils autorises.
-    Pour un user web (a_un_sac), filtre les outils owner-only et injecte le garde-fou."""
+    Pour un user web (a_un_sac), filtre les outils owner-only et injecte le garde-fou.
+
+    petit_modele : True pour un provider local/Ollama (llama3.2, qwen2.5...). Ces modeles
+    generalisent moins bien depuis un seul exemple (contrairement aux gros modeles cloud) et
+    cassent plus souvent le format JSON attendu (cf. CONTEXT-ACTIF.md : "llama3.2 3B
+    hallucine/JSON casse"). Renforce donc le prompt avec plus d'exemples contrastes +
+    contraintes explicites UNIQUEMENT dans ce cas, pour ne pas alourdir inutilement le
+    prompt (cout tokens) des gros modeles qui respectent deja le format de base."""
     # Pour un user web : retirer les outils owner-only de la liste affichee dans le prompt.
     _raw = list(profil.get("outils", []))
     if _ns.a_un_sac(user):
@@ -631,8 +638,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
     except Exception:
         pass
     gardefou_bloc = _gardefou_user_web(user)
-    return nettoyer(
-        f"{role}\n\n"
+    protocole_bloc = (
         "FONCTIONNEMENT : tu reponds TOUJOURS et UNIQUEMENT par UN SEUL objet JSON, sans aucun texte "
         "autour, sans balises de code. L'objet a exactement ces 4 cles : pensee, outil, arguments, reponse.\n"
         '- Pour REPONDRE a l\'utilisateur : {"pensee": "courte", "outil": null, "arguments": "", "reponse": "ta reponse"}\n'
@@ -641,6 +647,31 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
         "- 'arguments' est TOUJOURS une chaine de texte JSON (vide si l'outil n'a pas de parametre). "
         "Ne mets jamais les parametres ailleurs.\n"
         "- N'invente jamais un outil hors de la liste. Si aucun outil n'est utile, reponds directement.\n\n"
+    )
+    if petit_modele:
+        # Modeles locaux (Ollama, 1-8B) : moins de generalisation depuis un seul exemple,
+        # cassent plus souvent le format (texte hors JSON, arguments en objet au lieu de
+        # string, balises ```json). Contre-exemples explicites + repetition du format cible
+        # -> ancrage plus fort que la description seule (few-shot dense, pas de theorie).
+        protocole_bloc += (
+            "RAPPEL FORMAT (important, tu es un modele local, respecte-le a la lettre) :\n"
+            "- INTERDIT : repondre avec du texte avant ou apres le JSON (ex: \"Voici ma reponse: {...}\").\n"
+            "- INTERDIT : entourer le JSON de ```json ou ``` — le JSON seul, rien d'autre.\n"
+            "- INTERDIT : mettre 'arguments' comme objet JSON imbrique -- 'arguments' est TOUJOURS "
+            "une CHAINE (string) qui CONTIENT du JSON echappe, jamais un objet direct.\n"
+            "  MAUVAIS : {\"outil\": \"x\", \"arguments\": {\"cle\": \"valeur\"}}\n"
+            "  BON     : {\"outil\": \"x\", \"arguments\": \"{\\\"cle\\\": \\\"valeur\\\"}\"}\n"
+            "Autres exemples valides (memes 4 cles, jamais plus, jamais moins) :\n"
+            '  {"pensee": "L\'utilisateur demande un resume.", "outil": null, "arguments": "", '
+            '"reponse": "Voici le resume : ..."}\n'
+            '  {"pensee": "Je dois consulter la memoire avant de repondre.", "outil": "lire_memoire", '
+            '"arguments": "", "reponse": null}\n'
+            "Avant d'envoyer ta reponse, verifie mentalement : est-ce UN SEUL objet JSON valide, "
+            "commencant par { et finissant par }, sans rien autour ?\n\n"
+        )
+    return nettoyer(
+        f"{role}\n\n"
+        + protocole_bloc
         + ("MODE ECONOMIE : sois DIRECT et CONCIS. Va droit au but, pas de preambule ni de "
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
@@ -780,7 +811,9 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         if emit:
             emit(evt)
 
-    systeme = _systeme(profil["role"], profil, eco=eco, requete=message, user=user)
+    _petit_modele = bool(ctx and (getattr(ctx, "provider", "") or "").lower() == "local")
+    systeme = _systeme(profil["role"], profil, eco=eco, requete=message, user=user,
+                       petit_modele=_petit_modele)
     messages: list[dict] = _tronquer_historique(historique)
     messages.append({"role": "user", "content": message})
 

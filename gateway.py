@@ -328,6 +328,30 @@ class _OpenAICompatAdapter(_BaseAdapter):
         try:
             parsed = output_format.model_validate_json(txt)
         except Exception as e:
+            # Un seul essai suffit generalement pour un gros modele cloud, mais un petit
+            # modele local (Ollama) peut louper un schema a plusieurs champs/listes
+            # imbriquees du premier coup. Un retry qui renvoie l'erreur Pydantic EXACTE
+            # (quel champ manque, quelle valeur recue) corrige souvent l'erreur au 2e essai
+            # sans avoir a gonfler le prompt de base pour tous les providers.
+            if self.provider == "local":
+                erreur_str = str(e)
+                sys3 = sys2 + (
+                    "\n\nTa reponse precedente etait invalide. Erreur exacte de validation :\n"
+                    + erreur_str[:600]
+                    + "\n\nCorrige et renvoie UNIQUEMENT le JSON complet et valide, tous les "
+                    "champs requis remplis (meme partiellement si l'info manque, jamais un "
+                    "champ absent). Rappel : reponds seulement l'objet JSON, rien d'autre."
+                )
+                messages_retry = messages + [
+                    {"role": "assistant", "content": txt[:1000]},
+                    {"role": "user", "content": "Corrige le JSON selon l'erreur indiquee."},
+                ]
+                try:
+                    txt2 = _strip_fences(self._chat(sys3, messages_retry, max_tokens, response_json=True))
+                    parsed = output_format.model_validate_json(txt2)
+                    return _ParseResult(parsed)
+                except Exception as e2:
+                    raise RuntimeError(nettoyer(f"{self.provider} : JSON non conforme au schema (apres retry) : {e2}"))
             raise RuntimeError(nettoyer(f"{self.provider} : JSON non conforme au schema : {e}"))
         return _ParseResult(parsed)
 
