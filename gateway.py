@@ -152,6 +152,16 @@ def contexte_depuis_headers(provider=None, model=None, key=None, base=None) -> L
         return None
     provider = provider.strip().lower()
     base = (base or "").strip() or None
+    if provider == "local" and not base:
+        # Champ base URL vide cote frontend (utilisateur qui n'a rien tape/colle, le
+        # placeholder grise n'est PAS une vraie valeur envoyee) : sans ce repli, gateway.
+        # client() retombe sur _OPENAI_COMPAT["local"]="localhost:11434", qui depuis
+        # l'interieur du conteneur Docker pointe vers le conteneur LUI-MEME (jamais
+        # l'hote) -> "Connection refused" systematique. NEOGEN_OLLAMA_BASE (config VPS)
+        # est prioritaire si definie, sinon host.docker.internal (Docker Desktop local).
+        import os
+        serveur = os.environ.get("NEOGEN_OLLAMA_BASE", "").strip()
+        base = serveur or "http://host.docker.internal:11434/v1"
     if provider == "local" and base and "host.docker.internal" in base:
         # host.docker.internal ne fonctionne QUE sur Docker Desktop (Mac/Windows), jamais
         # sur un VPS Linux ou l'utilisateur suivrait le tuto par defaut affiche dans l'app

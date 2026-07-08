@@ -163,12 +163,10 @@ async def premium_webhook(request: Request):
                 gen = int(meta.get("gen") or 0)
                 pack = meta.get("pack", "")
                 sess_id = obj.get("id") or ""
-                import credits as _cred
-                deja = any((t.get("metadata") or {}).get("session_id") == sess_id
-                          for t in _cred.historique(uid, limite=200))
-                if gen > 0 and not deja:
-                    _cred.crediter(uid, gen, "purchase", f"Pack GEN {pack}",
-                                   metadata={"session_id": sess_id})
+                if gen > 0 and sess_id:
+                    import credits as _cred
+                    _cred.crediter_idempotent(uid, gen, "purchase", f"Pack GEN {pack}",
+                                              cle_metadata="session_id", valeur_dedup=sess_id)
         elif uid and paye:
             palier_evt = meta.get("palier", "essential")
             _set_premium(uid, True, palier_evt)
@@ -409,13 +407,10 @@ def credits_confirmer_recharge(data: dict, authorization: str = Header(None)):
     gen = int((sess.get("metadata") or {}).get("gen", 0))
     pack = (sess.get("metadata") or {}).get("pack", "")
     import credits as _cred
-    deja = any((t.get("metadata") or {}).get("session_id") == session_id
-              for t in _cred.historique(user["id"], limite=200))
-    if deja:
-        return {"ok": True, "gen_ajoutes": 0, "nouveau_solde": _cred.solde(user["id"]), "deja_credite": True}
-    nouveau = _cred.crediter(user["id"], gen, "purchase", f"Pack GEN {pack}",
-                             metadata={"session_id": session_id})
-    return {"ok": True, "gen_ajoutes": gen, "nouveau_solde": nouveau}
+    r = _cred.crediter_idempotent(user["id"], gen, "purchase", f"Pack GEN {pack}",
+                                  cle_metadata="session_id", valeur_dedup=session_id)
+    return {"ok": True, "gen_ajoutes": gen if r["credite"] else 0,
+            "nouveau_solde": r["solde"], "deja_credite": r["deja"]}
 
 
 @router.get("/credits/boosts")

@@ -96,6 +96,41 @@ def crediter(
         return data[user_id]
 
 
+def crediter_idempotent(
+    user_id: str,
+    montant: int,
+    type_: Literal["earn", "purchase", "gift", "monthly"],
+    description: str,
+    cle_metadata: str,
+    valeur_dedup: str,
+) -> dict:
+    """Comme crediter(), mais verifie ET credite dans le MEME verrou : la verification
+    'deja credite ?' (cle_metadata==valeur_dedup dans l'historique) et l'ecriture du
+    credit doivent etre atomiques, sinon deux appels concurrents (webhook Stripe +
+    confirmation front, ou webhook rejoue) peuvent tous les deux lire 'pas encore
+    credite' avant que l'un des deux ait fini d'ecrire -> double credit.
+    Retourne {"credite": bool, "solde": int, "deja": bool}."""
+    if not valeur_dedup:
+        # Pas de cle de dedup -> pas de garantie possible, credite sans verifier
+        # (comportement de secours identique a l'ancien crediter() nu).
+        solde = crediter(user_id, montant, type_, description, metadata=None)
+        return {"credite": True, "solde": solde, "deja": False}
+    with _LOCK:
+        deja = any((t.get("metadata") or {}).get(cle_metadata) == valeur_dedup
+                   for t in historique(user_id, limite=200))
+        if deja:
+            return {"credite": False, "solde": solde(user_id), "deja": True}
+        data = _lire_soldes()
+        data[user_id] = data.get(user_id, 0) + montant
+        _ecrire_soldes(data)
+        _append_txn({
+            "user_id": user_id, "ts": time.time(), "type": type_,
+            "montant": montant, "description": description,
+            "metadata": {cle_metadata: valeur_dedup},
+        })
+        return {"credite": True, "solde": data[user_id], "deja": False}
+
+
 def debiter(
     user_id: str,
     montant: int,
@@ -190,13 +225,9 @@ def recharger_mensuel(user_id: str, palier: str, cycle_id: str = "") -> int:
     montant = GEN_MENSUEL.get(palier, 0)
     if montant <= 0:
         return solde(user_id)
-    if cycle_id:
-        deja = any((t.get("metadata") or {}).get("cycle_id") == cycle_id
-                   for t in historique(user_id, limite=200))
-        if deja:
-            return solde(user_id)
-    return crediter(user_id, montant, "monthly", f"Crédit mensuel palier {palier}",
-                     metadata={"cycle_id": cycle_id} if cycle_id else None)
+    r = crediter_idempotent(user_id, montant, "monthly", f"Crédit mensuel palier {palier}",
+                            cle_metadata="cycle_id", valeur_dedup=cycle_id)
+    return r["solde"]
 
 
 if __name__ == "__main__":
