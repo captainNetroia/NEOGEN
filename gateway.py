@@ -467,6 +467,9 @@ VISION_MODELS = {
     "openai":    "gpt-5.2",
     "gemini":    "gemini-3.5-flash",
     "local":     "llama3.2-vision",      # Ollama : necessite `ollama pull llama3.2-vision` (ou llava)
+    # deepseek : vision UNIQUEMENT sur chat.deepseek.com (interface web), PAS sur l'API
+    # publique (verifie 2026-07-08 : image_url renvoie HTTP 400 "unknown variant" sur
+    # deepseek-v4-pro ET deepseek-v4-flash). Absent volontairement -> passe par le fallback.
 }
 
 
@@ -490,14 +493,23 @@ def voir(ctx: LLMContext | None, image_b64: str, prompt: str,
                     ctx_fb = LLMContext(provider="anthropic", api_key=cle_sys)
                     return ("[vision via fallback systeme] "
                             + _voir_impl(ctx_fb, image_b64, prompt, mime, max_tokens))
-            except Exception:
-                pass
+            except Exception as e_fallback:
+                raise RuntimeError(nettoyer(
+                    f"Analyse d'image impossible : le provider actif a echoue ({e_primaire}), "
+                    f"et le fallback systeme aussi ({e_fallback}). "
+                    "Verifie ton provider actif dans Integrations, ou reessaie plus tard si le "
+                    "fallback systeme est en cause (credit/quota systeme epuise)."
+                )) from e_fallback
         raise e_primaire
 
 
 def _voir_impl(ctx: LLMContext, image_b64: str, prompt: str, mime: str, max_tokens: int) -> str:
     provider = (ctx.provider or "anthropic").lower()
-    model = VISION_MODELS.get(provider, VISION_MODELS["anthropic"])
+    if provider not in VISION_MODELS:
+        raise RuntimeError(nettoyer(
+            f"{provider} n'a pas de modele vision connu (pas de support image pour ce provider)."
+        ))
+    model = VISION_MODELS[provider]
 
     if provider == "anthropic":
         import anthropic

@@ -243,6 +243,60 @@ def outil_ouvrir_url(url: str = "", **kw) -> str:
     return f"Demande d'ouverture de {url} envoyee a l'agent local (consentement requis cote utilisateur)."
 
 
+_LIRE_PAGE_MAX_OCTETS = 2_000_000  # 2 Mo : evite de telecharger une page demesuree (video, gros JSON)
+_LIRE_PAGE_MAX_CHARS_RETOUR = 6000  # texte renvoye au modele, pas toute la page
+
+
+def outil_lire_page_web(url: str = "", **kw) -> str:
+    """Recupere le CONTENU TEXTE d'une page web (sans navigateur, sans RPA, pas de consentement
+    requis car aucune action sur la machine de l'utilisateur — juste une requete HTTP sortante
+    faite par le serveur). Extraction simple : retire scripts/styles/balises, garde le texte lisible.
+    Ne rend pas les pages qui necessitent du JavaScript pour afficher leur contenu (SPA) — dans ce
+    cas le texte extrait peut etre vide ou tres court, le signaler a l'utilisateur plutot que
+    d'halluciner un contenu."""
+    import httpx
+    import re
+    url = (url or "").strip()
+    if not url:
+        return "Aucune URL fournie."
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        with httpx.Client(timeout=12, follow_redirects=True,
+                          headers={"User-Agent": "Mozilla/5.0 (compatible; NEOGEN-agent/1.0)"}) as c:
+            r = c.get(url)
+    except Exception as e:
+        return nettoyer(f"Page injoignable ({url}) : {e}")
+    if r.status_code >= 400:
+        return f"La page a repondu en erreur (HTTP {r.status_code}) : {url}"
+    if len(r.content) > _LIRE_PAGE_MAX_OCTETS:
+        return f"Page trop volumineuse ({len(r.content) // 1_000_000} Mo) pour etre lue : {url}"
+    ct = r.headers.get("content-type", "")
+    if "text/html" not in ct and "text" not in ct:
+        return f"Cette URL ne renvoie pas de contenu texte/HTML (type : {ct or 'inconnu'}) : {url}"
+    html = r.text
+    titre_m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+    titre = re.sub(r"\s+", " ", titre_m.group(1)).strip() if titre_m else ""
+    # Retire scripts/styles/commentaires AVANT de retirer les balises (sinon leur contenu
+    # texte JS/CSS polluerait le resultat), puis toutes les balises restantes.
+    corps = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.IGNORECASE | re.DOTALL)
+    corps = re.sub(r"<!--.*?-->", " ", corps, flags=re.DOTALL)
+    corps = re.sub(r"<[^>]+>", " ", corps)
+    corps = re.sub(r"&nbsp;", " ", corps)
+    corps = re.sub(r"&amp;", "&", corps)
+    corps = re.sub(r"\s+", " ", corps).strip()
+    if not corps:
+        return nettoyer(
+            f"Page lue ({url}) mais aucun texte extrait — probablement une page qui charge "
+            "son contenu en JavaScript (SPA), non visible par une simple requete HTTP."
+        )
+    tronque = len(corps) > _LIRE_PAGE_MAX_CHARS_RETOUR
+    corps = corps[:_LIRE_PAGE_MAX_CHARS_RETOUR]
+    prefixe = f"Titre : {titre}\n" if titre else ""
+    suffixe = "\n[texte tronque, page plus longue]" if tronque else ""
+    return nettoyer(f"{prefixe}Contenu de {url} :\n{corps}{suffixe}")
+
+
 def outil_contexte_navigateur(**kw) -> str:
     """Lit l'URL et le titre de la page web active dans le navigateur de l'utilisateur.
     Utilise Chrome DevTools Protocol si disponible, sinon le titre de la fenêtre."""
@@ -1117,6 +1171,7 @@ OUTILS: dict[str, tuple[Callable, str]] = {
     "objectif_rpa":         (outil_objectif_rpa,         "Execute une mission RPA depuis un objectif en langage naturel (capture ecran + LLM genere les actions + retry x3). Utiliser quand l'objectif est connu mais pas les actions precises. params: {objectif, infos_utilisateur?}"),
     "remote_control":       (outil_remote_control,       "Active (on) ou desactive (off) le mode controle total : l'agent agit sans popup de consentement. A activer avant une mission autonome longue. params: {enabled:'on'/'off'}"),
     "contexte_navigateur":  (outil_contexte_navigateur,  "Lit l'URL et le titre de la page web active dans le navigateur (CDP ou titre fenetre). params: {}"),
+    "lire_page_web":        (outil_lire_page_web,        "Recupere et lit le CONTENU TEXTE d'une page web depuis son URL (requete HTTP serveur, pas de navigateur, pas de consentement requis). A utiliser quand l'utilisateur donne un lien et demande d'en analyser/resumer le contenu. Ne fonctionne pas sur les pages qui necessitent du JavaScript pour afficher leur contenu. params: {url}"),
     "lister_routines":      (outil_lister_routines,      "Liste les routines apprises par imitation. params: {}"),
     "rejouer_routine":      (outil_rejouer_routine,      "Rejoue une routine apprise. params: {routine_id}"),
     "ouvrir_url":           (outil_ouvrir_url,           "Ouvre une page web dans le navigateur de l'utilisateur (consentement requis). params: {url}"),

@@ -117,6 +117,7 @@ PROFILS: dict[str, dict] = {
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
+                   "lire_page_web",
                    "creer_skill", "lister_skills", "utiliser_skill", "memoriser", "rappeler",
                    "consulter_journal", "journaliser", "inspecter_capacite",
                    "lire_fichier", "creer_rapport", "integration"],
@@ -187,6 +188,7 @@ PROFILS: dict[str, dict] = {
         "outils": ["conseiller", "controler_ecran", "lister_routines", "rejouer_routine",
                    "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
+                   "lire_page_web",
                    "memoriser", "rappeler", "consulter_journal", "journaliser",
                    "lire_fichier", "creer_rapport",
                    "creer_skill", "lister_skills", "utiliser_skill", "integration"],
@@ -205,6 +207,10 @@ PROFILS: dict[str, dict] = {
             "4. 'remote_control(enabled=on)' = active le mode sans popup AVANT une mission autonome longue. "
             "Toujours desactiver (off) apres la mission.\n"
             "5. 'contexte_navigateur' = lit l'URL de l'onglet actif (sans capture complete).\n"
+            "6. 'lire_page_web(url)' = si Jordan donne un LIEN et demande d'analyser/resumer son "
+            "contenu, utilise CET outil (pas ouvrir_url, qui ouvre juste visuellement sans lire le "
+            "texte). Fonctionne pour les pages HTML statiques ; peut renvoyer un texte vide sur les "
+            "sites qui chargent leur contenu en JavaScript (SPA) — le signaler si c'est le cas.\n"
             "REGLES DE LUCIDITE :\n"
             "- Pour toute mission RPA : prefere 'objectif_rpa' — il voit l'ecran et s'adapte.\n"
             "- N'invente JAMAIS une URL. Si tu n'es pas certain, dis-le.\n"
@@ -412,7 +418,7 @@ _OUTILS_PAR_SECTION: dict[str, list[str]] = {
     "production":   ["lister_creations", "genealogie", "lire_fichier", "creer_rapport", "proposer_conversation"],
     "compte":       ["conseiller", "discerner", "proposer_conversation",
                      "objectif_rpa", "executer_mission_rpa", "remote_control",
-                     "contexte_navigateur", "controler_ecran", "regarder_ecran"],
+                     "contexte_navigateur", "controler_ecran", "regarder_ecran", "lire_page_web"],
     "analyse":      ["rappeler", "discerner", "creer_rapport", "lire_fichier", "lister_creations", "donner_vie", "proposer_conversation", "appeler_agent", "explorer_graphe", "scanner_tensions", "remonter_alerte", "sante_appli", "coherence_appli"],
     "evolution":    ["rappeler", "memoriser", "discerner", "lister_skills", "utiliser_skill", "forger_bloc", "donner_vie", "proposer_conversation", "creer_rapport", "proposer_evolution", "capacite_forgee", "resoudre_objectif", "appeler_agent", "explorer_graphe", "rever", "scanner_tensions", "remonter_alerte"],
     "integrations": ["conseiller", "discerner", "rappeler", "proposer_conversation", "appeler_agent", "integration"],

@@ -34,6 +34,9 @@ services:
       # Base Ollama (mode eco) : host.docker.internal marche sur Docker Desktop (Mac/Windows),
       # jamais sur Linux -> surcharger via .env avec l'IP de la passerelle du reseau compose.
       - NEOGEN_OLLAMA_BASE=${NEOGEN_OLLAMA_BASE:-http://host.docker.internal:11434/v1}
+      # Fallback vision : si le provider actif (deepseek, mistral, moonshot, glm, local sans
+      # modele vision...) ne sait pas voir une image, bascule sur la cle Anthropic systeme.
+      - NEOGEN_VISION_FALLBACK=${NEOGEN_VISION_FALLBACK:-1}
     volumes:
       # socket Docker : permet de lancer les conteneurs durcis du code genere
       - /var/run/docker.sock:/var/run/docker.sock
