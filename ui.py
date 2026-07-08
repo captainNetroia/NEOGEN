@@ -75,7 +75,7 @@ def _sidebar() -> str:
     <span class="side-back">←</span>
     <span class="side-title">NEO<b>GEN</b></span>
   </div>
-  <div class="side-item" style="--lc:#a855f7" onclick="showSection('cerveau')" id="side-cerveau">
+  <div class="side-item" style="--lc:var(--c-cerveau)" onclick="showSection('cerveau')" id="side-cerveau">
     <span class="side-dot"></span>Cerveaux
     <span class="side-badge live">live</span>
   </div>
@@ -97,7 +97,7 @@ def _sidebar() -> str:
     <span class="side-badge live">live</span>
     <span id="ing-rebuild-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.14);border-radius:99px;padding:1px 8px">rebuild</span>
   </div>
-  <div class="side-item" style="--lc:#10b981" onclick="showSection('evolution')" id="side-evolution">
+  <div class="side-item" style="--lc:var(--c-evolution)" onclick="showSection('evolution')" id="side-evolution">
     <span class="side-dot"></span>Evolution
     <span class="side-badge live">live</span>
     <span id="evo-badge-nav" style="display:none;margin-left:auto;font-size:11px;font-weight:700;color:#10b981;background:rgba(16,185,129,.12);border-radius:99px;padding:1px 8px">0</span>
@@ -131,7 +131,7 @@ def _landing() -> str:
     <div class="bento-3d">
 
     <div class="layer" onclick="showSection('cerveau')">
-      <span class="layer-marker" style="--lc:#16c65e"></span>
+      <span class="layer-marker" style="--lc:var(--c-cerveau)"></span>
       <div class="layer-label"><h3>Cerveaux</h3><p>Le super-agent qui coordonne les autres et agit pour toi</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
@@ -166,7 +166,7 @@ def _landing() -> str:
     </div>
 
     <div class="layer" onclick="showSection('evolution')">
-      <span class="layer-marker" style="--lc:#10b981"></span>
+      <span class="layer-marker" style="--lc:var(--c-evolution)"></span>
       <div class="layer-label"><h3>Evolution</h3><p>Hub du savoir : 5 silos unifies, propositions d'amelioration</p></div>
       <span class="badge live">live</span>
       <span class="layer-arrow">›</span>
@@ -223,7 +223,7 @@ def _section_creation() -> str:
     <textarea id="intention" placeholder="Ex : un convertisseur de temperature celsius / fahrenheit" data-i18n-placeholder="creation.intention_placeholder"></textarea>
     <div class="row" style="margin-top:14px">
       <button id="btn-scan" data-i18n="creation.scanner_intention">Scanner l'intention</button>
-      <button id="btn-conseils" data-i18n="creation.conseils_conformite">Conseils (conformite)</button>
+      <button id="btn-conseils" class="ghost" data-i18n="creation.conseils_conformite">Conseils (conformite)</button>
     </div>
     <div class="row" style="margin-top:8px;gap:8px">
       <button id="btn-openlegi" class="ghost" style="font-size:12px;padding:6px 12px" data-i18n="creation.openlegi">⊜ OpenLegi (Legifrance)</button>
@@ -377,6 +377,7 @@ def _section_compte() -> str:
     <h2><span class="sec-dot" style="background:var(--c-compte)"></span>Compte</h2>
     <p>Ton profil, modele actif et historique de production.</p>
   </div>
+  <div class="group-label">Paiement &amp; abonnement</div>
   <!-- Wallet Genyte (GEN) -->
   <div class="panel glass" style="margin-bottom:18px" id="gen-wallet-panel">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -419,6 +420,7 @@ def _section_compte() -> str:
     </div>
   </div>
 
+  <div class="group-label">Confiance &amp; assistant</div>
   <!-- Telemetrie RGPD -->
   <div class="panel glass" style="margin-bottom:18px" id="telemetrie-panel">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">Amelioration communautaire (opt-in)</div>

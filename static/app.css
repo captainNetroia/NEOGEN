@@ -5,7 +5,7 @@
   --acc:#16c65e;--acc2:#0fa84d;
   --ok:#16a34a;--ko:#dc2626;--warn:#d97706;
   --c-creation:#10b981;--c-production:#22c55e;
-  --c-compte:#16c65e;--c-analyse:#3b82f6;
+  --c-compte:#16c65e;--c-analyse:#3b82f6;--c-cerveau:#16c65e;--c-evolution:#10b981;
   --c-integration:#f59e0b;--c-don:#00e87a;--c-marketing:#f97316;
   --bg:#f4fff6;
   --s0:rgba(255,255,255,.92);--s1:rgba(255,255,255,.70);--s2:rgba(255,255,255,.48);
@@ -325,10 +325,10 @@ body.dark .layer-label p{color:#86a086;}
 /* ── 8. SECTIONS ── */
 .section{display:none;position:relative;z-index:1;max-width:1020px;margin:0 auto;padding:28px 32px 60px;}
 .section.active{display:block;}
-.sec-header{margin-bottom:28px;padding-bottom:14px;border-bottom:1px solid var(--line);}
-.sec-header h2{font-size:19px;letter-spacing:.4px;display:flex;align-items:center;gap:10px;color:var(--txt);font-weight:600;}
-.sec-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-.sec-header p{color:var(--mut);font-size:13px;margin-top:5px;}
+.sec-header{margin-bottom:34px;padding-bottom:18px;border-bottom:1px solid var(--line);}
+.sec-header h2{font-size:25px;letter-spacing:.2px;display:flex;align-items:center;gap:11px;color:var(--txt);font-weight:700;}
+.sec-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.sec-header p{color:var(--mut);font-size:14px;margin-top:7px;line-height:1.5;}
 
 /* ── 9. GLASS PANELS ── */
 /* Liquid glass reel (vrai backdrop-filter, panels hors preserve-3d) : verre taille, reflet du
@@ -400,7 +400,7 @@ body.dark .panel.glass:nth-of-type(3n){animation-delay:-3.4s;}
 body.dark .glass::before{
   background:radial-gradient(120% 70% at 50% -12%,rgba(0,255,65,.06),transparent 60%);
 }
-.panel{padding:20px;margin-bottom:18px;border-radius:18px;position:relative;z-index:1;}
+.panel{padding:24px;margin-bottom:20px;border-radius:18px;position:relative;z-index:1;}
 .panel.glass{border-radius:18px;}
 .panel.glass>*{position:relative;z-index:1;}
 .placeholder{padding:60px 40px;text-align:center;margin-top:8px;}
@@ -1158,3 +1158,13 @@ body.dark #goal-input{background:rgba(255,255,255,.07);border-color:rgba(255,255
 .ntr-ob-box::-webkit-scrollbar{width:0;height:0;display:none;}
 #ob-back2,#ob-back3{padding:6px 10px!important;border-radius:8px;background:rgba(255,255,255,.05);transition:background .15s;}
 #ob-back2:hover,#ob-back3:hover{background:rgba(255,255,255,.10);}
+
+/* ── 33. GROUPES DE PANELS (separateur visuel leger entre blocs thematiques,
+   ex: Compte : paiement / confiance / profil) — n'ajoute pas de bordure ni de
+   fond, juste un espacement + un label discret pour casser la repetition de
+   panels identiques a la suite. */
+.group-label{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.1px;
+  color:var(--mut);opacity:.55;margin:32px 0 10px;padding-left:2px;
+}
+.group-label:first-child{margin-top:0;}

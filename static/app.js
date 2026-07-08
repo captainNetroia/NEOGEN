@@ -1948,7 +1948,8 @@ async function renderCompteConnecte(root,user){
   const palierLabel={'gratuit':'Gratuit','essential':'Essential','pro':'Pro','power':'Power','enterprise':'Enterprise'};
   const palCle=user.palier||'gratuit';
   root.innerHTML=
-    '<div class="panel glass" style="margin-bottom:18px">'
+    '<div class="group-label">Profil &amp; preferences</div>'
+    +'<div class="panel glass" style="margin-bottom:18px">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">'+t('compte.mon_compte')+'</div>'
     +'<div style="font-size:17px;font-weight:700;margin-bottom:3px">'+esc(user.name)+'</div>'
     +'<div style="font-size:13px;color:var(--mut)">'+esc(user.email)+'</div>'
@@ -2008,6 +2009,7 @@ async function renderCompteConnecte(root,user){
     +'<button class="ghost" id="clear-chats-btn" style="font-size:12px;padding:5px 12px;margin-left:auto">'+t('compte.effacer_chats')+'</button>'
     +'</div></div>'
 
+    +'<div class="group-label">Historique</div>'
     +'<div class="panel glass">'
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:12px">'+t('compte.historique_production')+'</div>'
     +'<div id="compte-historique"><div style="color:var(--mut);font-size:13px">'+t('compte.chargement')+'</div></div></div>';
@@ -5005,30 +5007,59 @@ async function _injectUserCss(){
   else document.addEventListener('DOMContentLoaded',_injectUserCss);
 })();
 
-/* Bulles de notification : poll des pensees a haut score non lues. */
+/* Bulles de notification : poll des pensees a haut score non lues.
+   v2 : une seule bulle visible a la fois (jamais un mur de notifications qui
+   bouffe un tiers de l'ecran) + badge "+N" discret pour passer a la suivante. */
 (function(){
-  function showBubble(b){
-    if(document.getElementById('pensee-bubble-'+b.id))return;
+  const _file=[]; // pensees en attente d'affichage, pas encore montrees
+  let _actuelle=null; // id de la bulle actuellement affichee, ou null
+
+  function _afficherSuivante(){
+    if(_actuelle)return; // une bulle est deja visible, on ne double pas
+    const b=_file.shift();
+    if(!b)return;
+    _actuelle=b.id;
     const el=document.createElement('div');
-    el.id='pensee-bubble-'+b.id;
-    el.style.cssText='position:fixed;right:20px;bottom:20px;left:20px;max-width:300px;margin-left:auto;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px);color:#e2e8f0';
-    el.innerHTML='<div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:4px">&#128173; Une pensee a emerge</div>'
+    el.id='pensee-bubble';
+    el.style.cssText='position:fixed;right:20px;bottom:20px;left:20px;max-width:300px;margin-left:auto;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(8px);color:#e2e8f0';
+    const badgeFile=_file.length>0?'<span style="font-size:10px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,.14);border-radius:99px;padding:1px 7px;margin-left:6px">+'+_file.length+'</span>':'';
+    el.innerHTML='<div style="display:flex;align-items:flex-start;gap:8px">'
+      +'<div style="flex:1;cursor:pointer" id="pbb-body">'
+      +'<div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:4px">&#128173; Une pensee a emerge'+badgeFile+'</div>'
       +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+esc(b.titre||'')+'</div>'
-      +'<div style="font-size:11px;opacity:.6;line-height:1.4">'+esc((b.synthese||'').slice(0,110))+'</div>';
-    el.onclick=async function(){
+      +'<div style="font-size:11px;opacity:.6;line-height:1.4">'+esc((b.synthese||'').slice(0,110))+'</div>'
+      +'</div>'
+      +'<button id="pbb-close" title="Fermer" style="all:unset;cursor:pointer;color:rgba(255,255,255,.4);font-size:14px;padding:2px 4px;flex-shrink:0">&times;</button>'
+      +'</div>';
+    function retirer(){
+      if(el.parentNode)el.remove();
+      _actuelle=null;
+      _afficherSuivante(); // enchaine sur la suivante en file, s'il y en a
+    }
+    el.querySelector('#pbb-close').onclick=function(e){
+      e.stopPropagation();
+      fetch('/savoir/pensees/'+encodeURIComponent(b.id)+'/lue',{method:'POST'}).catch(function(){});
+      retirer();
+    };
+    el.querySelector('#pbb-body').onclick=async function(){
       try{await fetch('/savoir/pensees/'+encodeURIComponent(b.id)+'/lue',{method:'POST'});}catch(e){}
-      el.remove();
+      retirer();
       if(typeof showSection==='function')showSection('evolution');
     };
     document.body.appendChild(el);
     setTimeout(function(){if(el.parentNode)el.style.opacity='.85';},8000);
+  }
+  function queueBubble(b){
+    if(_actuelle===b.id||_file.some(f=>f.id===b.id))return; // deja affichee/en file
+    _file.push(b);
+    _afficherSuivante();
   }
   async function poll(){
     try{
       const r=await fetch('/savoir/pensees/bulles');
       if(!r.ok)return; // 403 si non-proprietaire -> on ignore
       const d=await r.json();
-      (d.bulles||[]).slice(0,3).forEach(showBubble);
+      (d.bulles||[]).slice(0,5).forEach(queueBubble);
     }catch(e){}
   }
   setTimeout(poll,5000);
