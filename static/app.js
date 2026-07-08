@@ -96,17 +96,17 @@ const _breath=(function(){
     /* panels : apesanteur subtile partout, y compris les panels de chat (demande explicite
        Jordan) - amplitude reduite sur .agent-chat pour ne pas geiner la lecture/saisie. */
     document.querySelectorAll('.glass.panel,.panel.glass').forEach(function(el){
-      if(el.classList.contains('agent-chat')){add(el,.9,.06);return;}
-      add(el,1.8,.1);
+      if(el.classList.contains('agent-chat')){add(el,2.7,.18);return;}
+      add(el,5.4,.3);
     });
     /* sidebar items : phase Fibonacci -> chaque item a sa propre trajectoire aleatoire */
-    document.querySelectorAll('.side-item').forEach(el=>add(el,3,1));
+    document.querySelectorAll('.side-item').forEach(el=>add(el,9,3));
     /* placeholders (pages bientot) */
-    document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,2,.3));
+    document.querySelectorAll('.placeholder.glass').forEach(el=>add(el,6,.9));
     /* icones ph-icon : levitation moderee */
-    document.querySelectorAll('.ph-icon').forEach(el=>add(el,4,0));
+    document.querySelectorAll('.ph-icon').forEach(el=>add(el,12,0));
     /* cartes produits (generees dynamiquement) */
-    document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,2,.4));
+    document.querySelectorAll('.produit-card.glass').forEach(el=>add(el,6,1.2));
   }
 
   /* Perf : mouvement tres lent (sinus basse frequence) -> 30fps indiscernable de 60fps,
@@ -116,14 +116,14 @@ const _breath=(function(){
   function frame(ts){
     if(ts-_lastFrameT<33){requestAnimationFrame(frame);return;}
     _lastFrameT=ts;
-    t+=.009;
+    t+=.03;
     /* purge les elements detaches du DOM (ex: grid.innerHTML='') */
     if(items.length)items=items.filter(o=>document.contains(o.el));
     items.forEach(o=>{
       const tY=Math.sin(t+o.phase)*o.ampY;
       const tX=Math.cos(t*.62+o.phase)*o.ampX;
-      o.cY+=(tY-o.cY)*.07;
-      o.cX+=(tX-o.cX)*.07;
+      o.cY+=(tY-o.cY)*.14;
+      o.cX+=(tX-o.cX)*.14;
       o.el.style.transform='translateY('+o.cY.toFixed(2)+'px) translateX('+o.cX.toFixed(2)+'px)';
     });
     requestAnimationFrame(frame);
@@ -2164,7 +2164,7 @@ async function renderCompteConnecte(root,user){
     }catch(e){hist.innerHTML='<div style="color:var(--mut);font-size:13px">Erreur de chargement.</div>';}
   }
 
-  if(window._breath)_breath.scan();
+  _breath.scan();
 }
 
 function _ppTranscriptHtml(p){
@@ -2492,7 +2492,7 @@ async function loadAnalyse(){
         {val:lignesTotal,lbl:'Lignes generees'},
         {val:tentMoy,lbl:'Moy. tentatives'},
       ].map(s=>'<div class="stat-card glass"><div class="stat-val">'+s.val+'</div><div class="stat-lbl">'+s.lbl+'</div></div>').join('');
-      if(window._breath)_breath.scan();
+      _breath.scan();
     }
     if(capsEl){
       capsEl.innerHTML='';
@@ -2538,7 +2538,7 @@ async function loadAnalyse(){
         +(f.rating?'<span style="color:#f59e0b">'+'&#9733;'.repeat(f.rating)+'</span>':'')
         +'</div><div class="fb-msg">'+esc(f.message)+'</div></div>'
       ).join('');
-    sec.appendChild(fbDiv);if(window._breath)_breath.scan();
+    sec.appendChild(fbDiv);_breath.scan();
   }catch(e){}
 }
 
@@ -2710,7 +2710,7 @@ function _initIntegModeleUi(){
     ge('integ-custom-key').value='';
     const f=ge('integ-add-form');if(f)f.classList.add('hidden');
     if(window._loadCustom)_loadCustom();
-    if(window._breath)_breath.scan();
+    _breath.scan();
   };
   window.deleteInteg=function(i){
     const list=JSON.parse(localStorage.getItem('neogen_integrations')||'[]');
@@ -5011,7 +5011,7 @@ async function _injectUserCss(){
     if(document.getElementById('pensee-bubble-'+b.id))return;
     const el=document.createElement('div');
     el.id='pensee-bubble-'+b.id;
-    el.style.cssText='position:fixed;right:20px;bottom:20px;max-width:300px;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px);color:#e2e8f0';
+    el.style.cssText='position:fixed;right:20px;bottom:20px;left:20px;max-width:300px;margin-left:auto;z-index:9999;padding:14px 16px;background:rgba(20,22,28,.96);border:1px solid rgba(245,158,11,.4);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;backdrop-filter:blur(8px);color:#e2e8f0';
     el.innerHTML='<div style="font-size:11px;color:#f59e0b;font-weight:700;margin-bottom:4px">&#128173; Une pensee a emerge</div>'
       +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+esc(b.titre||'')+'</div>'
       +'<div style="font-size:11px;opacity:.6;line-height:1.4">'+esc((b.synthese||'').slice(0,110))+'</div>';

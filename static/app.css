@@ -989,13 +989,18 @@ body.dark .consent-btn:hover{background:rgba(255,255,255,.11);}
   header{padding:0 16px;}
   .section{padding:16px 16px 40px;}
   .landing-title h2{font-size:32px;letter-spacing:7px;}
+  .agent-chat-head{gap:6px 8px;}
+  .agent-chat-head .agent-chat-sub{flex-basis:100%;order:1;}
+  .eco-toggle{margin-left:0;margin-right:0;}
+  .agent-chat-head .eco-toggle,.agent-chat-head .agent-chat-convs-btn,.agent-chat-head .agent-chat-clear{order:2;}
 }
 
 /* ── 32. AGENTS CONVERSATIONNELS ── */
 .agent-chat{display:flex;flex-direction:column;margin-bottom:18px;}
-.agent-chat-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:15px;}
-.agent-chat-head .agent-chat-dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 9px var(--acc);}
-.agent-chat-head .agent-chat-sub{color:var(--mut);font-size:12px;font-weight:400;}
+.agent-chat-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:15px;flex-wrap:wrap;}
+.agent-chat-head .agent-chat-dot{width:9px;height:9px;border-radius:50%;background:var(--acc);box-shadow:0 0 9px var(--acc);flex-shrink:0;}
+.agent-chat-head>b{white-space:nowrap;}
+.agent-chat-head .agent-chat-sub{color:var(--mut);font-size:12px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .agent-chat-log{overflow-y:auto;min-height:90px;max-height:46vh;padding:6px 2px;display:flex;flex-direction:column;gap:9px;}
 .agent-chat-log:empty::before{content:"Ecris un message pour commencer.";color:var(--mut);font-size:13px;padding:8px 2px;}
 .ac-msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.55;word-wrap:break-word;overflow-wrap:anywhere;}
@@ -1047,9 +1052,10 @@ body:not(.dark) .mkt-mcp-card{background:rgba(15,23,42,.03);border-color:rgba(15
 body:not(.dark) .ac-md code{background:rgba(15,23,42,.08);color:var(--txt);}
 /* v3.1 : toggle en verre (piste translucide + backdrop-filter), plus un pill flat opaque —
    le knob glossy (degrade blanc) rappelle une bille de verre, cf. coherence demandee Jordan. */
-.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;margin-left:auto;margin-right:8px;user-select:none;
+.eco-toggle{display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;color:#94a3b8;margin-left:auto;margin-right:8px;user-select:none;flex-shrink:0;white-space:nowrap;
   padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.10);transition:background .18s,border-color .18s;}
+.agent-chat-head .eco-toggle:first-of-type{margin-left:0;}
 .eco-toggle:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.16);}
 .eco-toggle.eco-locked{background:rgba(255,255,255,.03);}
 .eco-toggle input{width:30px;height:16px;appearance:none;border-radius:99px;position:relative;cursor:pointer;flex-shrink:0;
