@@ -294,8 +294,10 @@ PROFILS: dict[str, dict] = {
             "1. VISION : reformule l'objectif en une phrase. Qu'est-ce qui doit fonctionner au final ?\n"
             "2. DIAGNOSTIC : lance 'diagnostic_ingenieur'. Lis le code concerne avec 'lire_source' / "
             "'chercher_code' / 'carte_code'. Applique les 3 etats (CERTAIN / INCONNU / ANGLE MORT). "
-            "Si une expertise te manque, APPELLE l'agent adapte ('appeler_agent' : veilleur pour la "
-            "sante, analyste pour les patterns, architecte pour la gouvernance).\n"
+            "Si une expertise te manque, APPELLE l'agent adapte ('appeler_agent' : 'scientifique' "
+            "pour toute conception/R&D/probleme dur (voir BINOME plus haut — PRIORITAIRE sur les "
+            "autres appels), veilleur pour la sante, analyste pour des patterns d'usage PUR sans "
+            "besoin de conception, architecte pour la gouvernance).\n"
             "2b. AUDIT ARCHITECTURE (OBLIGATOIRE avant tout choix de strategie) : si le projet tourne "
             "dans Docker, verifier IMMEDIATEMENT quels fichiers sont bind-montes : "
             "'lire_fichier docker-compose.yml' -> section 'volumes'. "
@@ -534,6 +536,18 @@ PROFILS: dict[str, dict] = {
 
 # Le Cerveau peut deleguer a ces agents.
 _DELEGABLES = ("createur", "genealogiste", "secretaire", "veilleur", "ingenieur", "scientifique")
+
+# Categorie de specialisation (data/providers_specialisation.json) deduite du role, pour
+# la resolution automatique de provider (gateway.resoudre_provider). Role absent -> generaliste.
+_CATEGORIE_PAR_ROLE = {
+    "ingenieur": "code",
+    "scientifique": "conception_rd",
+    "cerveau": "multi_agent",       # delegue en cascade -> categorie ou DeepSeek excelle a ce jour
+    "analyste": "code",
+    "veilleur": "code",
+    "createur": "code",
+    "marketeur": "recherche_web",
+}
 
 # Agents du NOYAU : jamais ecrases par un bebe-agent custom (evolution gouvernee).
 _PROFILS_NOYAU = frozenset(PROFILS.keys())
@@ -831,13 +845,17 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
     if profil.get("permet_decision"):
         desc += ("\n  - demander_decision : SEUL cas ou tu dois t'arreter pour demander a Jordan, "
                  "c'est une ambiguite qui touche a la securite, la gouvernance, ou un choix "
-                 "irreversible. Toute autre ambiguite mineure (nommage, structure de fichier, "
-                 "detail d'implementation) : tranche toi-meme, documente ton choix, VA JUSQU'AU "
-                 "BOUT (code + teste + ancre). N'utilise cet outil qu'en dernier recours : il "
-                 "arrete ton tour et notifie Jordan, qui repondra plus tard (tu ne continues pas "
-                 "cette session). arguments JSON {\"question\": \"...\", \"options\": "
-                 "[{\"label\":\"...\", \"description\":\"...\"}]} (2-4 options max, Jordan pourra "
-                 "toujours ecrire sa propre reponse libre en plus des options proposees).")
+                 "irreversible. IRREVERSIBLE inclut explicitement : supprimer/ecraser des entrees "
+                 "dans un registre ou fichier de donnees (meme 'juste des doublons'), modifier des "
+                 "credentials, toucher au noyau, ou toute action que Jordan ne peut pas annuler d'un "
+                 "clic. Avant de coder une suppression, demande TOUJOURS confirmation avec le detail "
+                 "exact de ce qui serait retire (quelles entrees, combien). Toute autre ambiguite "
+                 "mineure (nommage, structure de fichier, detail d'implementation) : tranche toi-meme, "
+                 "documente ton choix, VA JUSQU'AU BOUT (code + teste + ancre). N'utilise cet outil "
+                 "que pour les cas ci-dessus : il arrete ton tour et notifie Jordan, qui repondra plus "
+                 "tard (tu ne continues pas cette session). arguments JSON {\"question\": \"...\", "
+                 "\"options\": [{\"label\":\"...\", \"description\":\"...\"}]} (2-4 options max, "
+                 "Jordan pourra toujours ecrire sa propre reponse libre en plus des options proposees).")
     skills_bloc = ""
     try:
         import competences
@@ -1073,7 +1091,23 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
         _emit({"type": "eco", "tier": tier,
                "raison": f"agent {role} : modele {tier} requis (code/raisonnement structuré)"})
 
-    cl = _client or gateway.client(ctx, tier=tier)
+    # RESOLUTION AUTOMATIQUE DU PROVIDER : le "plus fort operationnel" maintenant, pas
+    # code en dur. Categorie de specialisation deduite du role (cf data/providers_
+    # specialisation.json) ; BYOK utilisateur toujours respecte (gateway.resoudre_provider
+    # ne bascule jamais une cle fournie vers un autre provider). Cerveau delegue -> categorie
+    # multi_agent (DeepSeek gere mieux la delegation en cascade a ce jour, table editable).
+    _categorie_provider = _CATEGORIE_PAR_ROLE.get(role, "generaliste")
+    if _client is None:
+        _provider_avant = (ctx.provider or "anthropic").lower() if ctx else "anthropic"
+        cl = gateway.client(ctx, tier=tier, categorie=_categorie_provider, auto_provider=True)
+        _provider_reel = getattr(cl, "provider", _provider_avant)
+        if _provider_reel != _provider_avant:
+            _emit({"type": "bascule_provider", "avant": _provider_avant, "apres": _provider_reel,
+                   "raison": f"'{_provider_avant}' indisponible, bascule sur '{_provider_reel}' "
+                             f"(meilleur operationnel pour {_categorie_provider})"})
+    else:
+        cl = _client
+        _provider_reel = getattr(cl, "provider", "anthropic")
 
     def _maj_bandit(succes: bool):
         if _profondeur == 0 and eco and _bandit_cat:
@@ -1094,10 +1128,20 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             _msgs_api = eclair.compresser_messages(messages) if mode_eclair else messages
             res = cl.messages.create(system=systeme, messages=_msgs_api, max_tokens=4000)
             step = _parse_step(_texte_de(res))
+            try:
+                import provider_sante as _psante
+                _psante.marquer_succes(_provider_reel)
+            except Exception:
+                pass
         except Exception as e:
             msg = nettoyer(f"Le modele n'a pas pu repondre : {e}")
             _emit({"type": "erreur", "message": msg})
             _maj_bandit(succes=False)
+            try:
+                import provider_sante as _psante
+                _psante.marquer_echec(_provider_reel, e)
+            except Exception:
+                pass
             return msg
         if step.pensee:
             _emit({"type": "pensee", "agent": role, "texte": nettoyer(step.pensee)})
@@ -1142,16 +1186,19 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
             else:
                 reco_del = gateway.recommander_tier(mission)
                 tier_del = reco_del["tier"]
+                # PAS de 'model' fige ici : dialoguer() du sous-agent refera sa propre
+                # resolution automatique de provider (categorie deduite du role delegue,
+                # ex: 'ingenieur' -> 'code') via gateway.client(..., auto_provider=True).
+                # Figer le modele ici court-circuiterait cette bascule pour la delegation.
                 _prov_del = (ctx.provider if ctx else None) or "anthropic"
-                _model_del = gateway.TIERS.get(_prov_del, gateway.TIERS["anthropic"]).get(tier_del)
                 ctx_adapte = gateway.LLMContext(
                     provider=_prov_del,
-                    model=_model_del,
+                    model=None,
                     api_key=ctx.api_key if ctx else None,
                     base_url=ctx.base_url if ctx else None,
                 )
                 _emit({"type": "delegation", "de": role, "vers": cible,
-                       "mission": nettoyer(mission), "tier": tier_del, "modele": _model_del or ""})
+                       "mission": nettoyer(mission), "tier": tier_del, "modele": ""})
                 obs = dialoguer(cible, mission, ctx=ctx_adapte, emit=emit,
                                 _client=_client, _profondeur=_profondeur + 1, eco=eco, user=user)
             _replay("deleguer")

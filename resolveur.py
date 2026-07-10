@@ -34,7 +34,6 @@ from pydantic import BaseModel, Field
 import gateway
 import robustesse as rob
 from generator import parse_resilient
-from pipeline import _client
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(BASE, "data")
@@ -111,9 +110,12 @@ def _capacites_disponibles() -> str:
 
 # ── 1. Analyser : appliquer les 3 etats a l'objectif ──────────────────────────────
 
-def analyser(objectif: str, *, client=None) -> dict:
+def analyser(objectif: str, *, client=None, ctx=None) -> dict:
     """Decompose l'objectif et classe chaque element en CERTAIN/INCONNU/ANGLE_MORT, ancre sur
-    les capacites reelles. Renvoie un dict (AnalyseObjectif) + compteurs. Ne leve jamais."""
+    les capacites reelles. Renvoie un dict (AnalyseObjectif) + compteurs. Ne leve jamais.
+    ctx (gateway.LLMContext) : provider/cle choisis par l'utilisateur (BYOK). Ignore si
+    'client' est deja fourni explicitement. None => gateway.client() retombe sur Anthropic
+    systeme, comme avant ce fix."""
     with rob.garde("resolveur.analyser", source="resolveur"):
         objectif = (objectif or "").strip()
         if not objectif:
@@ -138,9 +140,9 @@ def analyser(objectif: str, *, client=None) -> dict:
             "Une brique de code manquante mais ecrivable = INCONNU (elle sera forgee)."
         )
         try:
-            cl = client or _client()
+            cl = client or gateway.client(ctx, tier="fort")
             resp = parse_resilient(
-                cl, model=gateway.TIERS["anthropic"]["fort"], max_tokens=4000,
+                cl, max_tokens=4000,
                 thinking={"type": "adaptive"}, system=systeme,
                 messages=[{"role": "user", "content": f"Objectif : {objectif}"}],
                 output_format=AnalyseObjectif,
@@ -173,12 +175,12 @@ def _norm_element(e) -> dict:
 
 # ── 2. Resoudre : forger les INCONNUS, demander les donnees, tracer l'objectif ─────
 
-def resoudre(objectif: str, *, auto_forge: bool = True, client=None) -> dict:
+def resoudre(objectif: str, *, auto_forge: bool = True, client=None, ctx=None) -> dict:
     """Analyse l'objectif puis AGIT : forge chaque INCONNU codable (forge_evolution async),
     collecte les ANGLES MORTS (questions) et les DONNEES SENSIBLES a demander. Trace l'objectif.
     Ne leve jamais. Renvoie {analyse, forges, questions, donnees_a_demander, objectif_id}."""
     with rob.garde("resolveur.resoudre", source="resolveur"):
-        an = analyser(objectif, client=client)
+        an = analyser(objectif, client=client, ctx=ctx)
         if not an.get("ok"):
             return an
 

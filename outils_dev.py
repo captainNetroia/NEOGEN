@@ -178,9 +178,22 @@ def outil_forger_capacite(besoin: str = "", titre: str = "", ancrage: str = "man
     import forge_evolution as _fe
     import uuid
     job = uuid.uuid4().hex[:12]
+    # La forge (generator.generate_cell) utilise l'API structured-output d'Anthropic
+    # (client.messages.parse(output_format=...)) : elle ne route PAS via gateway multi-
+    # provider comme les autres outils, c'est un choix assume (qualite du code genere).
+    # Si l'utilisateur a choisi le provider anthropic dans l'UI, on transmet SA cle BYOK ;
+    # sinon (DeepSeek/OpenAI/local...) la forge retombe sur la cle Anthropic systeme, et si
+    # celle-ci est a sec on le dit clairement au lieu de laisser fuiter l'erreur API brute.
+    _ctx = kw.get("_ctx")
+    _byok = _ctx.api_key if (_ctx and (_ctx.provider or "anthropic").lower() == "anthropic") else None
     try:
-        r = _fe.forger(besoin, titre=titre or besoin[:60], job_id=job)
+        r = _fe.forger(besoin, titre=titre or besoin[:60], job_id=job, byok_key=_byok)
     except Exception as e:
+        msg = str(e)
+        if "credit balance is too low" in msg.lower() and not _byok:
+            return ("[forger_capacite] la forge de code exige un modele Anthropic et la cle "
+                    "systeme est a sec de credits. Connecte ta propre cle Anthropic dans "
+                    "l'interface (Compte > IA), ou demande a Jordan de recharger la cle systeme.")
         return f"[forger_capacite] erreur forge : {e}"
     if not r.get("ok"):
         return nettoyer(f"[forger_capacite] ECHEC apres {r.get('tentatives', '?')} tentative(s) : "

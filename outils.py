@@ -1136,7 +1136,7 @@ def outil_resoudre_objectif(objectif: str = "", auto_forge: bool = True, **kw) -
     if not objectif or not objectif.strip():
         return "[resoudre_objectif] donne un objectif a atteindre."
     import resolveur as _r
-    res = _r.resoudre(objectif, auto_forge=bool(auto_forge))
+    res = _r.resoudre(objectif, auto_forge=bool(auto_forge), ctx=kw.get("_ctx"))
     if not res.get("ok"):
         return f"[resoudre_objectif] echec : {res.get('raison', 'inconnu')}"
     an = res["analyse"]

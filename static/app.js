@@ -3600,6 +3600,7 @@ function buildChat(mount){
           if(!chunk.startsWith('data: '))continue;
           let evt;try{evt=JSON.parse(chunk.slice(6));}catch(e){continue;}
           if(evt.type==='eco'){add('ac-trace','&#127793; eco : modele '+esc(evt.tier||'')+' ('+esc(evt.raison||'')+')');}
+          else if(evt.type==='bascule_provider'){add('ac-trace action','&#128260; '+esc(evt.raison||(evt.avant+' -> '+evt.apres)));}
           else if(evt.type==='pensee'){add('ac-trace','&#128173; '+esc(evt.texte||''));}
           else if(evt.type==='action'){add('ac-trace action','&#128295; '+esc(evt.outil||'')+' '+esc(JSON.stringify(evt.parametres||{})));}
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
@@ -4982,6 +4983,34 @@ function _bulleProgression(jobId,titre,btn){
         +esc(st.raison||'erreur inconnue')+' — aucun code installe.</span>';
       if(btn){btn.textContent='echec';btn.style.color='#ef4444';btn.disabled=false;}
       setTimeout(function(){if(el.parentNode)el.remove();},10000);
+
+    }else if(st.etat==='interrompu'){
+      clearInterval(timer);
+      if(bar){bar.style.width='100%';bar.style.background='#d97706';bar.style.boxShadow='none';}
+      el.querySelector('span[style*="animation"]').style.animation='none';
+      el.querySelector('span[style*="animation"]').style.background='#d97706';
+      el.querySelector('span[style*="animation"]').style.boxShadow='0 0 6px #d97706';
+      el.style.borderColor='rgba(217,119,6,.55)';
+      el.style.boxShadow='0 0 24px rgba(217,119,6,.10),0 18px 44px rgba(0,0,0,.88)';
+      if(et){et.textContent='> interrompu — relance possible';et.style.color='#d97706';et.style.fontWeight='700';}
+      if(note)note.innerHTML='<span style="color:rgba(217,119,6,.75)">'
+        +esc(st.raison||'redemarrage du systeme pendant le traitement.')+'</span>';
+      if(st.pensee_id){
+        const rBtn=document.createElement('button');
+        rBtn.textContent='↻ Relancer';
+        rBtn.style.cssText='margin-top:10px;width:100%;padding:7px 0;background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.4);color:#d97706;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600';
+        rBtn.onclick=async function(){
+          rBtn.disabled=true;rBtn.textContent='...';
+          try{
+            const rr=await fetch('/savoir/pensees/'+encodeURIComponent(st.pensee_id)+'/donner-vie',{method:'POST',headers:_authHdrs()});
+            const rd=await rr.json();
+            if(rd.job_id){el.remove();_bulleProgression(rd.job_id,titre,btn);}
+            else{rBtn.textContent='echec relance';}
+          }catch(e){rBtn.textContent='echec relance';}
+        };
+        el.appendChild(rBtn);
+      }
+      if(btn){btn.textContent='interrompu';btn.style.color='#d97706';btn.disabled=false;}
     }
   },1500);
 }

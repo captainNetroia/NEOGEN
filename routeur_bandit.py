@@ -124,9 +124,76 @@ def etat() -> dict:
     d = _lire()
     out = {}
     for cat, stats in d.items():
+        if cat == "_provider":
+            continue
         out[cat] = {t: {"n": s["n"], "moyenne": round(s["somme"] / s["n"], 3) if s["n"] else None}
                     for t, s in stats.items()}
     return out
+
+
+# ---------------------------------------------------------------------------
+# AXE PROVIDER : meme mecanique UCB1, mais pour ajuster (categorie, provider) plutot que
+# (categorie, tier). Independant de choisir() ci-dessus : gateway.resoudre_provider() fournit
+# deja une table de specialisation editable (data/providers_specialisation.json) qui sert de
+# PRIORITE/ordre de base ; ce bandit ajuste seulement, avec l'usage reel, quel provider de
+# cette liste reussit le mieux pour une categorie donnee -- il ne remplace jamais la table,
+# il la departage quand plusieurs providers de la table sont operationnels en meme temps.
+# Stocke sous la cle reservee "_provider" du meme fichier data/bandit.json.
+#
+# ETAT ACTUEL (2026-07-10) : ces fonctions existent et sont testees, mais ne sont PAS ENCORE
+# appelees par agent_core.dialoguer() -- gateway.resoudre_provider() prend le premier provider
+# operationnel de la table (deterministe), ce qui est deja la correction demandee. Brancher
+# choisir_provider() exigerait que resoudre_provider() renvoie TOUS les candidats operationnels
+# (pas juste le premier) pour que le bandit choisisse parmi eux : evolution future si on veut
+# departager plusieurs providers valides plutot que respecter l'ordre fixe de la table.
+# ---------------------------------------------------------------------------
+def _stats_provider(d: dict, categorie: str, provider: str) -> dict:
+    racine = d.setdefault("_provider", {})
+    cat = racine.setdefault(categorie, {})
+    return cat.setdefault(provider, {"n": 0, "somme": 0.0})
+
+
+def choisir_provider(categorie: str, candidats: list[str]) -> tuple[str, str]:
+    """Parmi 'candidats' (deja filtres OPERATIONNELS par provider_sante), choisit celui
+    que le bandit prefere pour cette categorie via UCB1. Retourne (provider, source).
+    Sans historique suffisant -> (candidats[0], 'heuristique') : on respecte l'ordre de
+    la table de specialisation tant que le bandit n'a pas assez appris."""
+    if not candidats:
+        return "", "aucun_candidat"
+    if len(candidats) == 1:
+        return candidats[0], "seul_candidat"
+    with _LOCK:
+        d = _lire()
+        stats = {p: _stats_provider(d, categorie, p) for p in candidats}
+        total = sum(s["n"] for s in stats.values())
+        jamais = [p for p in candidats if stats[p]["n"] == 0]
+        if jamais:
+            if total == 0:
+                return candidats[0], "heuristique"
+            return jamais[0], "exploration"
+        if total < MIN_OBS_AVANT_CONFIANCE:
+            return candidats[0], "heuristique"
+        meilleur, meilleur_score = candidats[0], -1.0
+        for p in candidats:
+            n = stats[p]["n"]
+            moyenne = stats[p]["somme"] / n
+            ucb = moyenne + C_EXPLORATION * math.sqrt(2 * math.log(total) / n)
+            if ucb > meilleur_score:
+                meilleur, meilleur_score = p, ucb
+        return meilleur, "bandit"
+
+
+def recompenser_provider(categorie: str, provider: str, succes: bool) -> float:
+    """Meme recompense (succes - penalite) qu'un tier, mais SANS penalite de cout par
+    provider (on n'a pas de tarif comparatif fiable) : 1.0 si succes, 0.0 sinon."""
+    r = 1.0 if succes else 0.0
+    with _LOCK:
+        d = _lire()
+        s = _stats_provider(d, categorie, provider)
+        s["n"] += 1
+        s["somme"] += r
+        _ecrire(d)
+    return r
 
 
 if __name__ == "__main__":

@@ -45,6 +45,9 @@ TIERS = {
     "local":     {"fort": "llama3.2",        "moyen": "llama3.2",          "leger": "qwen2.5"},
 }
 
+# Ordre par defaut si aucune table de specialisation n'est disponible (repli).
+PROVIDERS_SYSTEME_ORDRE = ("anthropic", "deepseek", "openai", "gemini", "glm", "mistral", "moonshot")
+
 # ---------------------------------------------------------------------------
 # ROUTEUR DE MODELE : analyse une demande et choisit le tier LE PLUS ECONOME
 # possible (moins de tokens = moins cher = valeur client). Heuristique locale
@@ -425,12 +428,86 @@ def _tiers_provider(provider: str) -> dict:
         return {}
 
 
-def client(ctx: LLMContext | None = None, tier: str = "fort"):
+# ---------------------------------------------------------------------------
+# RESOLUTION AUTOMATIQUE DU PROVIDER : quel est le "plus fort operationnel" MAINTENANT,
+# pas seulement celui code en dur (anthropic) ou choisi manuellement s'il est a sec.
+#
+# Regle de securite stricte : on ne bascule JAMAIS vers un provider different de celui
+# demande si l'utilisateur a fourni SA PROPRE cle (ctx.api_key BYOK) -- sa cle n'est valide
+# que pour SON provider, l'utiliser ailleurs echouerait de toute facon et ce serait
+# trompeur. La bascule automatique ne joue QUE sur les providers SYSTEME (cle NetroIA,
+# credentials_loader), c'est-a-dire quand ctx est None/sans cle ou explicitement generaliste.
+# ---------------------------------------------------------------------------
+_DEFAUT_SPECIALISATION = {"generaliste": list(PROVIDERS_SYSTEME_ORDRE)}
+
+
+def _table_specialisation() -> dict:
+    """Table editable (data/providers_specialisation.json). Tolerant : jamais d'exception,
+    repli sur l'ordre par defaut si le fichier est absent/invalide."""
+    import json as _json
+    import os as _os
+    chemin = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                           "data", "providers_specialisation.json")
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            d = _json.load(f)
+        d.pop("_commentaire", None)
+        return d or _DEFAUT_SPECIALISATION
+    except Exception:
+        return _DEFAUT_SPECIALISATION
+
+
+def resoudre_provider(ctx: "LLMContext | None", categorie: str = "generaliste") -> str:
+    """Choisit le provider a utiliser reellement : si celui du ctx (utilisateur, BYOK) est
+    operationnel, on le respecte TOUJOURS (son choix, sa cle). Sinon (ctx absent, ou
+    provider systeme en echec ET aucune cle BYOK fournie), on bascule sur le premier
+    provider OPERATIONNEL de la table de specialisation pour cette categorie.
+    Ne leve jamais : repli final sur 'anthropic' (comportement historique) si rien
+    d'operationnel n'est trouve (l'appel echouera avec une erreur claire, comme avant)."""
+    try:
+        import provider_sante as _psante
+    except Exception:
+        return (ctx.provider or "anthropic").lower() if ctx else "anthropic"
+
+    demande = (ctx.provider or "").lower() if ctx else ""
+    # BYOK : l'utilisateur a fourni SA propre cle -> on ne bascule JAMAIS ailleurs.
+    if ctx and ctx.api_key and demande:
+        return demande
+
+    table = _table_specialisation()
+    ordre = table.get(categorie) or table.get("generaliste") or list(PROVIDERS_SYSTEME_ORDRE)
+    # Le provider explicitement demande (sans cle BYOK -> cle systeme) passe en tete s'il
+    # est dans la liste : on respecte la preference utilisateur si elle est operationnelle.
+    if demande and demande in ordre:
+        ordre = [demande] + [p for p in ordre if p != demande]
+    elif demande:
+        ordre = [demande] + ordre
+
+    for p in ordre:
+        if p not in _psante.PROVIDERS_SYSTEME:
+            continue
+        if _psante.statut(p).get("ok"):
+            return p
+    # Rien d'operationnel detecte : on ne bloque pas, on retente le choix d'origine
+    # (ou anthropic) -- l'appelant recevra une erreur explicite, pas un blocage silencieux.
+    return demande or "anthropic"
+
+
+def client(ctx: LLMContext | None = None, tier: str = "fort", categorie: str = "generaliste",
+          auto_provider: bool = False):
     """Renvoie un client expose .messages.parse / .messages.create pour le provider du ctx.
     ctx None ou provider anthropic sans cle => Anthropic par defaut (cle credentials).
     Un provider AJOUTE par evolution gouvernee (OpenAI-compatible + base_url) est route
-    via l'adaptateur OpenAI-compat."""
+    via l'adaptateur OpenAI-compat.
+    auto_provider=True : avant de router, resout le provider REELLEMENT operationnel pour
+    cette 'categorie' (voir resoudre_provider) au lieu de suivre aveuglement ctx.provider.
+    Retrocompatible : par defaut (False), comportement strictement identique a avant."""
     ctx = ctx or LLMContext()
+    if auto_provider:
+        resolu = resoudre_provider(ctx, categorie)
+        if resolu != (ctx.provider or "anthropic").lower():
+            ctx = LLMContext(provider=resolu, model=None, api_key=ctx.api_key if resolu == ctx.provider else None,
+                             base_url=ctx.base_url if resolu == ctx.provider else None)
     provider = (ctx.provider or "anthropic").lower()
     tiers = _tiers_provider(provider)
     model = ctx.model or tiers.get(tier) or TIERS["anthropic"]["fort"]
