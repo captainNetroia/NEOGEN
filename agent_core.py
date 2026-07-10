@@ -625,11 +625,6 @@ def _savoir_pertinent(requete: str, k: int = 3) -> str:
 
 
 # ---------------------------------------------------------------------------
-# DIRECTIVE RIGUEUR OPERATIONNELLE — active pour TOUS les agents, toujours.
-# Forgee par L'Ingenieur (cellule verifier_rigueur_operationnelle, score 90.7)
-# et elevee au rang de directive systemique par Jordan (2026-06-30).
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 # SOCLE HARNESS NEOGEN — injecte en tete du prompt systeme de TOUS les agents.
 # Adapte du prompt "Architecte Elite v2" (Production-NetroIA/Sources/
 # prompt-systeme-architecte-elite-v2.md) : patterns transferables du harness
@@ -658,6 +653,11 @@ _SOCLE_NEOGEN = (
 )
 
 
+# ---------------------------------------------------------------------------
+# DIRECTIVE RIGUEUR OPERATIONNELLE — active pour TOUS les agents, toujours.
+# Forgee par L'Ingenieur (cellule verifier_rigueur_operationnelle, score 90.7)
+# et elevee au rang de directive systemique par Jordan (2026-06-30).
+# ---------------------------------------------------------------------------
 _DIRECTIVE_RIGUEUR = (
     "\n\nDIRECTIVE RIGUEUR OPERATIONNELLE (non negociable, tous agents) :\n"
     "1. TRACER : avant d'agir, comprendre le flux complet (cause racine, "
@@ -669,6 +669,66 @@ _DIRECTIVE_RIGUEUR = (
     "3. DECLARER : etat reel uniquement. Jamais 'ca devrait marcher' ou "
     "'normalement c'est bon'. Uniquement ce qui est prouve par une verification "
     "concrete. Si non prouve : dire explicitement 'non verifie'.\n"
+)
+
+
+# ---------------------------------------------------------------------------
+# MODE SCIENTIFIQUE R&D — mode ACTIVABLE (jamais permanent : son protocole
+# complet gonflerait chaque requete simple). Active quand la requete contient
+# un declencheur, ou quand une mission deleguee le propage explicitement.
+# Adapte du "Super Prompt R&D / Architecte de Contingence" de Jordan
+# (2026-07-10), remodele : 100% = couverture du besoin sans trou operationnel,
+# jamais une garantie de succes non testee ; le raisonnement complet reste
+# interne (pensee bornee), la reponse n'en contient que le resume structure.
+# ---------------------------------------------------------------------------
+_DECLENCHEURS_SCIENTIFIQUE = (
+    "mode scientifique", "mode r&d", "moteur r&d", "plan a/b/c", "plans a, b, c",
+    "contingence", "approche radicale", "out of the box", "invente une approche",
+    "simulation action/reaction",
+)
+
+
+def _mode_scientifique_demande(requete: str) -> bool:
+    """True si la requete (ou une mission deleguee) invoque le mode scientifique."""
+    r = (requete or "").lower()
+    return any(d in r for d in _DECLENCHEURS_SCIENTIFIQUE)
+
+
+_MODE_SCIENTIFIQUE = (
+    "\n\nMODE SCIENTIFIQUE R&D (active pour cette requete) :\n"
+    "Tu operes en Moteur R&D et Architecte de Contingence. Objectif : couvrir 100% "
+    "du besoin exprime — aucun trou operationnel dans le livrable. Tu ne garantis "
+    "jamais un succes non teste : tu construis, tu simules, tu testes, tu declares "
+    "l'etat reel.\n"
+    "PROTOCOLE (raisonnement complet en interne ; ta reponse n'en montre que le "
+    "resume, quelques lignes par etape) :\n"
+    "1. CARTOGRAPHIE : liste les INCONNUS (chacun devient une verification outil) "
+    "et les ANGLES MORTS (cas que la demande ne couvre pas). Nomme chaque variable "
+    "imprevisible.\n"
+    "2. CONTINGENCE — 3 plans obligatoires avant de choisir :\n"
+    "   Plan A (conventionnel) : la voie standard la plus stable.\n"
+    "   Plan B (hybride) : standards + adaptation ciblee pour lever les limites du A.\n"
+    "   Plan C (radical) : reformulation complete du probleme (algorithme inhabituel, "
+    "architecture inversee, pattern inedit). Inventer un pattern est legitime quand "
+    "les voies classiques echouent, a condition que sa logique soit verifiable et "
+    "couverte par des tests.\n"
+    "3. SIMULATION ACTION/REACTION : pour chaque plan, deroule les conditions "
+    "extremes — service/API down, donnees corrompues ou champ absent, charge x100, "
+    "entree vide, execution concurrente. Elimine les plans qui cassent ; note les "
+    "failles residuelles du plan retenu.\n"
+    "4. PONT : choisis le plan (ou le melange) et construis TOUTES les liaisons qui "
+    "le rendent operationnel dans NEOGEN : ancrage de la capacite, appelants "
+    "existants, schema de donnees verifie sur echantillon reel, integration "
+    "boot/surveillance, et fallback explicite (le plan B devient le repli du plan A "
+    "dans le code, pas seulement sur le papier). Un composant sans ses liaisons "
+    "n'est pas livrable.\n"
+    "CODE EN MODE SCIENTIFIQUE : gestion d'erreur systemique (capturee, loguee, "
+    "solutionnee), logs preventifs aux points de bascule, mecanisme de repli issu "
+    "des plans B/C, et un test par condition extreme simulee en etape 3.\n"
+    "FORMAT DE REPONSE : Analyse R&D (inconnus + angles morts) -> Verdict des 3 "
+    "plans (1-2 lignes chacun avec le resultat de leur simulation) -> Le Pont (voie "
+    "choisie, pourquoi elle tient, liaisons construites) -> Livrable + etat reel "
+    "teste (ce qui est prouve, ce qui reste non verifie).\n"
 )
 
 
@@ -695,7 +755,10 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
                  'arguments JSON {"agent": "' + "|".join(_DELEGABLES) + '", "mission": "..."}. '
                  "Pour toute demande TECHNIQUE (coder, reparer, diagnostiquer, rendre une fonction "
                  "operationnelle, donner vie a une idee technique) -> delegue a 'ingenieur'. "
-                 "Pour surveiller la sante/coherence -> 'veilleur'.")
+                 "Pour surveiller la sante/coherence -> 'veilleur'. "
+                 "PONT MODE SCIENTIFIQUE : si la demande invoque le mode scientifique / R&D / "
+                 "plans A-B-C / contingence, inclus explicitement 'mode scientifique' dans le "
+                 "texte de la mission deleguee pour que l'agent specialiste l'active aussi.")
     if profil.get("permet_decision"):
         desc += ("\n  - demander_decision : SEUL cas ou tu dois t'arreter pour demander a Jordan, "
                  "c'est une ambiguite qui touche a la securite, la gouvernance, ou un choix "
@@ -778,6 +841,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
         + _DIRECTIVE_RIGUEUR
+        + (_MODE_SCIENTIFIQUE if _mode_scientifique_demande(requete) else "")
         + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc
         + design_bloc + directives_bloc + coherence_bloc + integ_bloc + gardefou_bloc
     )
