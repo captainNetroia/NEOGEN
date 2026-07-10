@@ -379,6 +379,7 @@ function renderAnalyse(){
     +'<div class="prov-tabs" style="margin-bottom:18px">'
     +'<span class="prov-tab active" data-anlz-tab="analyse" onclick="anlzTab(\'analyse\')">'+t('analyse.onglet_analyse')+'</span>'
     +'<span class="prov-tab" data-anlz-tab="ingenieur" onclick="anlzTab(\'ingenieur\')">'+t('analyse.onglet_ingenieur')+'</span>'
+    +'<span class="prov-tab" data-anlz-tab="scientifique" onclick="anlzTab(\'scientifique\')">'+t('analyse.onglet_scientifique')+'</span>'
     +'</div>'
     +'<div data-anlz-pane="analyse">'
     +'<div class="agent-chat-mount" data-agent="analyste" data-titre="📊 '+t('analyse.onglet_analyse')+'" data-sub="'+t('analyse.analyste_sub')+'"></div>'
@@ -417,6 +418,13 @@ function renderAnalyse(){
     +'<div style="font-size:11px;opacity:.55;margin-bottom:12px">'+t('analyse.interventions_desc')+'</div>'
     +'<div id="ingenieur-corps" style="font-size:12px">'+t('analyse.chargement')+'</div>'
     +'</div>'
+    +'</div>'
+    +'</div>'
+    +'<div data-anlz-pane="scientifique" style="display:none">'
+    +'<div class="agent-chat-mount" data-agent="scientifique" data-titre="🧪 '+t('analyse.onglet_scientifique')+'" data-sub="'+t('analyse.scientifique_sub')+'"></div>'
+    +'<div class="panel glass">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:10px">'+t('analyse.scientifique_protocole_titre')+'</div>'
+    +'<div style="font-size:12px;color:var(--mut);line-height:1.7">'+t('analyse.scientifique_protocole_desc')+'</div>'
     +'</div>'
     +'</div>';
   _analyseRendu=true;
@@ -3371,6 +3379,9 @@ function buildChat(mount){
     +'<input type="checkbox" id="ececb-'+role+'"><span>'+svgIcon('eco',13)+' Eco</span></label>'
     +'<button class="agent-chat-convs-btn" id="acconvs-'+role+'" title="Conversations">'+svgIcon('conversations',15)+'</button>'
     +'<label class="eco-toggle eclair-toggle" id="aceclair-'+role+'" title="Mode ÉCLAIR : compression intelligente du contexte — économisez 30 à 50% sur vos tokens lors des longues conversations (détection de dérive incluse)"><input type="checkbox" id="eclrcb-'+role+'"><span>'+svgIcon('eclair',13)+' ÉCLAIR</span></label>'
+    +(role==='scientifique'
+      ?'<span class="eco-toggle" style="opacity:.85;cursor:default" title="Le protocole scientifique R&D (plans A/B/C, simulation, ponts) est permanent pour cet agent">🧪 R&D permanent</span>'
+      :'<label class="eco-toggle sci-toggle" id="acsci-'+role+'" title="Mode scientifique : protocole R&D (cartographie des inconnus, plans A/B/C, simulation, ponts) — l\'agent appelle Le Scientifique si la conception dépasse son domaine"><input type="checkbox" id="scicb-'+role+'"><span>🧪 Sci</span></label>')
     +'<button class="agent-chat-clear" id="acclr-'+role+'" title="Effacer la conversation">'+svgIcon('close',14)+'</button></div>'
     +'<div class="agent-convs-panel" id="aconvp-'+role+'" style="display:none"></div>'
     +'<div class="agent-chat-log" id="aclog-'+role+'"></div>'
@@ -3567,9 +3578,14 @@ function buildChat(mount){
     if(msg==='/compat'){inp.value='';await _compact();return;}
     inp.value='';inp.style.height='auto';btn.disabled=true;
     add('ac-msg user',esc(msg));
+    // Mode scientifique : le prefixe declenche le detecteur backend (_mode_scientifique_demande)
+    // qui injecte le protocole R&D et se propage aux missions deleguees.
+    const _scicb=mount.querySelector('#scicb-'+role);
+    const _msgEnvoye=(_scicb&&_scicb.checked)?'[mode scientifique] '+msg:msg;
+    if(_scicb&&_scicb.checked)add('ac-trace','🧪 mode scientifique actif : protocole R&D (plans A/B/C + simulation + ponts)');
     let derniereReponse='';let forgeLine=null;
     try{
-      const body={message:msg,historique:hist};
+      const body={message:_msgEnvoye,historique:hist};
       if(_images.length){body.images=_images.map(function(i){return {b64:i.b64,mime:i.mime};});}_clearImg();
       if(_fichierB64){body.fichier_b64=_fichierB64;body.fichier_nom=_fichierNom;}_clearDoc();
       const resp=await fetch('/agent/'+role+'/chat/stream',{method:'POST',headers:_llmHdrs(),body:JSON.stringify(body)});
