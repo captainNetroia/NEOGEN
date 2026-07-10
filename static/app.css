@@ -807,6 +807,7 @@ body.dark .integ-key-wrap input{background:rgba(255,255,255,.07);border-color:rg
 .integ-model-dot{position:absolute;right:10px;width:9px;height:9px;border-radius:50%;background:rgba(100,116,139,.3);transition:background .2s,box-shadow .2s;pointer-events:none;}
 .integ-model-dot.ok{background:var(--ok);box-shadow:0 0 7px var(--ok);}
 .integ-model-dot.ko{background:var(--ko);box-shadow:0 0 5px var(--ko);}
+.integ-model-dot.warn{background:#d97706;box-shadow:0 0 5px #d97706;}
 #integ-status{margin-top:10px;font-size:13px;min-height:20px;}
 .integ-add-btn{font-size:13px;color:var(--acc);cursor:pointer;padding:8px 0 2px;font-weight:600;transition:opacity .15s;}
 .integ-add-btn:hover{opacity:.7;}

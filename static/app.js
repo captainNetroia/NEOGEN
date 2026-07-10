@@ -2621,9 +2621,10 @@ function _initIntegModeleUi(){
     const saved=localStorage.getItem('neogen_model_'+prov);
     if(saved)modelSel.value=saved;
     const hasKey=!!localStorage.getItem('neogen_key_'+prov);
-    keyIn.placeholder=hasKey?t('integ.cle_enregistree',{suffixe:localStorage.getItem('neogen_key_'+prov).slice(-4)}):p.ph;
+    const verified=localStorage.getItem('neogen_verified_'+prov)==='1';
+    keyIn.placeholder=hasKey?(verified?t('integ.cle_enregistree',{suffixe:localStorage.getItem('neogen_key_'+prov).slice(-4)}):t('integ.cle_non_verifiee',{suffixe:localStorage.getItem('neogen_key_'+prov).slice(-4)})):p.ph;
     keyIn.value='';
-    setDot(hasKey?'ok':'');
+    setDot(hasKey?(verified?'ok':'warn'):'');
   }
 
   function switchProv(prov){
@@ -6347,9 +6348,22 @@ function _obCompte(box,onDone,startMode,onBack){
       var prov=qr('#ob-prov3').value,key=(qr('#ob-key3').value||'').trim();
       if(prov&&key){
         var mdls={anthropic:['claude-opus-4-8'],openai:['gpt-5.2'],gemini:['gemini-3.1-pro-preview'],deepseek:['deepseek-v4-flash'],mistral:['mistral-large-latest'],local:['llama3.2']};
-        localStorage.setItem('neogen_key_'+prov,key);
-        localStorage.setItem('neogen_active_provider',prov);
-        localStorage.setItem('neogen_active_model',(mdls[prov]&&mdls[prov][0])||'');
+        var obModel=(mdls[prov]&&mdls[prov][0])||'';
+        /* On ne marque la cle active/enregistree QUE si elle repond reellement — sinon
+           l'UI Integrations l'affichait comme "enregistree" alors qu'elle n'avait jamais
+           ete testee, et le premier appel agent echouait en 401. */
+        try{
+          var vh={'Content-Type':'application/json','X-LLM-Provider':prov,'X-LLM-Model':obModel};
+          if(prov==='local'){if(key)vh['X-LLM-Base']=key;}else{vh['X-LLM-Key']=key;}
+          var vr=await fetch('/llm/verifier',{method:'POST',headers:vh});
+          var vd=await vr.json();
+          localStorage.setItem('neogen_key_'+prov,key);
+          if(vd&&vd.ok){
+            localStorage.setItem('neogen_verified_'+prov,'1');
+            localStorage.setItem('neogen_active_provider',prov);
+            localStorage.setItem('neogen_active_model',obModel);
+          }
+        }catch(e){localStorage.setItem('neogen_key_'+prov,key);}
       }
       var me=await _fetchMe();
       onDone(me);
