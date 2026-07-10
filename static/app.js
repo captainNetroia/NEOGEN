@@ -5011,6 +5011,49 @@ function _bulleProgression(jobId,titre,btn){
         el.appendChild(rBtn);
       }
       if(btn){btn.textContent='interrompu';btn.style.color='#d97706';btn.disabled=false;}
+
+    }else if(st.etat==='en_attente_decision'){
+      /* PONT forge <-> Jordan : le job a pose une question (demander_decision) et attend.
+         Sans cette branche, la bulle restait muette et le job bloque a vie — la question
+         vit dans le job (st.question/st.options), on la rend actionnable ICI. */
+      clearInterval(timer);
+      if(bar){bar.style.background='#a855f7';bar.style.boxShadow='0 0 6px rgba(168,85,247,.5)';}
+      el.querySelector('span[style*="animation"]').style.background='#a855f7';
+      el.querySelector('span[style*="animation"]').style.boxShadow='0 0 8px #a855f7';
+      el.style.borderColor='rgba(168,85,247,.6)';
+      el.style.boxShadow='0 0 28px rgba(168,85,247,.14),0 18px 44px rgba(0,0,0,.88)';
+      if(et){et.textContent='> decision requise — l\'ingenieur t\'attend';et.style.color='#a855f7';et.style.fontWeight='700';}
+      if(note)note.innerHTML='<div style="color:#e2e8f0;font-size:11px;line-height:1.5;white-space:pre-wrap;max-height:130px;overflow:auto">'
+        +esc(st.question||'Decision requise (question non transmise).')+'</div>';
+      const dWrap=document.createElement('div');
+      dWrap.style.cssText='margin-top:10px;display:flex;flex-direction:column;gap:6px';
+      function _envoyerDecision(reponse,srcBtn){
+        if(srcBtn){srcBtn.disabled=true;srcBtn.textContent='...';}
+        fetch('/savoir/evolution/ingenieur/decisions/'+encodeURIComponent(jobId)+'/repondre',{
+          method:'POST',headers:Object.assign({'Content-Type':'application/json'},_authHdrs()),
+          body:JSON.stringify({reponse:reponse})
+        }).then(function(r){return r.json();}).then(function(rd){
+          if(rd.job_id){el.remove();_bulleProgression(rd.job_id,titre,btn);}
+          else if(srcBtn){srcBtn.textContent='echec — reessaie';srcBtn.disabled=false;}
+        }).catch(function(){if(srcBtn){srcBtn.textContent='echec — reessaie';srcBtn.disabled=false;}});
+      }
+      (Array.isArray(st.options)?st.options:[]).forEach(function(o){
+        const ob=document.createElement('button');
+        ob.innerHTML='<b>'+esc(o.label||'')+'</b>'
+          +(o.description?'<br><span style="opacity:.7;font-size:10px">'+esc(o.description)+'</span>':'');
+        ob.style.cssText='padding:8px 10px;text-align:left;background:rgba(168,85,247,.10);border:1px solid rgba(168,85,247,.35);color:#e2e8f0;border-radius:6px;cursor:pointer;font-size:11px;line-height:1.4';
+        ob.onclick=function(){_envoyerDecision(o.label+(o.description?' — '+o.description:''),ob);};
+        dWrap.appendChild(ob);
+      });
+      const dInp=document.createElement('input');
+      dInp.placeholder='Ou ta reponse libre + Entree...';
+      dInp.style.cssText='padding:7px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(168,85,247,.25);color:#e2e8f0;border-radius:6px;font-size:11px;font-family:inherit';
+      dInp.addEventListener('keydown',function(e){
+        if(e.key==='Enter'&&dInp.value.trim()){dInp.disabled=true;_envoyerDecision(dInp.value.trim(),null);}
+      });
+      dWrap.appendChild(dInp);
+      el.appendChild(dWrap);
+      if(btn){btn.textContent='decision requise';btn.style.color='#a855f7';btn.disabled=false;}
     }
   },1500);
 }
