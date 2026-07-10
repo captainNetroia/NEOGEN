@@ -5171,8 +5171,18 @@ async function _injectUserCss(){
       (d.bulles||[]).slice(0,5).forEach(queueBubble);
     }catch(e){}
   }
+  /* Badge de decision bloquante (Evolution) : meme cadence que le poll de pensees,
+     independant de l'onglet ouvert -> visible meme si on n'a jamais ouvert
+     Dev&Analyse > Ingenieur (sinon le badge ne se met jamais a jour). */
+  async function pollDecisions(){
+    try{
+      if(typeof loadDecisionsIngenieur==='function')await loadDecisionsIngenieur();
+    }catch(e){}
+  }
   setTimeout(poll,5000);
   setInterval(poll,60000);
+  setTimeout(pollDecisions,6000);
+  setInterval(pollDecisions,60000);
 })();
 
 /* ===== SUPER-CAPACITE — evolution gouvernee ===== */
@@ -5567,19 +5577,37 @@ const _STATUT_META={
 };
 function _statutMeta(s){return _STATUT_META[s]||_STATUT_META.proposee;}
 
-/* Tableau de bord de L'INGENIEUR : patchs de code proposes, autorisations noyau
-   en attente (le mur : Jordan decide), badge rebuild requis. */
+/* Tableau de bord UNIFIE des decisions bloquantes, tous agents confondus :
+   jobs de forge de l'Ingenieur (relancables directement ici) + decisions
+   posees en chat par tout agent (scientifique, cerveau...) via
+   demander_decision (renvoie vers le fil de chat de l'agent, y repondre
+   depuis ce panneau viendrait dedoubler la conversation). */
+const AGENT_LABELS_DECISION={ingenieur:"L'Ingenieur",scientifique:'Le Scientifique',cerveau:'Le Cerveau',
+  createur:'Le Forgeron',veilleur:'Le Veilleur',secretaire:'Le Secretaire'};
 async function loadDecisionsIngenieur(){
   const wrap=document.getElementById('ing-decisions');
-  if(!wrap)return;
   try{
-    const r=await fetch('/savoir/evolution/ingenieur/decisions');
-    if(!r.ok){wrap.style.display='none';return;}
+    const r=await fetch('/savoir/evolution/decisions-en-attente');
+    if(!r.ok){if(wrap)wrap.style.display='none';_majBadgeDecisions(0);return;}
     const d=await r.json();
     const decisions=d.decisions||[];
+    _majBadgeDecisions(decisions.length);
+    if(!wrap)return; // panneau pas dans le DOM (onglet Ingenieur jamais ouvert) -> le badge suffit
     if(!decisions.length){wrap.style.display='none';wrap.innerHTML='';return;}
     wrap.style.display='';
     wrap.innerHTML=decisions.map(function(dec){
+      const nomAgent=AGENT_LABELS_DECISION[dec.agent]||dec.agent||'Un agent';
+      if(dec.source==='chat'){
+        return '<div class="panel glass" style="margin-bottom:12px;border-color:rgba(168,85,247,.35)">'
+          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+          +'<span style="font-size:16px">💬</span>'
+          +'<div style="font-size:12px;font-weight:700;color:#a855f7">'+esc(nomAgent)+' attend ta decision (dans son chat)</div>'
+          +'</div>'
+          +'<div style="font-size:13px;margin-bottom:12px;line-height:1.5">'+esc(dec.question||'')+'</div>'
+          +'<div style="font-size:11px;opacity:.65;margin-bottom:10px">Va dans l\'onglet '+esc(nomAgent)+' pour repondre — les options qu\'il propose sont deja cliquables dans le fil.</div>'
+          +'<button class="ing-dec-vue ghost" data-id="'+esc(dec.id)+'" style="font-size:12px;padding:6px 12px">J\'ai repondu, masquer</button>'
+          +'</div>';
+      }
       const opts=(dec.options||[]).map(function(o,i){
         return '<button class="ing-dec-opt ghost" data-job="'+esc(dec.job_id)+'" data-label="'+esc(o.label||'')+'" '
           +'style="font-size:12px;padding:8px 14px;text-align:left;display:block;width:100%;margin-bottom:6px;border-color:rgba(16,185,129,.4)">'
@@ -5589,7 +5617,7 @@ async function loadDecisionsIngenieur(){
       return '<div class="panel glass" style="margin-bottom:12px;border-color:rgba(16,185,129,.35)">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
         +'<span style="font-size:16px">🔧</span>'
-        +'<div style="font-size:12px;font-weight:700;color:#10b981">L\'Ingenieur attend ta decision — '+esc(dec.titre||'')+'</div>'
+        +'<div style="font-size:12px;font-weight:700;color:#10b981">'+esc(nomAgent)+' attend ta decision — '+esc(dec.titre||'')+'</div>'
         +'</div>'
         +'<div style="font-size:13px;margin-bottom:12px;line-height:1.5">'+esc(dec.question||'')+'</div>'
         +opts
@@ -5627,7 +5655,36 @@ async function loadDecisionsIngenieur(){
         _envoyerDecision(b.dataset.job,(inp&&inp.value)||'',b);
       };
     });
-  }catch(e){wrap.style.display='none';}
+    wrap.querySelectorAll('.ing-dec-vue').forEach(function(b){
+      b.onclick=async function(){
+        b.disabled=true;
+        try{await fetch('/savoir/evolution/decisions-en-attente/'+encodeURIComponent(b.dataset.id)+'/vue',{method:'POST'});}catch(e){}
+        loadDecisionsIngenieur();
+      };
+    });
+  }catch(e){if(wrap)wrap.style.display='none';}
+}
+
+/* Badge de notification dans l'onglet Evolution (sidebar) : le nombre deja
+   affiche a cote d'Evolution servait aux propositions, on y ajoute un
+   signal visuel distinct pour les decisions bloquantes tous agents. */
+function _majBadgeDecisions(n){
+  const nav=document.getElementById('side-evolution');
+  let badge=document.getElementById('badge-decisions-evolution');
+  if(!n){if(badge)badge.remove();return;}
+  if(!document.getElementById('_decpulse-style')){
+    const s=document.createElement('style');s.id='_decpulse-style';
+    s.textContent='@keyframes _decpulse{0%,100%{opacity:1}50%{opacity:.4}}';
+    document.head.appendChild(s);
+  }
+  if(!badge && nav){
+    badge=document.createElement('span');
+    badge.id='badge-decisions-evolution';
+    badge.title='Decision(s) en attente — a repondre dans Dev & Analyse > Ingenieur/Scientifique';
+    badge.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;margin-left:6px;background:#a855f7;color:#fff;font-size:10px;font-weight:700;border-radius:8px;box-shadow:0 0 6px rgba(168,85,247,.6);animation:_decpulse 1.5s ease-in-out infinite';
+    nav.appendChild(badge);
+  }
+  if(badge)badge.textContent=String(n);
 }
 
 async function loadIngenieur(){

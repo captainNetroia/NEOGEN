@@ -766,6 +766,33 @@ def ingenieur_repondre_decision(job_id: str, reponse: str = Body(embed=True),
     return r
 
 
+@router.get("/evolution/decisions-en-attente")
+def decisions_en_attente_toutes(authorization: str | None = Header(default=None)):
+    """Vue UNIFIEE de toute decision bloquante, tous agents confondus : jobs de forge de
+    l'Ingenieur (asynchrone, relancable) + decisions posees en chat direct par tout agent
+    (scientifique, cerveau...) via demander_decision. Une seule source pour le panneau UI
+    et le badge de notification dans l'onglet Evolution."""
+    _gate_owner(authorization)
+    import ingenieur as _ing
+    import agent_core as _ac
+    ing = [dict(d, source="ingenieur", repondre_via="job") for d in _ing.lister_decisions_en_attente()]
+    chat = [dict(d, source="chat", repondre_via="chat") for d in _ac.lister_decisions_chat()]
+    toutes = sorted(ing + chat, key=lambda d: d.get("ts", 0), reverse=True)
+    return {"decisions": toutes, "total": len(toutes)}
+
+
+@router.post("/evolution/decisions-en-attente/{decision_id}/vue")
+def decision_chat_marquer_vue(decision_id: str, authorization: str | None = Header(default=None)):
+    """Marque une decision issue du chat (scientifique/cerveau) comme traitee, une fois que
+    Jordan y a repondu directement dans le fil de conversation de l'agent concerne."""
+    _gate_owner(authorization)
+    import agent_core as _ac
+    ok = _ac.marquer_decision_chat_repondue(decision_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="decision introuvable")
+    return {"ok": True}
+
+
 # ── Conscience du systeme : ce que NEOGEN sait de lui-meme ────────────────────────
 
 @router.get("/conscience")

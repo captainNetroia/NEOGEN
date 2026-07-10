@@ -1068,6 +1068,88 @@ _MSG_STEP_BRUT = "Je n'ai pas pu formuler une reponse structuree. Reformule ta d
 _MSG_LIMITE_ETAPES = "J'ai atteint la limite d'etapes. Reformule ou precise ta demande."
 
 
+# ---------------------------------------------------------------------------
+# DECISIONS EN CHAT — registre partage, complementaire de forge_jobs.json
+# (jobs asynchrones de l'Ingenieur). Un agent en chat direct (scientifique,
+# cerveau...) qui appelle demander_decision n'a pas de job de forge : sa
+# question vit dans le fil de conversation, invisible du panneau Dev&Analyse.
+# Ce registre trace CES decisions-la pour que le panneau puisse les fusionner
+# avec celles de l'Ingenieur (une seule source de verite cote UI).
+# Bornee a 50 entrees, ne leve jamais. Cree le 2026-07-10 (Jordan).
+# ---------------------------------------------------------------------------
+def _chemin_decisions_chat() -> str:
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "decisions_chat.json")
+
+
+def _tracer_decision_chat(role: str, question: str, options: list) -> None:
+    try:
+        import os, time, uuid
+        chemin = _chemin_decisions_chat()
+        d = []
+        if os.path.exists(chemin):
+            with open(chemin, encoding="utf-8") as f:
+                d = json.load(f)
+            if not isinstance(d, list):
+                d = []
+        d.append({
+            "id": uuid.uuid4().hex[:12],
+            "agent": role,
+            "question": question,
+            "options": options,
+            "ts": time.time(),
+            "repondue": False,
+        })
+        d = d[-50:]
+        os.makedirs(os.path.dirname(chemin), exist_ok=True)
+        with open(chemin, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def lister_decisions_chat() -> list[dict]:
+    """Decisions non repondues, plus recente d'abord. Utilise par le panneau UI."""
+    try:
+        import os
+        chemin = _chemin_decisions_chat()
+        if not os.path.exists(chemin):
+            return []
+        with open(chemin, encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, list):
+            return []
+        attente = [e for e in d if isinstance(e, dict) and not e.get("repondue")]
+        return sorted(attente, key=lambda e: e.get("ts", 0), reverse=True)
+    except Exception:
+        return []
+
+
+def marquer_decision_chat_repondue(decision_id: str) -> bool:
+    """Marque une decision comme traitee (l'agent y a repondu dans son propre fil de chat) —
+    evite qu'elle reste affichee dans le panneau une fois la conversation reprise."""
+    try:
+        import os
+        chemin = _chemin_decisions_chat()
+        if not os.path.exists(chemin):
+            return False
+        with open(chemin, encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, list):
+            return False
+        trouve = False
+        for e in d:
+            if isinstance(e, dict) and e.get("id") == decision_id:
+                e["repondue"] = True
+                trouve = True
+        if trouve:
+            with open(chemin, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False, indent=2)
+        return trouve
+    except Exception:
+        return False
+
+
 def _parse_step(txt: str) -> AgentStep:
     """Parse TOLERANT d'un AgentStep (robuste face aux petits modeles Ollama)."""
     obj = _extraire_json(txt)
@@ -1290,6 +1372,7 @@ def dialoguer(role: str, message: str, historique: list[dict] | None = None,
                 messages.append({"role": "user", "content": f"[Erreur outil] {obs}"})
                 continue
             _emit({"type": "decision_requise", "agent": role, "question": question, "options": options})
+            _tracer_decision_chat(role, question, options)
             _maj_bandit(succes=True)
             return json.dumps({"_decision_requise": True, "question": question, "options": options},
                               ensure_ascii=False)
