@@ -250,8 +250,25 @@ def invoquer(nom: str, /, **params) -> dict:
             kw = params
         resultat = fn(**kw)
         rob.journaliser(f"capacite forgee '{nom}' invoquee", "info", source="capacites_forgees")
+        _tracer_invocation(nom)
         return {"ok": True, "resultat": resultat}
     return {"ok": False, "erreur": "erreur capturee (voir journal)"}
+
+
+def _tracer_invocation(nom: str) -> None:
+    """Incremente le compteur d'invocations reelles d'une cellule dans le registre.
+    Sans ce compteur, 'capacite_jamais_invoquee' (gaps.json) n'a aucune donnee fiable
+    pour distinguer une cellule vraiment orpheline d'une cellule utilisee en silence."""
+    import time
+    try:
+        reg = _charger_registre()
+        if nom not in reg:
+            return
+        reg[nom]["invocations"] = int(reg[nom].get("invocations", 0)) + 1
+        reg[nom]["derniere_invocation"] = time.time()
+        _sauver_registre(reg)
+    except Exception:
+        pass
 
 
 # ── Auto-verification offline (cree une cellule temporaire, l'integre, l'invoque) ─
