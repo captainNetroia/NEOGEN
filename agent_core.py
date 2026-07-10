@@ -120,6 +120,7 @@ PROFILS: dict[str, dict] = {
         "titre": "Le Cerveau",
         "tier": "fort",
         "delegue": True,
+        "permet_decision": True,  # bulle demander_decision : choix qui appartiennent a Jordan
         "outils": ["lister_creations", "genealogie", "conseiller", "controler_ecran",
                    "lister_routines", "rejouer_routine", "ouvrir_url", "fermer_onglet", "regarder_ecran",
                    "objectif_rpa", "executer_mission_rpa", "remote_control", "contexte_navigateur",
@@ -144,12 +145,16 @@ PROFILS: dict[str, dict] = {
             "supprime jamais). 'capacite_forgee(nom=\"appliquer_lignee_genomique_pensee\", "
             "params={\"pensees\":{...}})' propage l'invalidation d'une pensee a ses descendantes.\n"
             "SYSTEME RPG DES AGENTS (niveaux/badges/influence, idee 'Agents RPG') : "
+            "'capacite_forgee(nom=\"calculer_energie_agent\", params={\"role\":\"ingenieur\"})' calcule "
+            "l'energie REELLE d'un agent depuis les capacites qu'il a forgees (score x usage, champ "
+            "agent_forgeur du registre — vide sur l'historique, rempli pour toute forge future). "
             "'capacite_forgee(nom=\"calculer_niveau_agent\", params={\"energie\":N})' convertit un score "
             "d'energie en niveau lettre (E a Divin). 'capacite_forgee(nom=\"forger_badge_depuis_competence\", "
             "params={\"nom_competence\":\"...\"})' genere un badge ASCII a partir d'une capacite forgee "
             "existante (score + invocations reelles). 'capacite_forgee(nom=\"ponderer_poids_decision\", "
             "params={\"niveau_lettre\":\"...\", \"poids_base\":1.0})' pondere le poids d'un agent dans une "
-            "decision collective selon son niveau. Les 3 se combinent : energie -> niveau -> poids ou badge.\n"
+            "decision collective selon son niveau. Chaine complete pour 'quel est le niveau de tel agent ?' : "
+            "calculer_energie_agent(role) -> calculer_niveau_agent(energie) -> ponderer_poids_decision ou badge.\n"
             "REGLE FONDAMENTALE : Ne JAMAIS inventer une liste de silos, de capacites ou d'etat du "
             "systeme. Utilise toujours tes outils pour lire l'etat REEL. Si tu ne sais pas, dis-le "
             "et propose d'utiliser l'outil adapte.\n\n"
@@ -770,6 +775,39 @@ _DIRECTIVE_RIGUEUR = (
 
 
 # ---------------------------------------------------------------------------
+# DIRECTIVE CONSTAT -> PROPOSITION -> DECISION — active pour TOUS les agents.
+# Methode validee par Jordan (2026-07-10, chantier capacites orphelines) et
+# elevee au rang de directive systemique : un manque identifie n'est JAMAIS
+# seulement signale — il est toujours accompagne d'une proposition concrete,
+# et la decision revient a Jordan quand elle lui appartient (bulle
+# demander_decision pour les agents qui ont l'outil : cerveau, ingenieur,
+# scientifique). Complement de _DIRECTIVE_RIGUEUR : rigueur = comment agir,
+# ceci = comment raisonner face aux inconnus et aux trous.
+# ---------------------------------------------------------------------------
+_DIRECTIVE_CONSTAT_PROPOSITION = (
+    "\nMETHODE 3 ETATS + PROPOSITION (tous agents — toute demande substantielle : "
+    "projet, idee, fonction, construction, reparation, evolution) :\n"
+    "1. AVANT d'agir, classe ce que tu sais : CERTAIN (verifie par outil ou donnee "
+    "reelle), INCONNU (pas encore verifie), ANGLE MORT (ce que la demande ne couvre "
+    "pas : champ absent, cas limite, pont manquant, integration boot/surveillance "
+    "oubliee, appelant existant impacte).\n"
+    "2. Chaque INCONNU -> une verification concrete par outil AVANT de construire "
+    "dessus. Jamais coder ou affirmer sur une supposition.\n"
+    "3. Chaque MANQUE ou ANGLE MORT identifie -> ne JAMAIS seulement le signaler : "
+    "formule une PROPOSITION concrete pour le combler et rendre l'objectif "
+    "operationnel (avec alternative si pertinent, et le compromis de chaque option "
+    "en une ligne). Regle absolue : jamais un 'il manque X' sans 'voici comment "
+    "combler X'.\n"
+    "4. A QUI revient la decision ? Si le choix appartient a Jordan (securite, "
+    "gouvernance, irreversible, orientation du produit ou de l'objectif) : ouvre une "
+    "bulle 'demander_decision' si tu as cet outil, sinon presente constat + "
+    "propositions dans ta reponse et laisse Jordan trancher. Ambiguite mineure "
+    "(nommage, detail d'implementation) : tranche seul, documente en une ligne, va "
+    "jusqu'au bout.\n"
+)
+
+
+# ---------------------------------------------------------------------------
 # MODE SCIENTIFIQUE R&D — mode ACTIVABLE (jamais permanent : son protocole
 # complet gonflerait chaque requete simple). Active quand la requete contient
 # un declencheur, ou quand une mission deleguee le propage explicitement.
@@ -950,6 +988,7 @@ def _systeme(role: str, profil: dict, eco: bool = False, requete: str = "",
            "redondance, pas de reformulation de la question. Reponse la plus courte qui repond "
            "vraiment. N'appelle un outil que s'il est indispensable.\n\n" if eco else "")
         + _DIRECTIVE_RIGUEUR
+        + _DIRECTIVE_CONSTAT_PROPOSITION
         + (_MODE_SCIENTIFIQUE if (profil.get("mode_scientifique")
                                   or _mode_scientifique_demande(requete)) else "")
         + "OUTILS DISPONIBLES :\n" + desc + skills_bloc + memoire_bloc + savoir_bloc

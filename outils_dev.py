@@ -202,6 +202,16 @@ def outil_forger_capacite(besoin: str = "", titre: str = "", ancrage: str = "man
     statut = r.get("etat", "forgee")
     msg = (f"[forger_capacite] '{nom}' {statut} (score {r.get('score')}, "
            f"{r.get('tentatives')} tentative(s), verdict {r.get('verdict')})")
+    _caller = kw.get("_caller")
+    if nom and _caller:
+        try:
+            import capacites_forgees as _cf
+            reg = _cf._charger_registre()
+            if nom in reg and not reg[nom].get("agent_forgeur"):
+                reg[nom]["agent_forgeur"] = _caller
+                _cf._sauver_registre(reg)
+        except Exception:
+            pass
     point = (ancrage or "manuel").strip()
     if point and point != "manuel" and nom:
         try:
