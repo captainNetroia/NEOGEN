@@ -3605,7 +3605,20 @@ function buildChat(mount){
           else if(evt.type==='observation'){add('ac-trace','&#8594; '+esc((evt.texte||'').slice(0,240)));}
           else if(evt.type==='delegation'){var _tm=evt.tier?(' <span class="tag ok">'+esc(evt.tier)+'</span>'):'';add('ac-trace deleg','&#129504; &#8594; '+esc(evt.vers||'')+_tm+' : '+esc(evt.mission||''));}
           else if(evt.type==='forge'){var ft='&#9881; forge : '+esc(((evt.stade||'')+' '+(evt.msg||evt.message||'')).trim()).slice(0,180);if(!forgeLine){forgeLine=add('ac-trace action',ft);}else{forgeLine.innerHTML=ft;log.scrollTop=log.scrollHeight;}}
-          else if(evt.type==='reponse'){var _rt=evt.texte||'';var _isStep=_rt.trimStart().startsWith('{')&&['"outil"','"pensee"','"arguments"'].filter(function(k){return _rt.includes(k);}).length>=2;if(_isStep){add('ac-trace action','&#9888; Reponse illisible (petit modele). Reformule ta demande.');}else{derniereReponse=_rt;if(_rt)add('ac-msg agent','<div class="ac-md">'+_mdLite(_rt)+'</div>');}}
+          else if(evt.type==='decision_requise'){
+            // Bulle de decision interactive en plein chat : question + options cliquables + rappel du champ libre.
+            var _dopts=(evt.options||[]).map(function(o){
+              return '<button class="ghost ac-dec-opt" data-v="'+esc(o.label||'')+'" style="display:block;width:100%;text-align:left;font-size:12px;padding:8px 12px;margin:6px 0;border-color:rgba(16,185,129,.4)"><b>'+esc(o.label||'')+'</b>'
+                +(o.description?'<div style="opacity:.65;font-size:11px;margin-top:2px">'+esc(o.description)+'</div>':'')+'</button>';
+            }).join('');
+            var _dcard=add('ac-msg agent',
+              '<div style="font-size:12px;font-weight:700;margin-bottom:6px">🧭 Decision attendue</div>'
+              +'<div style="font-size:13px;margin-bottom:8px;line-height:1.5">'+esc(evt.question||'')+'</div>'+_dopts
+              +'<div style="opacity:.6;font-size:11px;margin-top:4px">Clique une option, ou ecris ta reponse librement dans le champ ci-dessous.</div>');
+            if(_dcard&&_dcard.querySelectorAll)_dcard.querySelectorAll('.ac-dec-opt').forEach(function(b){b.onclick=function(){inp.value=this.getAttribute('data-v')||'';envoyer();};});
+            derniereReponse='[Decision demandee] '+(evt.question||'');
+          }
+          else if(evt.type==='reponse'){var _rt=evt.texte||'';if(_rt.includes('"_decision_requise"')){/* marqueur technique : la bulle decision_requise gere l'affichage */}else{var _isStep=_rt.trimStart().startsWith('{')&&['"outil"','"pensee"','"arguments"'].filter(function(k){return _rt.includes(k);}).length>=2;if(_isStep){add('ac-trace action','&#9888; Reponse illisible (petit modele). Reformule ta demande.');}else{derniereReponse=_rt;if(_rt)add('ac-msg agent','<div class="ac-md">'+_mdLite(_rt)+'</div>');}}}
 
           else if(evt.type==='erreur'){add('ac-trace action','&#9888; '+esc(evt.message||''));}
           else if(evt.type==='derive'){add('ac-trace','&#9889; Mode ÉCLAIR — dérive détectée (score '+esc(String(evt.score||''))+') : recadrage appliqué');}
